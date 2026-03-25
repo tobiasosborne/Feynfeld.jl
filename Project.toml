@@ -1,0 +1,15 @@
+name = "Feynfeld"
+uuid = "988dcb6d-6268-4208-8b97-fedb35c5f86e"
+version = "0.1.0"
+authors = ["Tobias J. Osborne <tobias.osborne@itp.uni-hannover.de>"]
+license = "GPL-3.0"
+
+[deps]
+LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
+TensorGR = "7336a8e7-6d30-4255-8f1d-f4d86d88ac00"
+
+[extras]
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[targets]
+test = ["Test"]
