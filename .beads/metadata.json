@@ -2,5 +2,6 @@
   "database": "dolt",
   "backend": "dolt",
   "dolt_mode": "server",
-  "dolt_database": "feynfeld"
+  "dolt_database": "feynfeld",
+  "project_id": "9092f554-f369-46b5-a236-cdf3d4d8a789"
 }
