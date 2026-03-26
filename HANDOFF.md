@@ -25,8 +25,9 @@ project with its own workflow and handoff protocol.
 
 - **Phase 0 COMPLETE** (5/5 tasks, epic closed)
 - **Phase 1a COMPLETE** (7/7 tasks, epic closed)
-- **Phase 1b IN PROGRESS** (0/9 tasks — Dirac algebra, research + designs done)
-- **Full test suite: 284 tests, ALL PASS**
+- **Phase 1b COMPLETE** (9/9 tasks, epic closed)
+- **Phase 1c IN PROGRESS** (0/4 tasks — SU(N) colour, research + designs done)
+- **Full test suite: 430 tests, ALL PASS**
 - Beads: `bd ready` for available work. Note: beads DB may need `bd init --force --prefix feynfeld && bd backup restore` on fresh session.
 
 ---
@@ -106,17 +107,16 @@ Two reviewer agents ran. Key findings fixed:
 
 ## TODO Next Session
 
-1. **Phase 1b: Dirac algebra** (`feynfeld-mpw` epic, 9 tasks)
-   - Research done (Dirac deep-dive agent), two design proposals done
-   - Start with `feynfeld-mpw.1`: DiracGamma type with BMHV dimension tagging
-   - Then `feynfeld-mpw.2`: DOT/DiracChain non-commutative product
-   - Then `feynfeld-mpw.3`: DiracTrick core simplification rules
-2. Phase 1c (SU(N) colour) and Phase 1d (PaVe) are unblocked and parallel-safe
+1. **Phase 1c: SU(N) colour algebra** (`feynfeld-sem` epic, 4 tasks)
+   - Research done, two design proposals done
+   - Start with `feynfeld-sem.1`: SU(N) type system
+   - Then SUNSimplify, SUNTrace, validation
+2. Phase 1d (PaVe) is unblocked after 1c
 
 ## Quick Commands
 
 ```bash
 bd ready                       # available work
-bd show feynfeld-mpw           # Phase 1b epic (0/9 done)
-julia --project=. -e 'using Pkg; Pkg.test()'  # full test suite (284 tests)
+bd show feynfeld-sem           # Phase 1c epic (0/4)
+julia --project=. -e 'using Pkg; Pkg.test()'  # full test suite (430 tests)
 ```

@@ -31,6 +31,10 @@ include("algebra/dirac_equation.jl")
 include("algebra/dirac_simplify.jl")
 # Dirac gamma5 scheme system (NDR/BMHV/Larin)
 include("algebra/dirac_scheme.jl")
+# SU(N) colour algebra
+include("algebra/colour_types.jl")
+include("algebra/colour_trace.jl")
+include("algebra/colour_simplify.jl")
 # ExpandScalarProduct (bilinear expansion)
 include("algebra/expand_sp.jl")
 # Levi-Civita tensor

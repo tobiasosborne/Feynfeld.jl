@@ -65,18 +65,39 @@ end
     @test length(chain) == 2
 end
 
-@testset "SU(N) colour" begin
-    T = SUNMatrix(:T, :a)
-    @test T.a == :a
+@testset "SU(N) colour types" begin
+    a = SUNIndex(:a)
+    b = SUNIndex(:b)
+    i = SUNFIndex(:i)
+    j = SUNFIndex(:j)
 
-    f = SUNF(:a, :b, :c)
-    @test f.a == :a && f.b == :b && f.c == :c
+    # Generator
+    T = SUNT(a)
+    @test T.a == a
 
-    d = SUND(:a, :b, :c)
-    @test d isa FeynExpr
+    # Structure constants
+    f = SUNF(a, b, SUNIndex(:c))
+    @test f isa SUNF
+    @test f.sign == 1  # already sorted
 
-    δ = ColourDelta(:a, :b)
-    @test δ.a == :a
+    # Antisymmetry: f(b,a,c) has sign -1
+    f2 = SUNF(b, a, SUNIndex(:c))
+    @test f2.sign == -1
+
+    # Symmetric d
+    d = SUND(a, b, SUNIndex(:c))
+    @test d isa SUND
+
+    # Deltas (canonical ordering)
+    δ = SUNDelta(b, a)
+    @test δ.a == a  # sorted: a < b
+
+    δF = SUNFDelta(j, i)
+    @test δF.i == i  # sorted: i < j
+
+    # SUNTF
+    tf = SUNTF([a, b], i, j)
+    @test length(tf.adj) == 2
 end
 
 @testset "PaVe integrals" begin

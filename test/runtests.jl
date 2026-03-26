@@ -39,6 +39,9 @@ import TensorGR
     @testset "Dirac Phase1b" begin
         include("algebra/test_dirac_phase1b.jl")
     end
+    @testset "Colour" begin
+        include("algebra/test_colour.jl")
+    end
     @testset "MUnit Lorentz" begin
         include("algebra/test_munit_lorentz.jl")
     end

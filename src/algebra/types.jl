@@ -4,7 +4,6 @@
 # Lorentz algebra (Pair, Momentum) is in dedicated files.
 
 export LorentzIndex, FourMomentum
-export SUNMatrix, SUNF, SUND, ColourDelta
 export PaVe, A0, B0, B1, C0, D0
 export Amplitude, FTerm, FeynExpr
 
@@ -56,48 +55,7 @@ end
 # Defined in dirac_types.jl (Phase 1b)
 
 # ── Colour algebra (SU(N)) ──────────────────────────────────────────
-
-"""
-    SUNMatrix(name, a)
-
-A generator T^a of SU(N) in the fundamental representation.
-"""
-struct SUNMatrix <: FeynExpr
-    name::Symbol
-    a::Symbol
-end
-
-"""
-    SUNF(a, b, c)
-
-SU(N) structure constants f^{abc}.
-"""
-struct SUNF <: FeynExpr
-    a::Symbol
-    b::Symbol
-    c::Symbol
-end
-
-"""
-    SUND(a, b, c)
-
-SU(N) symmetric structure constants d^{abc}.
-"""
-struct SUND <: FeynExpr
-    a::Symbol
-    b::Symbol
-    c::Symbol
-end
-
-"""
-    ColourDelta(a, b)
-
-Kronecker delta δ^{ab} in colour space.
-"""
-struct ColourDelta <: FeynExpr
-    a::Symbol
-    b::Symbol
-end
+# Defined in colour_types.jl (Phase 1c)
 
 # ── Passarino-Veltman integral symbols ───────────────────────────────
 
