@@ -45,6 +45,9 @@ import TensorGR
     @testset "AlgExpr" begin
         include("algebra/test_alg_expr.jl")
     end
+    @testset "FermionSpinSum" begin
+        include("algebra/test_fermion_spin_sum.jl")
+    end
     @testset "MUnit Lorentz" begin
         include("algebra/test_munit_lorentz.jl")
     end

@@ -45,6 +45,8 @@ include("algebra/alg_expr.jl")
 include("algebra/contract.jl")
 # AlgSum operations (contract, expand_sp, dirac_trace_alg)
 include("algebra/alg_ops.jl")
+# FermionSpinSum: completeness relations for spin-averaged |M|²
+include("algebra/fermion_spin_sum.jl")
 # TensorGR bridge (Minkowski registry)
 include("algebra/minkowski.jl")
 
