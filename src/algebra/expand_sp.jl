@@ -33,9 +33,8 @@ function expand_scalar_product(p::Feynfeld.Pair; ctx::SPContext=SPContext())
     a_terms = _expand_slot(p.a)
     b_terms = _expand_slot(p.b)
 
-    # If neither slot was a MomentumSum, return unchanged
-    (length(a_terms) == 1 && length(b_terms) == 1 &&
-     a_terms[1][1] == 1 // 1 && b_terms[1][1] == 1 // 1) && return [(1 // 1, p)]
+    # If neither slot is a MomentumSum, return unchanged
+    !(p.a isa MomentumSum || p.b isa MomentumSum) && return [(1 // 1, p)]
 
     result = Tuple{Rational{Int},Any}[]
     for (ca, aa) in a_terms
