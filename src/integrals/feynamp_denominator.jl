@@ -66,6 +66,28 @@ end
 
 FeynAmpDenominator(ps::AbstractPropagator...) = FeynAmpDenominator(collect(ps))
 
+# Equality and hash for propagator types
+Base.:(==)(a::PropagatorDenominator, b::PropagatorDenominator) =
+    a.momentum == b.momentum && a.mass == b.mass
+Base.hash(p::PropagatorDenominator, h::UInt) =
+    hash(p.mass, hash(p.momentum, hash(:PD, h)))
+
+Base.:(==)(a::StandardPropagator, b::StandardPropagator) =
+    a.momentum == b.momentum && a.eikonal == b.eikonal &&
+    a.mass_sq == b.mass_sq && a.power == b.power && a.eta_sign == b.eta_sign
+Base.hash(p::StandardPropagator, h::UInt) =
+    hash(p.eta_sign, hash(p.power, hash(p.mass_sq, hash(p.eikonal, hash(p.momentum, hash(:SP, h))))))
+
+Base.:(==)(a::GenericPropagator, b::GenericPropagator) =
+    a.expr == b.expr && a.power == b.power
+Base.hash(p::GenericPropagator, h::UInt) =
+    hash(p.power, hash(p.expr, hash(:GP, h)))
+
+Base.:(==)(a::FeynAmpDenominator, b::FeynAmpDenominator) =
+    a.propagators == b.propagators
+Base.hash(f::FeynAmpDenominator, h::UInt) =
+    hash(f.propagators, hash(:FAD, h))
+
 # Multiply FADs = concatenate propagator lists
 Base.:*(a::FeynAmpDenominator, b::FeynAmpDenominator) =
     FeynAmpDenominator(vcat(a.propagators, b.propagators))

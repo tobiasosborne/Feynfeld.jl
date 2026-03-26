@@ -4,7 +4,6 @@
 # Lorentz algebra (Pair, Momentum) is in dedicated files.
 
 export LorentzIndex, FourMomentum
-export PaVe, A0, B0, B1, C0, D0
 export Amplitude, FTerm, FeynExpr
 
 # ── Abstract base ────────────────────────────────────────────────────

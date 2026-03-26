@@ -35,6 +35,10 @@ struct PaVe{N} <: FeynExpr
     function PaVe{N}(indices::Vector{Int}, invariants::Vector{Any},
                      masses::Vector{Any}) where {N}
         N >= 1 || error("PaVe{N}: N must be >= 1, got $N")
+        # 1-point functions have no tensor indices with value >= 1
+        if N == 1 && any(i -> i >= 1, indices)
+            error("PaVe{1}: tensorial 1-point functions with index >= 1 do not exist")
+        end
         n_inv = N * (N - 1) ÷ 2
         length(invariants) == n_inv || error(
             "PaVe{$N}: expected $n_inv invariants, got $(length(invariants))")
