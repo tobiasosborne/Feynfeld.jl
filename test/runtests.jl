@@ -27,6 +27,9 @@ import TensorGR
     @testset "Contract" begin
         include("algebra/test_contract.jl")
     end
+    @testset "DiracChain" begin
+        include("algebra/test_dirac_chain.jl")
+    end
     @testset "MUnit Lorentz" begin
         include("algebra/test_munit_lorentz.jl")
     end

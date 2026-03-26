@@ -17,6 +17,8 @@ include("algebra/pair.jl")
 include("algebra/sp_context.jl")
 # Dirac algebra types (gamma matrices, spinors, chains)
 include("algebra/dirac_types.jl")
+# Non-commutative Dirac chain (DOT) and DotSimplify
+include("algebra/dirac_chain.jl")
 # ExpandScalarProduct (bilinear expansion)
 include("algebra/expand_sp.jl")
 # Levi-Civita tensor
