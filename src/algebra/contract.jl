@@ -153,3 +153,4 @@ function _simplify_result(coeff, remaining::Vector{Feynfeld.Pair})
         return (coeff, Tuple(remaining))
     end
 end
+

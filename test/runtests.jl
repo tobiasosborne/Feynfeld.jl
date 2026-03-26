@@ -42,6 +42,9 @@ import TensorGR
     @testset "Colour" begin
         include("algebra/test_colour.jl")
     end
+    @testset "AlgExpr" begin
+        include("algebra/test_alg_expr.jl")
+    end
     @testset "MUnit Lorentz" begin
         include("algebra/test_munit_lorentz.jl")
     end

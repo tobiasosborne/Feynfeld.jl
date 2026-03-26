@@ -133,3 +133,4 @@ function _trace_with_g5(elems)
     # For now, return the symbolic form without explicit i
     _mul_coeff(4 * LEVI_CIVITA_SIGN, eps)
 end
+

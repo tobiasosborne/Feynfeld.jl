@@ -59,3 +59,4 @@ end
 _expand_slot(m::Momentum) = [(1 // 1, m)]
 _expand_slot(li::LorentzIndex) = [(1 // 1, li)]
 _expand_slot(ms::MomentumSum) = [(c, Momentum(s, ms.dim)) for (c, s) in ms.terms]
+

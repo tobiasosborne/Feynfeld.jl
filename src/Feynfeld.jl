@@ -39,8 +39,12 @@ include("algebra/colour_simplify.jl")
 include("algebra/expand_sp.jl")
 # Levi-Civita tensor
 include("algebra/eps.jl")
+# Algebraic expression tree (AlgTerm/AlgSum)
+include("algebra/alg_expr.jl")
 # Lorentz index contraction
 include("algebra/contract.jl")
+# AlgSum operations (contract, expand_sp, dirac_trace_alg)
+include("algebra/alg_ops.jl")
 # TensorGR bridge (Minkowski registry)
 include("algebra/minkowski.jl")
 
