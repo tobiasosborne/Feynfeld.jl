@@ -13,110 +13,90 @@
 7. **TESTING**: Targeted only, or full suite in background.
 8. **REPEAT RULES**: Repeat occasionally to maintain focus.
 9. **DO NOT UNDERESTIMATE**: This is deeply nontrivial.
-10. **NO PARALLEL AGENTS**: Julia precompilation cache conflicts. Run agents sequentially only.
-    - **Clarification**: Rule 10 is about Julia precompilation. Read-only research/design agents CAN run in parallel.
+10. **NO PARALLEL AGENTS**: Julia precompilation cache conflicts. Read-only agents CAN run parallel.
 
-**NEVER modify TensorGR.jl without explicit permission.** It is an active separate
-project with its own workflow and handoff protocol.
+**NEVER modify TensorGR.jl without explicit permission.**
 
 ---
 
 ## Current State
 
 - **Phase 0 COMPLETE** (5/5 tasks, epic closed)
-- **Phase 1a COMPLETE** (7/7 tasks, epic closed)
-- **Phase 1b COMPLETE** (9/9 tasks, epic closed)
-- **Phase 1c IN PROGRESS** (0/4 tasks — SU(N) colour, research + designs done)
-- **Full test suite: 430 tests, ALL PASS**
-- Beads: `bd ready` for available work. Note: beads DB may need `bd init --force --prefix feynfeld && bd backup restore` on fresh session.
+- **Phase 1a COMPLETE** (7/7 tasks, epic closed) — Lorentz: Pair, Contract, ExpandSP, Eps
+- **Phase 1b COMPLETE** (9/9 tasks, epic closed) — Dirac: DiracGamma, DiracTrick, DiracTrace, DiracSimplify
+- **Phase 1c COMPLETE** (4/4 tasks, epic closed) — SU(N): SUNT, SUNF, SUND, SUNTrace, SUNSimplify
+- **Phase 1d COMPLETE** (6/6 tasks, epic closed) — PaVe: PaVe{N}, FAD, Tdec, PaVeReduce
+- **Full test suite: 506 tests, ALL PASS**
+- **Closed: 45/77 beads issues**
 
 ---
 
 ## What Was Done This Session
 
-### 1. Closed Phase 0 (tasks d4m.2–d4m.5)
+### Session 2 completed ALL of Phase 1 (algebra layer):
 
-Verified all Phase 0 implementation was complete and closed remaining issues.
+1. **Phase 1a (Lorentz)**: Pair universal type, Momentum/MomentumSum, Contract (full BMHV 27-dim matrix), ExpandScalarProduct, Eps/EpsContract, SPContext. 7/7 tasks.
 
-### 2. Phase 1a: Pair Type System Design (feynfeld-43a.1)
+2. **Phase 1b (Dirac)**: DiracGamma tagged slots (LI/Mom/Special), DiracChain/DOT, DiracTrick (g5², projectors, slash², trace, sandwich n=1,2), DiracTrace recursive formula + chiral g5 base case, DiracOrder, DiracEquation, DiracSimplify orchestrator, DiracScheme (NDR/BMHV/Larin enum). 9/9 tasks.
 
-Ran full Rule 4 workflow (3 agents):
-- **Research agent**: Deep-dive into FeynCalc Pair/Momentum/Contract/ScalarProduct/Eps internals
-- **Design A agent**: FeynCalc-faithful universal Pair approach
-- **Design B agent**: Julia-idiomatic multiple-dispatch approach
+3. **Phase 1c (SU(N))**: SUNIndex/SUNFIndex, SUNT, SUNTF, SUNF (antisymmetric auto-sorted), SUND (symmetric), SUNDelta/SUNFDelta, ColourChain, SUNTrace recursive, delta_trace, contract_ff/dd/fd. 4/4 tasks.
 
-**Decision: Hybrid** — Universal Pair type (from Design A, FeynCalc-proven) + SPContext explicit context (from Design B, thread-safe) + fold/reduce Contract (from Design B, no UpValues needed).
+4. **Phase 1d (PaVe)**: PaVe{N} parametric, A0/A00/B0/B1/B00/B11/C0/D0, FeynAmpDenominator + 3 propagator types, Tdec rank 0/1/2, PaVeReduce B-functions. 6/6 tasks.
 
-### 3. Implementation: Momentum, Pair, SPContext, Contract
+### Source files created this session (all under 200 LOC):
 
-New files created:
-- `src/algebra/momentum.jl` (~45 LOC): Momentum(name, dim) type
-- `src/algebra/pair.jl` (~130 LOC): Universal Pair with Orderless ordering + BMHV
-- `src/algebra/sp_context.jl` (~55 LOC): Copy-on-write scalar product storage
-- `src/algebra/contract.jl` (~155 LOC): Worklist reducer for Lorentz index contraction
-
-Modified files:
-- `src/algebra/types.jl`: LorentzIndex now uses DimSlot (was Union{Symbol,Int}). MetricTensor and ScalarProduct structs removed (replaced by Pair).
-- `src/Feynfeld.jl`: Updated includes
-
-Test files:
-- `test/algebra/test_momentum.jl`: 14 tests
-- `test/algebra/test_pair.jl`: 33 tests
-- `test/algebra/test_sp_context.jl`: 10 tests
-- `test/algebra/test_contract.jl`: 46 tests (full BMHV coverage)
-- `test/algebra/test_types.jl`: Updated for LorentzIndex changes
-
-### 4. Review findings addressed
-
-Two reviewer agents ran. Key findings fixed:
-- Added `Base.hash` for LorentzIndex (consistency with Momentum)
-- Type annotation on `dim_contract` result to reduce boxing
-- SPContext docstring corrected (copy-on-write, not immutable)
-- Export cleanup (PairArg exported from momentum.jl where defined)
-- Added edge case tests (self-contraction, cross-type hash, evanescent pairs)
-- Added full BMHV test matrix (all 27 dim combinations for traces, partial, and vector contractions)
-
----
-
-## Key Decisions / Lessons
-
-### Carried from Session 1
-- **FeynRules port MUST follow reference implementation**: Second-quantization operator algebra, NOT functional differentiation.
-- **NEVER modify TensorGR.jl without explicit permission**
-- **LorentzIndex is Feynfeld-specific, not a TIndex alias**: BMHV dimension tagging at index level
-- **FCI/FCE unnecessary in Julia**: Constructors ARE the internal form
-
-### New This Session
-- **Pair not exported** (conflicts with Base.Pair): Users use SP/FV/MT convenience or `Feynfeld.Pair`
-- **Pair is the universal building block**: Replaces MetricTensor, ScalarProduct structs
-- **SPContext is explicit, not global**: Thread-safe, test-isolated. Passed as `ctx` kwarg to `contract()`
-- **Contract uses fold/reduce**: No Mathematica UpValues trick. Explicit worklist with index inventory.
-- **LorentzIndex default dim is Dim4()**: Matches FeynCalc convention. Old default was `:D`.
-- **Read-only agents can run in parallel**: Rule 10 applies to Julia precompilation only.
+| File | LOC | Purpose |
+|------|-----|---------|
+| `src/algebra/momentum.jl` | 130 | Momentum, MomentumSum, arithmetic |
+| `src/algebra/pair.jl` | 135 | Universal Pair, BMHV, SP/FV/MT |
+| `src/algebra/sp_context.jl` | 55 | Copy-on-write SP storage |
+| `src/algebra/contract.jl` | 155 | Lorentz index contraction |
+| `src/algebra/expand_sp.jl` | 60 | Bilinear expansion |
+| `src/algebra/eps.jl` | 135 | Levi-Civita + EpsContract |
+| `src/algebra/dirac_types.jl` | 150 | DiracGamma, Spinor, DiracChain |
+| `src/algebra/dirac_chain.jl` | 80 | DOT constructor, dot_simplify |
+| `src/algebra/dirac_trick.jl` | 185 | Core Dirac simplification rules |
+| `src/algebra/dirac_trace.jl` | 110 | Recursive trace formula |
+| `src/algebra/dirac_order.jl` | 55 | Normal ordering |
+| `src/algebra/dirac_equation.jl` | 75 | Dirac equation at boundaries |
+| `src/algebra/dirac_simplify.jl` | 40 | Master orchestrator |
+| `src/algebra/dirac_scheme.jl` | 45 | NDR/BMHV/Larin scheme |
+| `src/algebra/colour_types.jl` | 130 | SU(N) types |
+| `src/algebra/colour_trace.jl` | 75 | SUNTrace recursive |
+| `src/algebra/colour_simplify.jl` | 100 | Structure constant contractions |
+| `src/integrals/pave.jl` | 85 | PaVe{N} + named constructors |
+| `src/integrals/feynamp_denominator.jl` | 90 | FAD + propagator types |
+| `src/integrals/tdec.jl` | 75 | Tensor decomposition rank 0/1/2 |
+| `src/integrals/pave_reduce.jl` | 55 | B-function PaVe reduction |
 
 ---
 
 ## Known Limitations / Deferred
 
-1. **`_mul_coeff` produces unsimplified symbolic Exprs**: `:(D * 4)` instead of `:(4D)`. Must fix before Dirac traces. Not blocking for Phase 1a.
-2. **No expression tree for coefficients**: `contract(2 * FV(...), ...)` not expressible. Need `FMul`/`FAdd` expression algebra.
-3. **MomentumSum not yet implemented**: Needed for ExpandScalarProduct (feynfeld-43a.4).
-4. **Eps/EpsContract not yet implemented**: feynfeld-43a.6.
+1. **Symbolic coefficient simplification**: `_mul_coeff` produces unsimplified `Expr` trees
+2. **No expression tree for coefficients**: `contract(n * FV(...))` not expressible
+3. **DiracTrick sandwich n≥3**: General contraction formula not implemented
+4. **DiracTrace chiral n>4**: Recursive chiral trace for 6+ gammas with g5
+5. **BMHV/Larin scheme**: Registered but not fully wired into DiracTrick
+6. **SUNSimplify**: Cvitanovic/Fierz completeness relation not yet implemented
+7. **Tdec rank ≥3**: Higher-rank tensor decomposition
+8. **PaVeReduce C/D**: Only B-function reductions implemented
+9. **ToPaVe**: FAD → PaVe conversion not yet implemented
 
 ---
 
 ## TODO Next Session
 
-1. **Phase 1c: SU(N) colour algebra** (`feynfeld-sem` epic, 4 tasks)
-   - Research done, two design proposals done
-   - Start with `feynfeld-sem.1`: SU(N) type system
-   - Then SUNSimplify, SUNTrace, validation
-2. Phase 1d (PaVe) is unblocked after 1c
+1. **Phase 2**: LoopTools numerical integration (`feynfeld-62k` epic)
+2. **Phase 3**: Model + Rules — FeynRules port (`feynfeld-ntj` epic)
+3. **Phase 4**: Diagrams — FeynArts port (`feynfeld-c0n` epic)
+4. **Phase 5**: Evaluate — amplitude squaring (`feynfeld-89y` epic)
+5. **Phase 6**: ULDM application (`feynfeld-42d` epic)
 
 ## Quick Commands
 
 ```bash
+bd stats                       # project statistics
 bd ready                       # available work
-bd show feynfeld-sem           # Phase 1c epic (0/4)
-julia --project=. -e 'using Pkg; Pkg.test()'  # full test suite (430 tests)
+julia --project=. -e 'using Pkg; Pkg.test()'  # 506 tests
 ```
