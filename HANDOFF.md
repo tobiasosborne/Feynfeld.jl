@@ -1,4 +1,4 @@
-# HANDOFF — 2026-03-26 (End of Session 2)
+# HANDOFF — 2026-03-26 (End of Session 3)
 
 ## DO NOT DELETE THIS FILE. Read it completely before working.
 
@@ -22,7 +22,7 @@ project with its own workflow and handoff protocol.
 
 ## Current State — What's Done
 
-**ALL of Phase 1 (the algebra layer) is complete.**
+**Phase 1 (algebra layer) complete. Tracer bullet (e+e- → mu+mu-) VALIDATED.**
 
 | Phase | Epic | Tasks | Status | Key deliverables |
 |-------|------|-------|--------|-----------------|
@@ -31,11 +31,17 @@ project with its own workflow and handoff protocol.
 | 1b | `feynfeld-mpw` | 9/9 | DONE | DiracGamma, DiracTrick, DiracTrace, DiracSimplify, DiracScheme |
 | 1c | `feynfeld-sem` | 4/4 | DONE | SUNT, SUNF, SUND, SUNTrace, colour contractions |
 | 1d | `feynfeld-9jr` | 6/6 | DONE | PaVe{N}, FAD, Tdec rank 0-2, PaVeReduce (B-functions) |
+| 5* | `feynfeld-89y` | 3/6 | PARTIAL | AlgSum expression tree, FermionSpinSum, P&S Eq (5.10) validated |
 
-- **36/77 beads issues closed** (47%)
-- **506 tests, ALL PASS**
-- **2,533 source LOC** across 25 Julia files (all under 200 LOC)
-- **1,832 test LOC** including MUnit translations from FeynCalc
+- **40/80 beads issues closed** (50%)
+- **616 tests, ALL PASS**
+- **~2,900 source LOC** across 28 Julia files (all under 200 LOC)
+- **~2,200 test LOC** including MUnit translations and tracer bullet
+
+### Session 3 additions
+- **AlgTerm/AlgSum** (`alg_expr.jl`, `alg_ops.jl`): Expression tree enabling composable algebra. Sum-of-products with arithmetic (+, *, -), contract(AlgSum), expand_scalar_product(AlgSum), evaluate_sp(AlgSum), dirac_trace_alg.
+- **FermionSpinSum** (`fermion_spin_sum.jl`): Completeness relations for spin-averaged |M|². Handles massive and massless fermions.
+- **e+e- → mu+mu- tracer bullet** (`test/test_ee_mumu.jl`): End-to-end computation validates P&S Eq (5.10). Spin sums → traces → contract → Mandelstam → 8(t²+u²).
 
 ### Beads setup note
 The Dolt database may not survive across sessions. To restore:
@@ -70,7 +76,10 @@ src/
 │   ├── dirac_scheme.jl              # DiracScheme enum (NDR/BMHV/Larin), with_scheme()
 │   ├── colour_types.jl              # SUNIndex/SUNFIndex, SUNT, SUNTF, SUNF, SUND, deltas, ColourChain
 │   ├── colour_trace.jl              # SUNTrace, sun_trace() recursive
-│   └── colour_simplify.jl           # delta_trace, contract_ff/dd/fd, structure constant identities
+│   ├── colour_simplify.jl           # delta_trace, contract_ff/dd/fd, structure constant identities
+│   ├── alg_expr.jl                  # AlgTerm/AlgSum types, arithmetic (+, *, -)
+│   ├── alg_ops.jl                   # contract/expand_sp/evaluate_sp(AlgSum), dirac_trace_alg
+│   └── fermion_spin_sum.jl          # FermionSpinSum: completeness relations for |M|²
 └── integrals/
     ├── pave.jl                      # PaVe{N} parametric, A0/A00/B0/B1/B00/B11/C0/D0
     ├── feynamp_denominator.jl       # FeynAmpDenominator, 3 propagator types, FAD()
@@ -96,7 +105,7 @@ These are areas where the Phase 1 implementation is deliberately minimal. Future
 | # | Area | Gap | Impact |
 |---|------|-----|--------|
 | 1 | **Symbolic coefficients** | `_mul_coeff` produces raw `Expr` trees (`:($a * $b)`) that don't simplify. `:(D * 4)` stays as-is, not `:(4D)`. | Will bite in Dirac trace results and cross-sections. Need a minimal symbolic simplifier before Phase 5. |
-| 2 | **Expression tree** | No `FMul`/`FAdd` algebra. `contract(2 * FV(:p,:μ), ...)` is not expressible — can only contract bare Pair products. | Phase 5 (amplitude squaring) needs this. Design A from Session 2 Pair spike has the blueprint. |
+| 2 | **Expression tree** | ~~FIXED in Session 3~~. AlgTerm/AlgSum provides sum-of-products with full arithmetic and contract/expand_sp/evaluate_sp integration. | Used for tracer bullet. FTerm/Amplitude still unused (reserved for Feynman amplitudes). |
 | 3 | **DiracTrick sandwich n≥3** | `g^μ g^a g^b g^c g_μ` (3+ gammas between) not implemented. General formula exists (Mertig/Boehm/Denner 1991 Eq 2.9). | Needed for any 1-loop QED/QCD calculation with ≥3 internal propagators. |
 | 4 | **DiracTrace chiral n>4** | `Tr[γ5 g^a g^b g^c g^d g^e g^f]` (6+ gammas with γ5) uses recursive reduction — not implemented. | Needed for axial-vector processes. |
 | 5 | **BMHV/Larin scheme** | Enum registered, `with_scheme()` works, but DiracTrick doesn't dispatch on scheme yet. All γ5 algebra uses NDR (anticommuting γ5). | BMHV needed for correct D-dim γ5 in 2-loop calculations. |
@@ -112,40 +121,31 @@ These are areas where the Phase 1 implementation is deliberately minimal. Future
 
 ## What To Do Next — Recommended Order
 
-### Option A: Depth-first (complete the pipeline for one process)
-Best if the goal is to compute `e+e- → μ+μ-` end-to-end ASAP.
+**Tracer bullet (Option A) is DONE.** e+e- → mu+mu- tree-level validated.
 
-1. **Phase 5 partial**: Implement FermionSpinSum + PolarizationSum + amplitude squaring
-   - These only need Contract + DiracTrace + colour trace (all done)
-   - Target: compute `|M|²` for `e+e- → μ+μ-` at tree level
-2. **Fix limitation #2** (expression tree): Need `FMul`/`FAdd` to represent `2*Pair + 3*Pair`
-3. **Phase 3 minimal**: Implement SM QED vertex rules manually (no need for full FeynRules)
-4. **Validate**: Reproduce Peskin & Schroeder Eq (5.10)
-
-### Option B: Breadth-first (complete all phases in order)
-Best for systematic coverage.
+### Recommended next: extend the pipeline
 
 1. **Phase 2** (`feynfeld-62k`): LoopTools numerical integration
-   - Start with Li2 (dilogarithm) — it's the atomic building block
+   - Start with Li2 (dilogarithm) — atomic building block
    - Then A0, B0 numerical evaluation
    - Reference: `refs/LoopTools/` has the Fortran source
 2. **Phase 3** (`feynfeld-ntj`): Model + Rules (FeynRules port)
+   - Must use second-quantization operator algebra (Tobias's requirement)
 3. **Phase 4** (`feynfeld-c0n`): Diagrams (FeynArts port)
-4. **Phase 5** (`feynfeld-89y`): Evaluate
+4. **Phase 5 remaining** (`feynfeld-89y`): PolarizationSum, ColourME, phase-space integration
 5. **Phase 6** (`feynfeld-42d`): ULDM application
 
-### Option C: Fix algebra gaps first
-Best if downstream phases will be blocked by limitations.
-
-1. Fix **limitation #2** (expression tree) — unlocks coefficient handling everywhere
-2. Fix **limitation #1** (symbolic simplification) — needed before any trace result is usable
-3. Fix **limitation #3** (DiracTrick sandwich n≥3) — needed for 1-loop calculations
-4. Then proceed with Phase 5 or Phase 2
+### Algebra gaps to fix (for 1-loop calculations)
+- **Limitation #1** (symbolic simplification): `_mul_coeff` produces raw Expr trees. Need simplifier.
+- **Limitation #3** (DiracTrick sandwich n≥3): Needed for 1-loop QED/QCD.
+- **Limitation #6** (Fierz identity): Needed for multi-loop colour factors.
+- **Limitation #7** (Tdec rank ≥3): Needed for box diagrams.
 
 ### Cross-cutting tasks (do anytime)
 - `feynfeld-lc0`: FCI/FCE convenience API (macros/constructors) — nice-to-have
-- `feynfeld-zwc`: Expression simplify() pipeline — would fix limitations #1 and #2
+- `feynfeld-zwc`: Expression simplify() pipeline — would fix limitation #1
 - `feynfeld-2wx`: Feynman rules (propagators, vertices) — bridges Model→Diagrams
+- Limitation #12: Base.show methods for interactive use
 
 ---
 
