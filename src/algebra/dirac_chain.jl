@@ -9,7 +9,7 @@
 #
 # Ref: FeynCalc NonCommAlgebra/DotSimplify.m
 
-export dot, dot_simplify
+export dot, dot_simplify, DiracElement
 
 const DiracElement = Union{DiracGamma,Spinor}
 

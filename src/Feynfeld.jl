@@ -21,6 +21,8 @@ include("algebra/dirac_types.jl")
 include("algebra/dirac_chain.jl")
 # DiracTrick: core Dirac simplification rules
 include("algebra/dirac_trick.jl")
+# DiracTrace: trace evaluation
+include("algebra/dirac_trace.jl")
 # ExpandScalarProduct (bilinear expansion)
 include("algebra/expand_sp.jl")
 # Levi-Civita tensor
