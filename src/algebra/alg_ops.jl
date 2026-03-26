@@ -4,7 +4,7 @@
 # Included after alg_expr.jl and contract.jl so all types and base
 # functions (_mul_coeff, _contract_product, expand_scalar_product) exist.
 
-export dirac_trace_alg
+export dirac_trace_alg, evaluate_sp
 
 # ── contract(::AlgSum) ─────────────────────────────────────────────
 
@@ -93,6 +93,43 @@ function _expand_algterm(t::AlgTerm, ctx::SPContext)
     end
     current
 end
+
+# ── evaluate_sp: substitute scalar products ────────────────────────
+
+"""
+    evaluate_sp(s::AlgSum; ctx::SPContext) -> AlgSum
+
+Substitute all Momentum×Momentum Pair factors using SPContext values.
+Factors that have SPContext values become part of the coefficient;
+those without are kept as factors.
+"""
+function evaluate_sp(s::AlgSum; ctx::SPContext=SPContext())
+    result_terms = AlgTerm[]
+    for t in s.terms
+        t.coeff == 0 && continue
+        new_coeff = t.coeff
+        new_factors = AlgFactor[]
+        for f in t.factors
+            val = _try_sp_lookup(f, ctx)
+            if val !== nothing
+                new_coeff = _mul_coeff(new_coeff, val)
+            else
+                push!(new_factors, f)
+            end
+        end
+        new_coeff == 0 && continue
+        push!(result_terms, AlgTerm(new_coeff, new_factors))
+    end
+    _collect_terms(AlgSum(result_terms))
+end
+
+"""Try to look up a Pair's value in SPContext. Returns value or nothing."""
+function _try_sp_lookup(f::Feynfeld.Pair, ctx::SPContext)
+    f.a isa Momentum && f.b isa Momentum || return nothing
+    get_sp(ctx, f.a.name, f.b.name)
+end
+
+_try_sp_lookup(::Eps, ::SPContext) = nothing
 
 # ── dirac_trace_alg ────────────────────────────────────────────────
 

@@ -63,4 +63,7 @@ import TensorGR
     @testset "Minkowski" begin
         include("algebra/test_minkowski.jl")
     end
+    @testset "e+e- → μ+μ-" begin
+        include("test_ee_mumu.jl")
+    end
 end
