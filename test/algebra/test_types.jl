@@ -28,34 +28,41 @@ end
 end
 
 @testset "DiracGamma" begin
-    μ = LorentzIndex(:μ)
-    γμ = DiracGamma(μ)
-    @test γμ.index == μ
+    γμ = GA(:μ)
+    @test γμ isa DiracGamma
+    @test γμ.slot isa LISlot
+    @test γμ.slot.index == LorentzIndex(:μ)
 
-    γ5 = DiracGamma5()
-    @test γ5 isa FeynExpr
+    γ5 = GA5()
+    @test γ5 isa DiracGamma
+    @test γ5.slot isa SpecialSlot
+    @test γ5.slot.id == 5
+
+    # Slashed momentum
+    pslash = GS(:p)
+    @test pslash.slot isa MomSlot
+    @test pslash.slot.mom == Momentum(:p)
+
+    # D-dimensional
+    γμD = GAD(:μ)
+    @test gamma_dim(γμD) === DimD()
+
+    # BMHV vanishing: 4D index in (D-4) slot
+    @test dirac_gamma(LorentzIndex(:μ), DimDm4()) == 0
 end
 
-@testset "Slash notation" begin
-    p = FourMomentum(:p)
-    pslash = Slash(p)
-    @test pslash.momentum == p
-end
-
-@testset "Spinors" begin
-    p = FourMomentum(:p)
-    u = SpinorU(p, :mₑ)
-    v = SpinorV(p, :mₑ)
-    @test u.momentum == p
+@testset "Spinor" begin
+    u = Spinor(:u, Momentum(:p), :mₑ)
+    v = Spinor(:v, Momentum(:p), :mₑ)
+    @test u.kind == :u
+    @test u.momentum == Momentum(:p)
     @test v.mass == :mₑ
+    @test_throws ErrorException Spinor(:x, Momentum(:p))
 end
 
 @testset "DiracChain" begin
-    p = FourMomentum(:p)
-    k = FourMomentum(:k)
-    μ = LorentzIndex(:μ)
-    chain = DiracChain([SpinorU(p, :m), DiracGamma(μ), SpinorU(k, :m)])
-    @test length(chain.elements) == 3
+    chain = DiracChain([GA(:μ), GA(:ν)])
+    @test length(chain) == 2
 end
 
 @testset "SU(N) colour" begin
@@ -83,8 +90,7 @@ end
 end
 
 @testset "Amplitude (Phase 0 placeholder)" begin
-    μ = LorentzIndex(:μ)
-    t = FTerm(1.0, FeynExpr[DiracGamma(μ)])
+    t = FTerm(1.0, FeynExpr[GA(:μ)])
     amp = Amplitude([t])
     @test length(amp.terms) == 1
     @test amp.terms[1].coeff == 1.0

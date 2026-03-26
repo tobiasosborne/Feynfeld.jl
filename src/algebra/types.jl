@@ -4,10 +4,9 @@
 # Lorentz algebra (Pair, Momentum) is in dedicated files.
 
 export LorentzIndex, FourMomentum
-export DiracGamma, DiracChain, SpinorU, SpinorV, Slash
 export SUNMatrix, SUNF, SUND, ColourDelta
 export PaVe, A0, B0, B1, C0, D0
-export Amplitude, FTerm, DiracGamma5, FeynExpr
+export Amplitude, FTerm, FeynExpr
 
 # ── Abstract base ────────────────────────────────────────────────────
 
@@ -54,61 +53,7 @@ struct FourMomentum <: FeynExpr
 end
 
 # ── Dirac algebra ────────────────────────────────────────────────────
-
-"""
-    DiracGamma(index)
-
-A Dirac gamma matrix γ^μ.
-"""
-struct DiracGamma <: FeynExpr
-    index::LorentzIndex
-end
-
-"""
-    DiracGamma5()
-
-The chiral matrix γ⁵ = iγ⁰γ¹γ²γ³.
-"""
-struct DiracGamma5 <: FeynExpr end
-
-"""
-    Slash(p)
-
-Feynman slash notation: p̸ = γ^μ p_μ.
-"""
-struct Slash <: FeynExpr
-    momentum::FourMomentum
-end
-
-"""
-    SpinorU(p, m)
-
-Dirac spinor u(p) for particle with momentum p and mass m.
-"""
-struct SpinorU <: FeynExpr
-    momentum::FourMomentum
-    mass::Any
-end
-
-"""
-    SpinorV(p, m)
-
-Dirac spinor v(p) for antiparticle with momentum p and mass m.
-"""
-struct SpinorV <: FeynExpr
-    momentum::FourMomentum
-    mass::Any
-end
-
-"""
-    DiracChain(elements)
-
-An ordered chain of Dirac-algebra objects (spinors, gammas, slashes)
-forming a spinor bilinear like ū(p) γ^μ u(k).
-"""
-struct DiracChain <: FeynExpr
-    elements::Vector{FeynExpr}
-end
+# Defined in dirac_types.jl (Phase 1b)
 
 # ── Colour algebra (SU(N)) ──────────────────────────────────────────
 

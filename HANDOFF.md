@@ -23,9 +23,10 @@ project with its own workflow and handoff protocol.
 
 ## Current State
 
-- **Phase 0 COMPLETE** (5/5 tasks closed, epic auto-closed)
-- **Phase 1a IN PROGRESS** (5/7 tasks closed)
-- **Full test suite: 179 tests, ALL PASS**
+- **Phase 0 COMPLETE** (5/5 tasks, epic closed)
+- **Phase 1a COMPLETE** (7/7 tasks, epic closed)
+- **Phase 1b IN PROGRESS** (0/9 tasks — Dirac algebra, research + designs done)
+- **Full test suite: 284 tests, ALL PASS**
 - Beads: `bd ready` for available work. Note: beads DB may need `bd init --force --prefix feynfeld && bd backup restore` on fresh session.
 
 ---
@@ -105,15 +106,17 @@ Two reviewer agents ran. Key findings fixed:
 
 ## TODO Next Session
 
-1. **Implement ExpandScalarProduct** (`feynfeld-43a.4`): Requires MomentumSum type
-2. **Implement Eps (Levi-Civita tensor)** (`feynfeld-43a.6`)
-3. **Validate Phase 1a** (`feynfeld-43a.7`): Translate Lorentz MUnit tests from refs/FeynCalc/Tests/Lorentz/
-4. **Begin Phase 1b**: Dirac algebra (feynfeld-mpw epic)
+1. **Phase 1b: Dirac algebra** (`feynfeld-mpw` epic, 9 tasks)
+   - Research done (Dirac deep-dive agent), two design proposals done
+   - Start with `feynfeld-mpw.1`: DiracGamma type with BMHV dimension tagging
+   - Then `feynfeld-mpw.2`: DOT/DiracChain non-commutative product
+   - Then `feynfeld-mpw.3`: DiracTrick core simplification rules
+2. Phase 1c (SU(N) colour) and Phase 1d (PaVe) are unblocked and parallel-safe
 
 ## Quick Commands
 
 ```bash
 bd ready                       # available work
-bd show feynfeld-43a           # Phase 1a epic (5/7 done)
-julia --project=. -e 'using Pkg; Pkg.test()'  # full test suite (179 tests)
+bd show feynfeld-mpw           # Phase 1b epic (0/9 done)
+julia --project=. -e 'using Pkg; Pkg.test()'  # full test suite (284 tests)
 ```

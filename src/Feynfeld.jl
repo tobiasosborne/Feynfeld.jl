@@ -15,6 +15,8 @@ include("algebra/momentum.jl")
 include("algebra/pair.jl")
 # Scalar product context
 include("algebra/sp_context.jl")
+# Dirac algebra types (gamma matrices, spinors, chains)
+include("algebra/dirac_types.jl")
 # ExpandScalarProduct (bilinear expansion)
 include("algebra/expand_sp.jl")
 # Levi-Civita tensor
