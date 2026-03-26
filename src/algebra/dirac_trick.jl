@@ -127,6 +127,7 @@ end
 function _rule_slash_squared(elems)
     for i in 1:(length(elems)-1)
         a, b = elems[i], elems[i+1]
+        (a isa DiracGamma && b isa DiracGamma) || continue
         (a.slot isa MomSlot && b.slot isa MomSlot) || continue
         a.slot.mom isa Momentum && b.slot.mom isa Momentum || continue
         a.slot.mom == b.slot.mom || continue
@@ -143,6 +144,7 @@ end
 function _rule_adjacent_trace(elems)
     for i in 1:(length(elems)-1)
         a, b = elems[i], elems[i+1]
+        (a isa DiracGamma && b isa DiracGamma) || continue
         (a.slot isa LISlot && b.slot isa LISlot) || continue
         a.slot.index.name == b.slot.index.name || continue
         # g^mu g_mu = dim_trace(projected_dim)
@@ -159,10 +161,10 @@ end
 
 function _rule_sandwich_contraction(elems)
     for i in eachindex(elems)
-        elems[i].slot isa LISlot || continue
+        (elems[i] isa DiracGamma && elems[i].slot isa LISlot) || continue
         idx = elems[i].slot.index
         for j in (i+2):length(elems)
-            elems[j].slot isa LISlot || continue
+            (elems[j] isa DiracGamma && elems[j].slot isa LISlot) || continue
             elems[j].slot.index.name == idx.name || continue
             dp = dim_contract(idx.dim, elems[j].slot.index.dim)
             dp === nothing && return [(0, DiracElement[])]

@@ -23,6 +23,14 @@ include("algebra/dirac_chain.jl")
 include("algebra/dirac_trick.jl")
 # DiracTrace: trace evaluation
 include("algebra/dirac_trace.jl")
+# DiracOrder: normal ordering
+include("algebra/dirac_order.jl")
+# Dirac equation at chain boundaries
+include("algebra/dirac_equation.jl")
+# DiracSimplify: master orchestrator
+include("algebra/dirac_simplify.jl")
+# Dirac gamma5 scheme system (NDR/BMHV/Larin)
+include("algebra/dirac_scheme.jl")
 # ExpandScalarProduct (bilinear expansion)
 include("algebra/expand_sp.jl")
 # Levi-Civita tensor

@@ -92,9 +92,9 @@ end
 """Find the first DiracGamma with a MomentumSum slot, or nothing."""
 function _find_momentum_sum(chain::DiracChain)
     for (i, e) in enumerate(chain.elements)
-        if e isa DiracGamma && e.slot isa MomSlot && e.slot.mom isa MomentumSum
-            return i
-        end
+        e isa DiracGamma || continue
+        e.slot isa MomSlot || continue
+        e.slot.mom isa MomentumSum && return i
     end
     nothing
 end

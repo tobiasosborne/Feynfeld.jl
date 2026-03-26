@@ -36,8 +36,14 @@ import TensorGR
     @testset "DiracTrace" begin
         include("algebra/test_dirac_trace.jl")
     end
+    @testset "Dirac Phase1b" begin
+        include("algebra/test_dirac_phase1b.jl")
+    end
     @testset "MUnit Lorentz" begin
         include("algebra/test_munit_lorentz.jl")
+    end
+    @testset "MUnit Dirac" begin
+        include("algebra/test_munit_dirac.jl")
     end
     @testset "Minkowski" begin
         include("algebra/test_minkowski.jl")
