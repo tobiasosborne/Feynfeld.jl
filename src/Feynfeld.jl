@@ -6,10 +6,18 @@ import TensorGR
 # Layer 0: Foundation — dimensional regularisation and TensorGR bridge
 include("algebra/dimensions.jl")
 
-# Layer 1: Algebra — the type system (port first)
-# Lorentz · Dirac · Colour · Tensor
-# Contraction, traces, simplify, PV reduction
+# Layer 1: Algebra — the type system
+# Core types (LorentzIndex, Dirac, Colour, PaVe)
 include("algebra/types.jl")
+# Momentum (Pair slot argument)
+include("algebra/momentum.jl")
+# Pair (universal Lorentz bilinear) + convenience constructors
+include("algebra/pair.jl")
+# Scalar product context
+include("algebra/sp_context.jl")
+# Lorentz index contraction
+include("algebra/contract.jl")
+# TensorGR bridge (Minkowski registry)
 include("algebra/minkowski.jl")
 
 # Layer 2: Integrals

@@ -1,53 +1,56 @@
 # Feynfeld.jl — Algebra layer type definitions
 #
-# These types form the core type system. Everything above Algebra
-# constructs expressions in these types; everything below consumes them.
-#
-# Phase 0: Foundation types that specialise TensorGR.jl's index machinery
-# to the Minkowski metric and QFT-specific algebraic objects.
+# Core type system. Phase 0 foundation types + Dirac/Colour/PaVe placeholders.
+# Lorentz algebra (Pair, Momentum) is in dedicated files.
 
-export LorentzIndex, FourMomentum, MetricTensor
+export LorentzIndex, FourMomentum
 export DiracGamma, DiracChain, SpinorU, SpinorV, Slash
 export SUNMatrix, SUNF, SUND, ColourDelta
 export PaVe, A0, B0, B1, C0, D0
-export Amplitude, FTerm, ScalarProduct, DiracGamma5, FeynExpr
+export Amplitude, FTerm, DiracGamma5, FeynExpr
 
 # ── Abstract base ────────────────────────────────────────────────────
 
 """Abstract supertype for all Feynfeld algebraic expressions."""
 abstract type FeynExpr end
 
-# ── Lorentz algebra ──────────────────────────────────────────────────
+# ── Lorentz index ────────────────────────────────────────────────────
 
 """
-    LorentzIndex(name, dim=:D)
+    LorentzIndex(name, dim=Dim4())
 
 A Lorentz index μ, ν, ... living in `dim` dimensions.
-`dim = :D` for dimensional regularisation, `dim = 4` for 4D.
+Default is 4-dimensional, matching FeynCalc convention.
+For dimensional regularisation, use `LorentzIndex(:μ, DimD())`.
 """
 struct LorentzIndex
     name::Symbol
-    dim::Union{Symbol,Int}
+    dim::DimSlot
 end
-LorentzIndex(name::Symbol) = LorentzIndex(name, :D)
+
+LorentzIndex(name::Symbol) = LorentzIndex(name, Dim4())
+LorentzIndex(name::Symbol, d::Int) = LorentzIndex(name, to_dim(d))
+LorentzIndex(name::Symbol, d::Symbol) = LorentzIndex(name, to_dim(d))
+
+# DimSlot ordering for canonical comparisons
+_dim_order(::Dim4) = 1
+_dim_order(::DimD) = 2
+_dim_order(::DimDm4) = 3
+
+function Base.isless(a::LorentzIndex, b::LorentzIndex)
+    a.name < b.name || (a.name == b.name && _dim_order(a.dim) < _dim_order(b.dim))
+end
+
+Base.hash(li::LorentzIndex, h::UInt) = hash(li.dim, hash(li.name, hash(:LorentzIndex, h)))
 
 """
     FourMomentum(name)
 
-A four-momentum vector p, k, q, ...
+Legacy four-momentum type from Phase 0 scaffold.
+For new code, prefer `Momentum(name, dim)`.
 """
 struct FourMomentum <: FeynExpr
     name::Symbol
-end
-
-"""
-    MetricTensor(μ, ν)
-
-The metric tensor g^{μν} (Minkowski signature +−−−).
-"""
-struct MetricTensor <: FeynExpr
-    i::LorentzIndex
-    j::LorentzIndex
 end
 
 # ── Dirac algebra ────────────────────────────────────────────────────
@@ -116,7 +119,7 @@ A generator T^a of SU(N) in the fundamental representation.
 """
 struct SUNMatrix <: FeynExpr
     name::Symbol
-    a::Symbol  # colour index
+    a::Symbol
 end
 
 """
@@ -171,17 +174,7 @@ B1(p, m1, m2) = PaVe([1], [m1, m2], [p])
 C0(p1, p2, p12, m1, m2, m3) = PaVe([0, 0], [m1, m2, m3], [p1, p2, p12])
 D0(args...) = PaVe([0, 0, 0], collect(args[4:end]), collect(args[1:3]))
 
-# ── Amplitude ────────────────────────────────────────────────────────
-
-"""
-    ScalarProduct(p, q)
-
-Minkowski scalar product p · q = p^μ q_μ.
-"""
-struct ScalarProduct <: FeynExpr
-    p::FourMomentum
-    q::FourMomentum
-end
+# ── Expression tree (Phase 0 placeholder) ────────────────────────────
 
 """
     FTerm(coeff, factors)

@@ -1,32 +1,30 @@
 # Basic type construction and identity tests for algebra layer
-# These validate that the type system is well-formed before
-# porting FeynCalc operations on top of it.
+# These validate that the type system is well-formed.
 
 @testset "LorentzIndex" begin
     μ = LorentzIndex(:μ)
     ν = LorentzIndex(:ν)
     @test μ.name == :μ
-    @test μ.dim == :D   # default: D-dimensional
+    @test μ.dim === Dim4()   # default: 4-dimensional (FeynCalc convention)
     @test μ != ν
 
     μ4 = LorentzIndex(:μ, 4)
-    @test μ4.dim == 4
+    @test μ4.dim === Dim4()
+
+    μD = LorentzIndex(:μ, :D)
+    @test μD.dim === DimD()
+
+    # Ordering: alphabetical by name, then by dim
+    @test isless(LorentzIndex(:a), LorentzIndex(:b))
+    @test isless(LorentzIndex(:μ, Dim4()), LorentzIndex(:μ, DimD()))
 end
 
-@testset "FourMomentum" begin
+@testset "FourMomentum (legacy)" begin
     p = FourMomentum(:p)
     k = FourMomentum(:k)
     @test p.name == :p
     @test p != k
     @test p == FourMomentum(:p)
-end
-
-@testset "MetricTensor" begin
-    μ = LorentzIndex(:μ)
-    ν = LorentzIndex(:ν)
-    g = MetricTensor(μ, ν)
-    @test g.i == μ
-    @test g.j == ν
 end
 
 @testset "DiracGamma" begin
@@ -84,16 +82,7 @@ end
     @test length(b0.momenta) == 1
 end
 
-@testset "ScalarProduct" begin
-    p = FourMomentum(:p)
-    k = FourMomentum(:k)
-    sp = ScalarProduct(p, k)
-    @test sp.p == p
-    @test sp.q == k
-end
-
-@testset "Amplitude" begin
-    p = FourMomentum(:p)
+@testset "Amplitude (Phase 0 placeholder)" begin
     μ = LorentzIndex(:μ)
     t = FTerm(1.0, FeynExpr[DiracGamma(μ)])
     amp = Amplitude([t])
