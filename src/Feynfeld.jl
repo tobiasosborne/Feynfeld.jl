@@ -1,11 +1,16 @@
 module Feynfeld
 
 using LinearAlgebra
+import TensorGR
+
+# Layer 0: Foundation — dimensional regularisation and TensorGR bridge
+include("algebra/dimensions.jl")
 
 # Layer 1: Algebra — the type system (port first)
 # Lorentz · Dirac · Colour · Tensor
 # Contraction, traces, simplify, PV reduction
 include("algebra/types.jl")
+include("algebra/minkowski.jl")
 
 # Layer 2: Integrals
 # PV scalar functions A₀ B₀ C₀ D₀
