@@ -19,6 +19,8 @@ include("algebra/sp_context.jl")
 include("algebra/dirac_types.jl")
 # Non-commutative Dirac chain (DOT) and DotSimplify
 include("algebra/dirac_chain.jl")
+# DiracTrick: core Dirac simplification rules
+include("algebra/dirac_trick.jl")
 # ExpandScalarProduct (bilinear expansion)
 include("algebra/expand_sp.jl")
 # Levi-Civita tensor

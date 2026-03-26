@@ -30,6 +30,9 @@ import TensorGR
     @testset "DiracChain" begin
         include("algebra/test_dirac_chain.jl")
     end
+    @testset "DiracTrick" begin
+        include("algebra/test_dirac_trick.jl")
+    end
     @testset "MUnit Lorentz" begin
         include("algebra/test_munit_lorentz.jl")
     end
