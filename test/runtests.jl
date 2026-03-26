@@ -51,6 +51,9 @@ import TensorGR
     @testset "PaVe/FAD" begin
         include("integrals/test_pave.jl")
     end
+    @testset "Tdec/PaVeReduce" begin
+        include("integrals/test_tdec.jl")
+    end
     @testset "Minkowski" begin
         include("algebra/test_minkowski.jl")
     end

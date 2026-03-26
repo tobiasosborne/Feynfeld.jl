@@ -47,6 +47,8 @@ include("algebra/minkowski.jl")
 # Layer 2: Integrals — PaVe symbols and propagator types
 include("integrals/pave.jl")
 include("integrals/feynamp_denominator.jl")
+include("integrals/tdec.jl")
+include("integrals/pave_reduce.jl")
 
 # Layer 3: Model
 # Lagrangian, fields, parameters, symmetries
