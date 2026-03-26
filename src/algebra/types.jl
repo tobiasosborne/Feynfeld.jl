@@ -58,24 +58,7 @@ end
 # Defined in colour_types.jl (Phase 1c)
 
 # ── Passarino-Veltman integral symbols ───────────────────────────────
-
-"""
-    PaVe(indices, masses, momenta)
-
-General Passarino-Veltman integral symbol.
-Specific cases: A0, B0, B1, C0, D0.
-"""
-struct PaVe <: FeynExpr
-    indices::Vector{Int}
-    masses::Vector{Any}
-    momenta::Vector{Any}
-end
-
-A0(m) = PaVe(Int[], [m], Any[])
-B0(p, m1, m2) = PaVe([0], [m1, m2], [p])
-B1(p, m1, m2) = PaVe([1], [m1, m2], [p])
-C0(p1, p2, p12, m1, m2, m3) = PaVe([0, 0], [m1, m2, m3], [p1, p2, p12])
-D0(args...) = PaVe([0, 0, 0], collect(args[4:end]), collect(args[1:3]))
+# Defined in integrals/pave.jl (Phase 1d)
 
 # ── Expression tree (Phase 0 placeholder) ────────────────────────────
 

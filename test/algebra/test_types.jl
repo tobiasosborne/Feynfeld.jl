@@ -101,13 +101,18 @@ end
 end
 
 @testset "PaVe integrals" begin
-    a0 = A0(:m)
-    @test a0 isa PaVe
+    a0 = A0(:m²)
+    @test a0 isa PaVe{1}
     @test length(a0.masses) == 1
 
-    b0 = B0(:p, :m1, :m2)
+    b0 = B0(:pp, :m0², :m1²)
+    @test b0 isa PaVe{2}
     @test length(b0.masses) == 2
-    @test length(b0.momenta) == 1
+    @test length(b0.invariants) == 1
+
+    c0 = C0(:p10, :p12, :p20, :m0², :m1², :m2²)
+    @test c0 isa PaVe{3}
+    @test length(c0.invariants) == 3
 end
 
 @testset "Amplitude (Phase 0 placeholder)" begin

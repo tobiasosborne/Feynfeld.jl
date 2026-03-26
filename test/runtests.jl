@@ -48,6 +48,9 @@ import TensorGR
     @testset "MUnit Dirac" begin
         include("algebra/test_munit_dirac.jl")
     end
+    @testset "PaVe/FAD" begin
+        include("integrals/test_pave.jl")
+    end
     @testset "Minkowski" begin
         include("algebra/test_minkowski.jl")
     end

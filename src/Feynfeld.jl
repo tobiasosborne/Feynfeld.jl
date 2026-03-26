@@ -44,9 +44,9 @@ include("algebra/contract.jl")
 # TensorGR bridge (Minkowski registry)
 include("algebra/minkowski.jl")
 
-# Layer 2: Integrals
-# PV scalar functions A₀ B₀ C₀ D₀
-# include("integrals/integrals.jl")
+# Layer 2: Integrals — PaVe symbols and propagator types
+include("integrals/pave.jl")
+include("integrals/feynamp_denominator.jl")
 
 # Layer 3: Model
 # Lagrangian, fields, parameters, symmetries
