@@ -15,6 +15,10 @@ include("algebra/momentum.jl")
 include("algebra/pair.jl")
 # Scalar product context
 include("algebra/sp_context.jl")
+# ExpandScalarProduct (bilinear expansion)
+include("algebra/expand_sp.jl")
+# Levi-Civita tensor
+include("algebra/eps.jl")
 # Lorentz index contraction
 include("algebra/contract.jl")
 # TensorGR bridge (Minkowski registry)

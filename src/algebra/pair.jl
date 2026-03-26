@@ -22,14 +22,22 @@ export SP, SPD, SPE, FV, FVD, FVE, MT, MTD, MTE
 """Get the DimSlot of a PairArg."""
 get_dim(li::LorentzIndex) = li.dim
 get_dim(m::Momentum) = m.dim
+get_dim(ms::MomentumSum) = ms.dim
 
 """Return a copy with a new DimSlot."""
 set_dim(li::LorentzIndex, d::DimSlot) = LorentzIndex(li.name, d)
 set_dim(m::Momentum, d::DimSlot) = Momentum(m.name, d)
+set_dim(ms::MomentumSum, d::DimSlot) = MomentumSum(ms.terms, d)
 
-# Type ordering for canonical form: LorentzIndex < Momentum
+"""Check if a PairArg represents zero momentum."""
+_is_zero(::LorentzIndex) = false
+_is_zero(::Momentum) = false
+_is_zero(ms::MomentumSum) = isempty(ms.terms)
+
+# Type ordering for canonical form: LorentzIndex < Momentum < MomentumSum
 _pair_type_order(::LorentzIndex) = 1
 _pair_type_order(::Momentum) = 2
+_pair_type_order(::MomentumSum) = 3
 
 # ── Pair struct ──────────────────────────────────────────────────────
 
@@ -82,6 +90,9 @@ vanishes (4 ∩ (D-4) = 0), instead of erroring.
 Ref: FeynCalc SharedObjects.m lines 2361–2381 (Pair DownValues).
 """
 function pair(x::PairArg, y::PairArg)
+    # Zero momentum check (empty MomentumSum)
+    (_is_zero(x) || _is_zero(y)) && return 0
+    # BMHV projection
     dx, dy = get_dim(x), get_dim(y)
     if !(dx === dy)
         dp::Union{DimSlot,Nothing} = dim_contract(dx, dy)

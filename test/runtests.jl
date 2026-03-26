@@ -18,6 +18,12 @@ import TensorGR
     @testset "SPContext" begin
         include("algebra/test_sp_context.jl")
     end
+    @testset "ExpandScalarProduct" begin
+        include("algebra/test_expand_sp.jl")
+    end
+    @testset "Eps" begin
+        include("algebra/test_eps.jl")
+    end
     @testset "Contract" begin
         include("algebra/test_contract.jl")
     end
