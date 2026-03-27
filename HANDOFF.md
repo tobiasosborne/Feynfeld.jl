@@ -1,4 +1,4 @@
-# HANDOFF — 2026-03-26 (End of Session 3)
+# HANDOFF — 2026-03-27 (End of Session 4)
 
 ## DO NOT DELETE THIS FILE. Read it completely before working.
 
@@ -14,138 +14,181 @@
 8. **REPEAT RULES**: Repeat occasionally to maintain focus.
 9. **DO NOT UNDERESTIMATE**: This is deeply nontrivial.
 10. **NO PARALLEL AGENTS**: Julia precompilation cache conflicts. Read-only research/design agents CAN run in parallel.
+11. **RESEARCH JULIA IDIOMS FIRST**: Before every new layer, research Julia-idiomatic patterns. Don't default to OOP struct hierarchies. (Added Session 4.)
 
 **NEVER modify TensorGR.jl without explicit permission.** It is an active separate
 project with its own workflow and handoff protocol.
 
 ---
 
-## Current State — What's Done
+## CRITICAL CONTEXT: v1 vs v2
 
-**Phase 1 (algebra layer) complete. Tracer bullet (e+e- → mu+mu-) VALIDATED.**
+**There are TWO implementations. v2 is the future.**
 
-| Phase | Epic | Tasks | Status | Key deliverables |
-|-------|------|-------|--------|-----------------|
-| 0 | `feynfeld-d4m` | 5/5 | DONE | BMHV dim algebra, Minkowski TensorGR bridge |
-| 1a | `feynfeld-43a` | 7/7 | DONE | Pair, Momentum, Contract, ExpandSP, Eps, SPContext |
-| 1b | `feynfeld-mpw` | 9/9 | DONE | DiracGamma, DiracTrick, DiracTrace, DiracSimplify, DiracScheme |
-| 1c | `feynfeld-sem` | 4/4 | DONE | SUNT, SUNF, SUND, SUNTrace, colour contractions |
-| 1d | `feynfeld-9jr` | 6/6 | DONE | PaVe{N}, FAD, Tdec rank 0-2, PaVeReduce (B-functions) |
-| 5* | `feynfeld-89y` | 3/6 | PARTIAL | AlgSum expression tree, FermionSpinSum, P&S Eq (5.10) validated |
+### v1 (master branch, `src/algebra/`, `src/integrals/`)
+- FeynCalc-mirror design: tagged unions, `Expr` coefficients, polymorphic returns
+- Phase 1 algebra COMPLETE: 616 tests pass
+- Has: PaVe types, FAD, Tdec, PaVeReduce (integrals layer), TensorGR bridge
+- Does NOT have: Model, Rules, Diagrams, cross-section evaluation
+- **Status: FROZEN. Do not extend. Use only as reference for porting algorithms.**
 
-- **40/80 beads issues closed** (50%)
-- **616 tests, ALL PASS**
-- **~2,900 source LOC** across 28 Julia files (all under 200 LOC)
-- **~2,200 test LOC** including MUnit translations and tracer bullet
+### v2 (branch `experimental/rebuild-v2`, `src/v2/`)
+- Julia-idiomatic: parametric types, DimPoly coefficients, Dict-based AlgSum
+- Full pipeline validated: Model → Rules → Diagrams → Algebra → Evaluate
+- 123 tests pass, 2,056 source LOC across 20 files
+- **Status: ACTIVE. All new work goes here.**
 
-### Session 3 additions
-- **AlgTerm/AlgSum** (`alg_expr.jl`, `alg_ops.jl`): Expression tree enabling composable algebra. Sum-of-products with arithmetic (+, *, -), contract(AlgSum), expand_scalar_product(AlgSum), evaluate_sp(AlgSum), dirac_trace_alg.
-- **FermionSpinSum** (`fermion_spin_sum.jl`): Completeness relations for spin-averaged |M|². Handles massive and massless fermions.
-- **e+e- → mu+mu- tracer bullet** (`test/test_ee_mumu.jl`): End-to-end computation validates P&S Eq (5.10). Spin sums → traces → contract → Mandelstam → 8(t²+u²).
-
-### Beads setup note
-The Dolt database may not survive across sessions. To restore:
-```bash
-bd init --force --prefix feynfeld && bd backup restore
-```
+**Read `src/v2/DESIGN.md` before touching any v2 code.** It documents every design
+choice, every cockroach found, and the patterns to follow.
 
 ---
 
-## Architecture — File Map
+## What's Done (v2)
 
-```
-src/
-├── Feynfeld.jl                      # Module root, include order matters
-├── algebra/
-│   ├── dimensions.jl                # Dim4/DimD/DimDm4, dim_contract, dim_trace, to_dim
-│   ├── types.jl                     # FeynExpr abstract, LorentzIndex, FourMomentum (legacy), FTerm, Amplitude
-│   ├── momentum.jl                  # Momentum, MomentumSum, PairArg union, arithmetic
-│   ├── pair.jl                      # Pair (universal bilinear), pair(), SP/FV/MT + D/E variants
-│   ├── sp_context.jl                # SPContext (copy-on-write scalar product storage)
-│   ├── expand_sp.jl                 # expand_scalar_product() bilinear expansion
-│   ├── eps.jl                       # Eps (Levi-Civita), levi_civita(), LC/LCD, eps_contract()
-│   ├── contract.jl                  # contract() worklist Lorentz index contraction (full BMHV)
-│   ├── minkowski.jl                 # minkowski_registry() TensorGR bridge
-│   ├── dirac_types.jl               # DiracGamma (LISlot/MomSlot/SpecialSlot), Spinor, DiracChain
-│   ├── dirac_chain.jl               # dot() constructor, dot_simplify(), DiracElement
-│   ├── dirac_trick.jl               # dirac_trick() — core γ-matrix simplification rules
-│   ├── dirac_trace.jl               # dirac_trace() — recursive trace formula + γ5 chiral base
-│   ├── dirac_order.jl               # dirac_order() — normal ordering via anticommutation
-│   ├── dirac_equation.jl            # dirac_equation() — p-slash u(p) = m u(p) at boundaries
-│   ├── dirac_simplify.jl            # dirac_simplify() — master orchestrator
-│   ├── dirac_scheme.jl              # DiracScheme enum (NDR/BMHV/Larin), with_scheme()
-│   ├── colour_types.jl              # SUNIndex/SUNFIndex, SUNT, SUNTF, SUNF, SUND, deltas, ColourChain
-│   ├── colour_trace.jl              # SUNTrace, sun_trace() recursive
-│   ├── colour_simplify.jl           # delta_trace, contract_ff/dd/fd, structure constant identities
-│   ├── alg_expr.jl                  # AlgTerm/AlgSum types, arithmetic (+, *, -)
-│   ├── alg_ops.jl                   # contract/expand_sp/evaluate_sp(AlgSum), dirac_trace_alg
-│   └── fermion_spin_sum.jl          # FermionSpinSum: completeness relations for |M|²
-└── integrals/
-    ├── pave.jl                      # PaVe{N} parametric, A0/A00/B0/B1/B00/B11/C0/D0
-    ├── feynamp_denominator.jl       # FeynAmpDenominator, 3 propagator types, FAD()
-    ├── tdec.jl                      # tdec() tensor decomposition rank 0/1/2
-    └── pave_reduce.jl               # pave_reduce() B-function coefficient reduction
-```
+### Algebra (Layer 4) — COMPLETE for tree-level + 1-loop numerator
 
-### Key design decisions (read before changing anything)
-- **Pair is the universal Lorentz bilinear** (not exported — conflicts with Base.Pair). Users use `SP`/`FV`/`MT` convenience or `Feynfeld.Pair`. This mirrors FeynCalc's `Pair[x,y]`.
-- **BMHV projection fires at Pair construction time** via `dim_contract()`. The `pair()` factory returns `0` on vanishing (4 ∩ (D-4) = 0).
-- **SPContext is explicit, not global state.** Passed as `ctx` kwarg to `contract()` and `expand_scalar_product()`.
-- **DiracGamma uses tagged DiracSlot union** (LISlot, MomSlot, SpecialSlot) — not separate types.
-- **PaVe{N}** is parametric on number of propagators for dispatch in reduction.
-- **LorentzIndex default dim is Dim4()** (matches FeynCalc convention).
-- **FeynRules port MUST use second-quantization operator algebra** (Tobias rejected functional differentiation).
+| Component | File | Tests | Status |
+|-----------|------|-------|--------|
+| DimPoly coefficients | `coeff.jl` | 29 | D, D-4, D², arithmetic, normalisation |
+| Core types | `types.jl` | — | PhysicsIndex, LorentzIndex, Momentum, MomentumSum |
+| Parametric Pair{A,B} | `pair.jl` | — | MetricTensor/FourVector/ScalarProduct aliases |
+| Dict-based AlgSum | `expr.jl` | — | 6-type AlgFactor union, FactorKey, full arithmetic |
+| SPContext + ScopedValues | `sp_context.jl` | — | Implicit via ScopedValues, explicit override |
+| Lorentz contraction | `contract.jl` | — | Worklist with dispatch on Pair types |
+| SP expansion | `expand_sp.jl` | — | Bilinear MomentumSum expansion |
+| DiracGamma{S} | `dirac.jl` | — | Parametric slots, Spinor{K}, DiracChain |
+| Dirac trace | `dirac_trace.jl` | 14 | Always returns AlgSum, MomSumSlot expansion |
+| DiracExpr | `dirac_expr.jl` | 25 | Matrix-valued expressions, arithmetic, simplify |
+| DiracTrick | `dirac_trick.jl` | 25 | D-dim γ^μ...γ_μ for n=0,1,2 |
+| Spin sum | `spin_sum.jl` | 14 | Separate traces per fermion line, multiply |
+| SU(N) colour types | `colour_types.jl` | — | AdjointIndex, FundIndex, SUNT, SUNF, SUND, deltas |
+| Colour trace | `colour_trace.jl` | 22 | Concrete N, recursive for n≥4 |
+| Colour simplify | `colour_simplify.jl` | 22 | δ contraction, f·f = Nδ identity |
+
+### Higher Layers — MINIMAL but pipeline-proven
+
+| Layer | File | Tests | Status |
+|-------|------|-------|--------|
+| 1: Model | `model.jl` | 13 | AbstractModel interface, Field{Species}, GaugeGroup types, traits |
+| 2: Rules | `rules.jl` | 7 | Callable FeynmanRules, dispatch on species for propagators/vertices |
+| 3: Diagrams | `diagrams.jl` | 6 | Hard-coded e+e-→μ+μ- s-channel; full generation NOT implemented |
+| 6: Evaluate | `cross_section.jl` | 3 | Mandelstam, Problem pattern, σ_total analytical |
+
+### Validation
+
+| Test | What | Result |
+|------|------|--------|
+| `test_ee_mumu_x.jl` | Algebra tracer: P&S Eq (5.10) | |M|² = 8(t²+u²) ✓ |
+| `test_coeff.jl` | DimPoly: D², D*D, normalisation | All 29 ✓ |
+| `test_colour.jl` | SU(N): Tr(T^aT^b), δ^{aa}, f·f contraction | All 22 ✓ |
+| `test_self_energy.jl` | DiracTrick: γ^μ(m+γ·q)γ_μ = Dm+(2-D)γ·q | All 25 ✓ |
+| `test_vertical.jl` | **FULL PIPELINE**: Model→Rules→Diagrams→Algebra→σ | P&S (5.10) + (5.12) ✓ |
 
 ---
 
-## Known Limitations — What's Incomplete in Phase 1
+## What's NOT Done
 
-These are areas where the Phase 1 implementation is deliberately minimal. Future phases may need to extend them.
+### Layer 5: Integrals (the big gap)
 
-| # | Area | Gap | Impact |
-|---|------|-----|--------|
-| 1 | **Symbolic coefficients** | `_mul_coeff` produces raw `Expr` trees (`:($a * $b)`) that don't simplify. `:(D * 4)` stays as-is, not `:(4D)`. | Will bite in Dirac trace results and cross-sections. Need a minimal symbolic simplifier before Phase 5. |
-| 2 | **Expression tree** | ~~FIXED in Session 3~~. AlgTerm/AlgSum provides sum-of-products with full arithmetic and contract/expand_sp/evaluate_sp integration. | Used for tracer bullet. FTerm/Amplitude still unused (reserved for Feynman amplitudes). |
-| 3 | **DiracTrick sandwich n≥3** | `g^μ g^a g^b g^c g_μ` (3+ gammas between) not implemented. General formula exists (Mertig/Boehm/Denner 1991 Eq 2.9). | Needed for any 1-loop QED/QCD calculation with ≥3 internal propagators. |
-| 4 | **DiracTrace chiral n>4** | `Tr[γ5 g^a g^b g^c g^d g^e g^f]` (6+ gammas with γ5) uses recursive reduction — not implemented. | Needed for axial-vector processes. |
-| 5 | **BMHV/Larin scheme** | Enum registered, `with_scheme()` works, but DiracTrick doesn't dispatch on scheme yet. All γ5 algebra uses NDR (anticommuting γ5). | BMHV needed for correct D-dim γ5 in 2-loop calculations. |
-| 6 | **SUNSimplify Cvitanovic** | Fierz identity `T^a_{ij} T^a_{kl} = (1/2)δ_{il}δ_{kj} - (1/(2N))δ_{ij}δ_{kl}` not implemented. Only delta_trace and f/d contractions. | Needed for any multi-loop colour factor calculation. |
-| 7 | **Tdec rank ≥3** | Only rank 0/1/2 tensor decomposition. Rank 3+ needs Passarino-Veltman projection (solving linear system) or TIDL lookup. | Rank 3 appears in box diagrams. |
-| 8 | **PaVeReduce C/D** | Only B1/B00/B11 → A0+B0. Denner recursion for C/D coefficients not implemented. | Needed for 3- and 4-point processes. |
-| 9 | **ToPaVe** | No FAD → PaVe conversion. Need Denner kinematic invariant extraction from propagator momenta. | Required to connect diagram output to scalar integrals. |
-| 10 | **PaVeAutoOrder** | PaVe sorts indices but doesn't canonicalize invariant/mass ordering under permutation symmetries. | May cause missed simplifications in expressions with multiple PaVe symbols. |
-| 11 | **GenPaVe** | Not implemented. Needed when physical momentum routing differs from Denner convention. | Required for ToPaVe with non-standard routing. |
-| 12 | **No `Base.show` methods** | All types print as raw struct output. No `p^μ` or `g^{μν}` rendering. | Poor ergonomics for interactive use. |
+v2 has NO loop integral machinery. v1 has symbolic PaVe types that can be ported.
+
+Needed for 1-loop calculations:
+1. **PaVe types** — port `PaVe{N}` from v1, adapt to v2 DimPoly coefficients
+2. **Tensor decomposition** — port `tdec()` from v1 for rank 0-2
+3. **PaVe reduction** — port B-function reduction from v1
+4. **Numerical evaluation** — NEW: Li₂, A₀, B₀ in pure Julia (no Fortran FFI)
+5. **ToPaVe** — FAD → PaVe extraction (v1 doesn't have this either)
+
+### Layer 3: Diagrams (hard-coded only)
+
+Only e+e- → μ+μ- s-channel is hard-coded. Full topology generation not implemented.
+For the next process (Compton, Bhabha, etc.), either hard-code or implement:
+- Recursive tree topology enumeration
+- Field insertion at vertices
+- Momentum routing
+
+### Gaps in existing layers
+
+| Gap | Layer | Impact | Difficulty |
+|-----|-------|--------|-----------|
+| DiracTrick n≥3 | Algebra | 1-loop with ≥3 internal propagators | Medium — Mertig/Boehm/Denner formula |
+| γ5 traces n>4 | Algebra | Axial-vector processes | Medium |
+| BMHV/Larin scheme | Algebra | 2-loop γ5 | Hard |
+| Fierz identity | Algebra | Multi-loop colour | Medium |
+| Tdec rank ≥3 | Algebra | Box diagrams | Medium |
+| PaVeReduce C/D | Integrals | 3/4-point functions | Hard — Denner recursion |
+| Eps contraction | Algebra | Levi-Civita contractions | Medium |
+| PolarizationSum | Evaluate | Photon/gluon spin averaging | Easy |
+| Phase space integration | Evaluate | Numerical cross-sections | Medium |
+| Base.show methods | All | Interactive ergonomics | Easy |
+| Symbolic N for colour | Algebra | Large-N, SU(2) comparison | Medium — NPoly type |
+
+---
+
+## Lessons Learned (READ THIS)
+
+### The coefficient type IS the architecture
+v1's `coeff::Any` + Expr building infected every function with adaptation code (~150 LOC of
+`_mul_coeff`, `_flatten_product`, `_to_algsum`). v2's `DimPoly` eliminates all of it. Get the
+coefficient representation right FIRST, before writing anything else. For new symbolic
+quantities (N for colour, masses, etc.), define a proper algebraic type — never use `Any` or `Expr`.
+
+### Separate fermion lines produce separate traces
+`|M|² = Tr₁[...] × Tr₂[...]` is a PRODUCT of two AlgSums, not a single trace of a long
+chain. The conjugate amplitude reverses gamma order and relabels indices (μ → μ_). This
+was a subtle bug that gave wrong numerical answers.
+
+### AlgSum for scalars, DiracExpr for matrices
+"Everything returns AlgSum" was too aggressive. The self-energy numerator
+γ^μ(m+γ·q)γ_μ = Dm·I + (2-D)·γ·q is matrix-valued — it can't live in AlgSum. DiracExpr
+is `Vector{Tuple{AlgSum, DiracChain}}` — scalar coefficient × Dirac matrix. The two types
+compose cleanly: `dirac_trace(::DiracExpr) → AlgSum`.
+
+### Expand MomSumSlot before tracing
+Don't add MomSumSlot dispatch to `gamma_pair`. Instead, expand `γ·(p-k)` into
+`γ·p - γ·k` linearly before the trace algorithm runs. Keep the core algorithm simple.
+
+### Research Julia idioms before each new layer
+The Model layer initially used plain OOP structs. After researching Julia patterns, it
+became: abstract interface (MultivariatePolynomials style), Field{Species} with traits,
+gauge groups as types, callable FeynmanRules. The research step costs 5 minutes and saves
+hours of refactoring.
 
 ---
 
 ## What To Do Next — Recommended Order
 
-**Tracer bullet (Option A) is DONE.** e+e- → mu+mu- tree-level validated.
+### Path A: Complete the 1-loop vertical (Stage B)
 
-### Recommended next: extend the pipeline
+Add Layer 5 (Integrals) to the existing pipeline. Target: e+e- → μ+μ- at 1-loop.
 
-1. **Phase 2** (`feynfeld-62k`): LoopTools numerical integration
-   - Start with Li2 (dilogarithm) — atomic building block
-   - Then A0, B0 numerical evaluation
-   - Reference: `refs/LoopTools/` has the Fortran source
-2. **Phase 3** (`feynfeld-ntj`): Model + Rules (FeynRules port)
-   - Must use second-quantization operator algebra (Tobias's requirement)
-3. **Phase 4** (`feynfeld-c0n`): Diagrams (FeynArts port)
-4. **Phase 5 remaining** (`feynfeld-89y`): PolarizationSum, ColourME, phase-space integration
-5. **Phase 6** (`feynfeld-42d`): ULDM application
+1. Port PaVe{N} types from v1 to v2 (adapt to DimPoly coefficients)
+2. Port tensor decomposition (tdec, rank 0-2) from v1
+3. Port PaVe B-function reduction from v1
+4. Implement Li₂ in pure Julia (~20 LOC)
+5. Implement A₀, B₀ numerical evaluation (~100 LOC)
+6. Build 1-loop vertex correction diagram
+7. Test: Schwinger correction δσ/σ = (3α)/(4π)(π²/3 - 1/2)
 
-### Algebra gaps to fix (for 1-loop calculations)
-- **Limitation #1** (symbolic simplification): `_mul_coeff` produces raw Expr trees. Need simplifier.
-- **Limitation #3** (DiracTrick sandwich n≥3): Needed for 1-loop QED/QCD.
-- **Limitation #6** (Fierz identity): Needed for multi-loop colour factors.
-- **Limitation #7** (Tdec rank ≥3): Needed for box diagrams.
+See `src/v2/VERTICAL_PLAN.md` for detailed plan.
 
-### Cross-cutting tasks (do anytime)
-- `feynfeld-lc0`: FCI/FCE convenience API (macros/constructors) — nice-to-have
-- `feynfeld-zwc`: Expression simplify() pipeline — would fix limitation #1
-- `feynfeld-2wx`: Feynman rules (propagators, vertices) — bridges Model→Diagrams
-- Limitation #12: Base.show methods for interactive use
+### Path B: Broaden the tree-level pipeline
+
+Add more processes to validate the Model→Rules→Diagrams layers:
+
+1. Compton scattering: e+γ → e+γ (needs PolarizationSum, 2 diagrams)
+2. Bhabha scattering: e+e- → e+e- (s+t channels, same fermion species)
+3. Møller scattering: e-e- → e-e- (identical particles)
+
+Each process tests a different aspect of diagram generation and evaluation.
+
+### Path C: Harden the algebra layer
+
+Port v1's tested algorithms to v2's type system:
+
+1. DiracTrick n≥3 (Mertig/Boehm/Denner general formula)
+2. Eps contraction (Levi-Civita identity)
+3. Port MUnit test translations from v1 (systematic coverage)
 
 ---
 
@@ -158,38 +201,30 @@ All in `refs/` (gitignored):
 - `refs/FormCalc/` — FormCalc reference (NOT directly ported).
 - `refs/LoopTools/` — Loop integral numerics: dual FF+Denner Fortran implementation.
 
-Architecture reports from Session 1 in `refs/reports/`:
-- `feyncalc_architecture.md` — Full FeynCalc deep-dive
-- `feynarts_architecture.md` — FeynArts deep-dive
-- `feynrules_architecture.md` — FeynRules deep-dive
-- `formcalc_looptools_architecture.md` — FormCalc+LoopTools deep-dive
-- `tensorgr_patterns.md` — TensorGR integration patterns
-
----
-
-## Key Dependencies
-
-- **TensorGR.jl** (`../TensorGR.jl`): Shared index contraction/canonicalization engine.
-  Feynfeld's `minkowski_registry()` uses it. DO NOT modify without permission.
-- **Julia 1.12+**: Package uses modern Julia features.
-- **No external dependencies** beyond TensorGR and stdlib (LinearAlgebra, Test).
+Architecture reports from Session 1 in `refs/reports/`.
 
 ---
 
 ## Quick Commands
 
 ```bash
-# Build & test
-julia --project=. -e 'using Pkg; Pkg.test()'     # 506 tests
+# v1 tests (616 tests, should always pass)
+julia --project=. -e 'using Pkg; Pkg.test()'
 
-# Beads issue tracking
-bd init --force --prefix feynfeld && bd backup restore  # restore after session break
-bd stats                                            # 36 closed, 41 open
-bd ready                                            # available work
-bd show feynfeld-62k                                # Phase 2 epic
-bd show feynfeld-89y                                # Phase 5 epic
-bd list --status=open --limit 0                     # all open issues
+# v2 tests (123 tests, run individually — separate Julia processes)
+julia --project=. test/v2/test_ee_mumu_x.jl
+julia --project=. test/v2/test_coeff.jl
+julia --project=. test/v2/test_colour.jl
+julia --project=. test/v2/test_self_energy.jl
+julia --project=. test/v2/test_vertical.jl
 
-# Git
-git log --oneline -10                               # recent commits
+# Run all v2 tests sequentially
+for f in test/v2/test_*.jl; do julia --project=. "$f"; done
+
+# Branch
+git branch  # should show experimental/rebuild-v2
+
+# Beads (may need restore)
+bd init --force --prefix feynfeld && bd backup restore
+bd stats
 ```
