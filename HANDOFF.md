@@ -1,4 +1,4 @@
-# HANDOFF — 2026-03-28 (End of Session 5)
+# HANDOFF — 2026-03-28 (End of Session 5, Spiral 1 complete)
 
 ## DO NOT DELETE THIS FILE. Read it completely before working.
 
@@ -7,9 +7,9 @@
 1. Read `CLAUDE.md` — rules, anti-hallucination citation pattern, Julia idiom cheatsheet
 2. Read `Feynfeld_PRD.md` — vision, spiral methodology, MUnit coverage target
 3. Read `src/v2/DESIGN.md` — v2 type system, anti-patterns, cockroaches found
-4. Run `bd init --force --prefix feynfeld && bd backup restore` if beads not working
-5. Run `bd ready` to see available work
-6. Run `for f in test/v2/test_*.jl; do julia --project=. "$f"; done` to verify 187 tests pass
+4. Read `JULIA_PATTERNS.md` — Julia idiom cheatsheet (same content as in CLAUDE.md §6)
+5. Run `bd ready` to see available work (if beads errors, run `bd init --force --prefix feynfeld && bd backup restore`)
+6. Run `for f in test/v2/test_*.jl; do julia --project=. "$f"; done` to verify 214 tests pass
 
 ---
 
@@ -20,189 +20,212 @@ See `CLAUDE.md` for the full 12 rules. The critical ones:
 1. **GROUND TRUTH = PHYSICS.** Not LLM memory. Not pinned numbers.
 2. **ANTI-HALLUCINATION: CITE EVERYTHING.** Every formula must cite: local file
    path + equation number + verbatim copy. No exceptions. STOP if source missing.
+   ```julia
+   # Ref: refs/papers/Denner1993.pdf, Eq. (4.18)
+   # "B₁(p², m₀², m₁²) = [A₀(m₁²) - A₀(m₀²) - (p²+m₀²-m₁²)B₀] / (2p²)"
+   ```
 3. **JULIA IDIOMATIC ALL THE WAY.** Read the cheatsheet in CLAUDE.md FIRST.
-4. **NO PARALLEL JULIA AGENTS.** Read-only research agents CAN run in parallel.
+   Use existing packages (QuadGK, PolyLog). No hand-rolled numerics. No isa cascades.
+   Parametric types + dispatch. No OOP struct hierarchies unless dispatch genuinely needed.
+4. **WORKFLOW.** 3 subagents before core code change: research source + 2 solutions.
+5. **REVIEW.** Rigorous reviewer agent after every core change.
+6. **NO PARALLEL JULIA AGENTS.** Read-only research agents CAN run in parallel.
 
 **NEVER modify TensorGR.jl without explicit permission.**
 
 ---
 
-## PROJECT STATE
+## PROJECT OVERVIEW
 
-### PRD v0.2 (rewritten this session)
+### What is Feynfeld.jl?
 
-Big vision: Julia-native, agent-facing, full-stack physics suite. Lagrangian →
-predictions. Eventually ALL of physics (SUSY, quantum gravity, etc.). First
-spirals: QED/QCD/EW validated against every FeynCalc MUnit test (15,222
-assertions, ~10,000 translatable).
+Julia-native, agent-facing, full-stack physics computation suite. Lagrangian →
+cross-section in one `using Feynfeld`. Replaces FeynRules + FeynArts + FeynCalc +
+FormCalc + LoopTools. See PRD for the full vision (eventually all of physics:
+SUSY, quantum gravity, etc.).
 
-Development methodology: **spiral** (geometric mean of vertical × horizontal).
-Each process drives both pipeline depth and MUnit coverage breadth.
+### Development methodology: THE SPIRAL
 
-### v2 codebase (branch `experimental/rebuild-v2`)
+Each **process** is a vertical spoke that drives horizontal **MUnit test coverage**.
+FeynCalc has 15,222 MUnit tests (~10,000 translatable). Each spiral implements a
+new process end-to-end and translates the MUnit tests for the functions it needs.
 
-**187 tests pass across 7 test files. 2,500+ source LOC across 23 files.**
+| Spiral | Process | Status |
+|--------|---------|--------|
+| 0 | e+e-→μ+μ- tree | DONE (Session 4) |
+| 1 | Compton e+γ→e+γ | DONE (Session 5) |
+| **2** | **Bhabha e+e-→e+e-** | **NEXT** |
+| 3 | QCD qq̄→gg | Planned |
+| 4-6 | 1-loop (vertex, VP, Schwinger) | Planned |
+| 7 | EW e+e-→W+W- | Planned |
+| 8 | MUnit mop-up | Planned |
+| 9+ | BSM / ULDM | Planned |
 
-| Layer | Status | Key files |
-|-------|--------|-----------|
-| 4: Algebra | Tree-level COMPLETE | coeff, types, pair, expr, contract, expand_sp, dirac*, spin_sum, colour* |
-| 1: Model | Hard-coded QED | model.jl (Field{Species}, GaugeGroup, traits) |
-| 2: Rules | Hard-coded QED | rules.jl (FeynmanRules callable, dispatch on species) |
-| 3: Diagrams | Hard-coded e+e-→μ+μ- | diagrams.jl (ExternalLeg, FeynmanDiagram) |
-| 5: Integrals | PaVe types + A₀/B₀ | pave.jl, pave_eval.jl (QuadGK), schwinger.jl |
-| 6: Evaluate | Tree-level σ | cross_section.jl (Problem/Solve, Mandelstam) |
+### Branch and code location
 
-### v1 (FROZEN — will be deleted)
+- **Branch:** `experimental/rebuild-v2`
+- **v2 source:** `src/v2/` (23 files, ~2,700 LOC)
+- **v2 tests:** `test/v2/` (9 files, 214 tests)
+- **v1:** `src/algebra/`, `src/integrals/` — FROZEN, will be deleted. Do NOT extend or import patterns from.
 
-616 tests in `src/algebra/`, `src/integrals/`. Mathematica-shaped anti-patterns
-(tagged unions, `Any` coefficients, `Expr` building). Use ONLY as algorithmic
-reference for porting. Do not extend. Do not import patterns from.
+---
 
-### Beads
+## WHAT EXISTS (v2, 214 tests)
 
-79 total issues. 55 closed, 24 open. `bd --version` = 0.61.0, Dolt backend.
-Server auto-starts. Open issues mapped to spiral plan.
+### Six-layer pipeline
+
+```
+Layer 1: Model      → qed_model()                    → QEDModel
+Layer 2: Rules      → feynman_rules(model)            → FeynmanRules (callable)
+Layer 3: Diagrams   → tree_diagrams(model, ...)       → Vector{FeynmanDiagram}
+Layer 4: Algebra    → trace → contract → expand → eval → AlgSum (scalar)
+Layer 5: Integrals  → PaVe{N}, evaluate(::PaVe; mu2)  → ComplexF64
+Layer 6: Evaluate   → solve_tree(prob) → σ             → Float64
+```
+
+### Layer 4: Algebra (the core, tree-level complete)
+
+| File | What | Key types/functions |
+|------|------|-------------------|
+| `coeff.jl` | DimPoly coefficient algebra | `DimPoly`, `DIM`, `Coeff`, `evaluate_dim` |
+| `types.jl` | Physics indices, momenta | `LorentzIndex`, `Momentum`, `MomentumSum`, `PairArg` |
+| `colour_types.jl` | SU(N) types | `AdjointIndex`, `FundIndex`, `SUNT`, `SUNF`, `SUND`, deltas |
+| `pair.jl` | Parametric Pair{A,B} | `MetricTensor`, `FourVector`, `ScalarProduct`, `pair()` |
+| `expr.jl` | Dict-based AlgSum | `AlgSum`, `AlgFactor` (6-type union), `FactorKey`, `alg()` |
+| `sp_context.jl` | Scalar product context | `SPContext`, `ScopedValues`, `evaluate_sp` |
+| `contract.jl` | Lorentz contraction | `contract()`, `substitute_index()`, `alg_from_factors()` |
+| `expand_sp.jl` | MomentumSum bilinear expansion | `expand_scalar_product()` |
+| `dirac.jl` | Dirac gamma types | `DiracGamma{S}`, `Spinor{K}`, `DiracChain`, `GA/GAD/GS` |
+| `dirac_trace.jl` | Trace → AlgSum | `dirac_trace()` (handles up to 8+ gammas) |
+| `dirac_expr.jl` | Matrix-valued expressions | `DiracExpr` = Vector{Tuple{AlgSum, DiracChain}} |
+| `dirac_trick.jl` | γ^μ...γ_μ contraction | `dirac_trick()` (n=0,1,2 only) |
+| `spin_sum.jl` | Fermion spin sums | `spin_sum_amplitude_squared()` (two-line), `_single_line_trace()` |
+| `colour_trace.jl` | SU(N) trace | `colour_trace()` (concrete N, recursive) |
+| `colour_simplify.jl` | δ contraction, f·f | `contract_colour()` |
+| `polarization_sum.jl` | Photon pol sum | `polarization_sum()` (Feynman gauge: -g^{μν}) |
+
+### Layers 1-3, 5-6 (minimal but pipeline-proven)
+
+| File | What |
+|------|------|
+| `model.jl` | `QEDModel`, `Field{Species}`, `GaugeGroup`, traits |
+| `rules.jl` | `FeynmanRules` callable, vertex/propagator dispatch on species |
+| `diagrams.jl` | Hard-coded e+e-→μ+μ- s-channel topology |
+| `pave.jl` | `PaVe{N}` parametric type, named constructors A0/B0/B1/C0/D0 |
+| `pave_eval.jl` | `evaluate(::PaVe{1,2})`, B0 via QuadGK Feynman parameter |
+| `schwinger.jl` | Analytical Schwinger correction formula, vacuum polarization |
+| `cross_section.jl` | `CrossSectionProblem`, `solve_tree`, Mandelstam, dσ/dΩ |
+
+### Dependencies
+
+- **PolyLog.jl** v2.6.2 — dilogarithm `li2()` (for future C₀ evaluation)
+- **QuadGK.jl** v2.11.2 — adaptive quadrature (used by B₀ and vacuum polarization)
+
+### Test files
+
+| File | Tests | What |
+|------|-------|------|
+| `test_coeff.jl` | 29 | DimPoly arithmetic |
+| `test_colour.jl` | 22 | SU(N) traces, δ contraction |
+| `test_ee_mumu_x.jl` | 14 | e+e-→μ+μ- algebra (P&S 5.10) |
+| `test_self_energy.jl` | 25 | DiracExpr, DiracTrick n=0,1,2 |
+| `test_vertical.jl` | 33 | Full pipeline: Model→Rules→Diagrams→Algebra→σ |
+| `test_pave.jl` | 51 | PaVe types + A₀/B₀ numerical evaluation |
+| `test_schwinger.jl` | 13 | Schwinger correction + vacuum polarization |
+| `test_compton.jl` | 4 | Compton |M|² from pipeline vs P&S Eq. 5.87 |
+| `test_munit_batch1.jl` | 23 | MUnit translations: DiracTrace, Contract, PolarizationSum |
 
 ---
 
 ## WHAT WAS DONE IN SESSION 5
 
-### 1. Layer 5 (Integrals) — partial tracer bullet
+### Spiral 0→1 progression
 
-Added PaVe{N} parametric type, numerical A₀/B₀ evaluation, Schwinger correction.
+1. **Layer 5 partial:** PaVe{N} types, A₀/B₀ numerical via QuadGK, Schwinger formula
+2. **PRD v0.2 rewrite:** Big vision, spiral methodology, anti-hallucination rules, Julia cheatsheet
+3. **CLAUDE.md overhaul:** New rules, beads tracking, ground truth acquisition, cheatsheet
+4. **Spiral 1 core (Compton):** |M|² matches P&S Eq. 5.87 from algebra pipeline
+5. **MUnit batch 1:** 23 translated tests (DiracTrace, Contract, PolarizationSum)
+6. **Infrastructure fixes:** AlgSum ==, substitute_index, MomentumSum ordering, expand_sp typing
+7. **Beads triage:** 62 closed, 21 open, mapped to spirals
 
-**New files:**
-- `src/v2/pave.jl` (68 LOC) — PaVe{N} struct, named constructors A0/B0/B1/C0/D0
-- `src/v2/pave_eval.jl` (90 LOC) — `evaluate` via dispatch, B0 via QuadGK Feynman parameter
-- `src/v2/schwinger.jl` (53 LOC) — analytical Schwinger correction, vacuum polarization
-- `test/v2/test_pave.jl` (158 LOC) — 51 tests: types, A₀, B₀ special cases, symmetry, general
-- `test/v2/test_schwinger.jl` (64 LOC) — 13 tests: correction formula, vacuum pol, PaVe spot checks
+### Key learnings
 
-**Dependencies added:** PolyLog.jl v2.6.2 (li2), QuadGK.jl v2.11.2 (adaptive quadrature)
+1. **Don't hand-roll numerics.** First B₀ attempt used analytical formulas → bugs. QuadGK is correct by construction. Rule 8: use Julia packages.
 
-**What this is NOT:** A full 1-loop vertical. The Schwinger correction function is
-a hard-coded analytical constant, not computed from loop diagrams. C₀ (triangle),
-tensor decomposition, renormalisation, and IR cancellation are all missing.
+2. **DimD vs Dim4 mismatch is a silent bug.** `GAD(:mu)` creates `LorentzIndex(:mu, DimD())` but `LorentzIndex(:mu)` defaults to `Dim4()`. They print the same but `==` fails. Always use consistent dimension tags.
 
-### 2. PRD v0.2 — complete rewrite
+3. **PaVe is standalone, not in AlgFactor.** PaVe is scalar-valued. It doesn't carry Lorentz indices, doesn't contract, doesn't expand. It does not belong in the AlgFactor union.
 
-- Big vision: agent-facing full-stack physics, eventually all of physics
-- Spiral methodology (process × MUnit coverage)
-- Anti-hallucination citation rule (every formula: local path + eq number + verbatim)
-- Julia idiom cheatsheet (replicated in PRD, JULIA_PATTERNS.md, CLAUDE.md)
-- FeynCalc MUnit test coverage target (~10,000)
-- v1 deletion policy
+4. **substitute_index needed for polarization sums.** When squaring the amplitude, conjugate indices (μ', ν') must be relabeled to (μ, ν) for the contraction engine to find repeated indices. `substitute_index(s, old_li, new_li)` does this.
 
-### 3. CLAUDE.md — updated
+5. **expand before contract for MomentumSum.** `(p-q)^a (p-q)_a` needs `expand_scalar_product` first (bilinear expansion), then `contract` (repeated index). The other order leaves FourVectors with uncontracted indices.
 
-- New rules (anti-hallucination citation, Julia idiomatic)
-- Beads + Dolt tracking instructions
-- Ground truth acquisition (arXiv → TIB VPN → playwright-cli pattern)
-- Julia idiom cheatsheet (third copy for LLM attention)
-
-### 4. Beads triage
-
-Closed 15 stale v1-era issues. 24 remain, mapped to spiral plan:
-- Spiral 1 (Compton): PolarizationSum, topology generation
-- Spirals 2-3 (Bhabha, QCD): DiracTrick full, SUN, amplitude squaring
-- Spirals 4-6 (1-loop): C₀, D₀, PaVeReduce, TID, renormalisation
-- Spiral 9+ (BSM/ULDM): Lagrangian DSL, SM model, ULDM portal
+6. **The FeynCalc Compton example is the ground truth.** File: `refs/FeynCalc/FeynCalc/Examples/QED/Tree/Mathematica/ElGa-ElGa.m`. Lines 103-108 give P&S Eq. 5.87 in FeynCalc notation, verified as "CORRECT" by FeynCalc's own test.
 
 ---
 
-## KEY LEARNINGS (Session 5)
+## WHAT TO DO NEXT: SPIRAL 2 (Bhabha scattering)
 
-### 1. Don't hand-roll numerics
+### Process: e+e- → e+e- (Bhabha scattering)
 
-First attempt at B₀ used hand-derived analytical formulas for each special case.
-The equal-mass formula had a sign bug (+β instead of -β) and missing +2. The
-general formula was completely wrong. Reviewer agent caught it.
+This is the next process in the spiral. It requires:
 
-**Fix:** Replaced all special cases (except both-massless and one-massless)
-with QuadGK adaptive quadrature on the Feynman parameter integral. Correct by
-construction. ~14 digits accuracy. No hand-derived formulas to get wrong.
+### New capabilities needed
 
-**Lesson:** Use Julia packages (QuadGK, PolyLog) instead of reimplementing.
-This is now Rule 8 in CLAUDE.md.
+1. **t-channel diagram** — unlike e+e-→μ+μ- (s-channel only) and Compton (s+u), Bhabha has both s-channel AND t-channel. The t-channel has a different topology: the electron exchanges a photon with the positron without annihilating.
 
-### 2. PaVe is standalone, not in AlgFactor
+2. **DiracTrick n≥3** — Bhabha's squared amplitude involves longer gamma chains. The current DiracTrick only handles n=0,1,2 (γ^μ γ_μ, γ^μ γ^a γ_μ, γ^μ γ^a γ^b γ_μ). Bhabha may need n=3,4. This is the Mertig-Boehm-Denner general formula.
+   - MUnit tests: `refs/FeynCalc/Tests/Dirac/DiracTrick.test` — 577 tests, categories `ThreeFreeIndices` (11), `FourFreeIndices` (9), `FiveFreeIndices` (9).
 
-Initial plan tried to make PaVe the 7th member of the AlgFactor union. Research
-agent correctly identified this as OOP pollution: PaVe is scalar-valued, doesn't
-carry Lorentz indices, doesn't contract or expand. It doesn't belong with tensor
-factors. PaVe{N} is a standalone type with `evaluate` via dispatch.
+3. **Identical fermion handling** — in Bhabha, the initial and final electrons are the same species. This affects the diagram counting and relative signs (Fermi statistics).
 
-**Where PaVe should live in AlgSum is an open question** for the learnings phase
-after completing spirals 1-3.
+4. **Two-diagram spin sum with interference** — similar to Compton but with s+t channels instead of s+u. The `compton_trace_ij` pattern from test_compton.jl can be reused.
 
-### 3. The Schwinger correction requires C₀
+### Ground truth
 
-A genuine 1-loop vertical (computing δσ/σ from diagrams) needs:
-- C₀ (scalar triangle) for the vertex correction form factor
-- Tensor decomposition to extract PaVe from loop amplitude
-- Renormalisation (counterterms, Ward identity Z₁=Z₂)
-- IR cancellation (virtual + real soft emission)
+- **P&S Eq. (5.10) and problem 5.2** — Bhabha in the massless limit
+- **FeynCalc example:** look for `refs/FeynCalc/FeynCalc/Examples/QED/Tree/Mathematica/ElEl-ElEl.m` or `ElAel-ElAel.m`
+- **FeynCalc MUnit:** DiracTrick.test (577 tests), plus Contract.test subset
 
-This is spirals 4-6, not a quick tracer bullet.
+### Approach
 
-### 4. FeynCalc has 15,222 MUnit tests
+1. Find the FeynCalc Bhabha example in `refs/FeynCalc/FeynCalc/Examples/QED/Tree/Mathematica/`
+2. Read P&S for the exact formula (Chapter 5, problem 5.2 or nearby)
+3. Build the s+t channel amplitudes as gamma chains
+4. Compute |M|² using the same trace-contract-evaluate pipeline as Compton
+5. Compare to the textbook formula
+6. Translate relevant MUnit tests (DiracTrick n≥3 batch)
 
-Explored the full test suite. ~10,000 are translatable to Julia (the rest test
-Mathematica-specific FCI/FCE conversions and typesetting). The tests encode
-conventions, edge cases, and 25 years of cross-validation. They are the single
-most valuable resource for the project.
+### Beads issues
 
-### 5. Spiral methodology validated
+Run `bd ready` to see open issues. The relevant ones:
+- `feynfeld-7su` — Klein-Nishina (deferred, needs lab-frame kinematics)
+- Plus whatever new issues you create for Spiral 2
 
-The v2 rebuild proved vertical slices are more productive than horizontal layer
-completion. The new spiral methodology combines both: each process is a vertical
-spoke that drives horizontal MUnit coverage.
-
-### 6. Anti-hallucination citation pattern is critical
-
-The B₀ formula bug came from "I know the formula" without checking a reference.
-Rule 2 now requires every formula to cite a local source with equation number
-and verbatim copy. This is the most important rule for physics code.
+Create beads issues for Spiral 2 steps before starting implementation:
+```bash
+bd create --title="Spiral 2.1: Bhabha amplitude (s+t channel)" --description="..." --type=task --priority=1
+bd create --title="Spiral 2.2: DiracTrick n>=3" --description="..." --type=task --priority=1
+# etc.
+```
 
 ---
 
-## WHAT TO DO NEXT
+## REFERENCE CODEBASES
 
-### Spiral 1: Compton scattering (e+γ → e+γ)
+All in `refs/` (gitignored):
+- `refs/FeynCalc/` — 186k LOC Mathematica. MUnit tests in `Tests/`. Examples in `FeynCalc/Examples/`.
+- `refs/FeynArts/` — Diagram generation reference.
+- `refs/FeynRules/` — Model/Lagrangian reference.
+- `refs/LoopTools/` — Loop integral numerics (Fortran source).
+- `refs/papers/` — P&S (.djvu format). More papers needed (Denner 1993, 't Hooft-Veltman) — acquire via TIB VPN.
 
-This is the next process. It requires:
+### Ground truth acquisition
 
-1. **PolarizationSum** — photon polarisation sum ε^μ ε^ν* → -g^{μν} (Feynman gauge)
-   - MUnit tests: `refs/FeynCalc/Tests/Feynman/PolarizationSum.test`
-   - Relatively simple, ~50 LOC
-
-2. **Eps contraction** — Levi-Civita tensor contraction (if needed for cross-terms)
-   - MUnit tests: `refs/FeynCalc/Tests/Lorentz/EpsContract.test`
-
-3. **Two-diagram amplitude** — s-channel + u-channel
-   - Extend diagrams.jl with Compton topology (or start proper topology generation)
-
-4. **DiracTrick n≥3** — needed if the trace produces >2 sandwiched gammas
-   - MUnit tests: `refs/FeynCalc/Tests/Dirac/DiracTrick.test` (577 tests!)
-
-5. **Translate MUnit tests** for each function implemented
-
-**Target:** `@test` validates Compton cross-section against Klein-Nishina formula.
-
-### After Spiral 1
-
-- Spiral 2: Bhabha (e+e-→e+e-) — t-channel, full DiracTrick
-- Spiral 3: QCD (qq̄→gg) — full colour algebra
-- Spiral 4: 1-loop vertex — C₀, tensor decomposition, PaVeReduce
-
-### Ground truth papers still needed
-
-The following papers should be acquired (TIB VPN) before spiral 4:
-- Denner, Fortschr. Phys. 41 (1993) 307
-- 't Hooft & Veltman, Nucl. Phys. B153 (1979) 365
-- Passarino & Veltman, Nucl. Phys. B160 (1979) 151
-
-P&S is already in `refs/papers/` (.djvu format).
+See `CLAUDE.md` §Ground truth acquisition. Priority: arXiv → TIB VPN → playwright-cli.
+The P&S textbook is at: `refs/papers/(Frontiers_in_Physics)Michael_E._Peskin,_Dan_V._Schroeder-An_introduction_to_quantum_field_theory-Westview_Press(1995).djvu`
+Note: .djvu format. System has `libdjvulibre` but NOT `djvutxt` command-line tool. The `archivum` project at `~/Projects/archivum/` has a djvu extractor but it also needs `djvutxt`. For now, use FeynCalc examples (which cite P&S equations by number) as the citation bridge.
 
 ---
 
@@ -212,18 +235,73 @@ P&S is already in `refs/papers/` (.djvu format).
 # Branch
 git branch  # should show experimental/rebuild-v2
 
-# Run all v2 tests (187 tests)
+# Run all v2 tests (214 tests across 9 files)
 for f in test/v2/test_*.jl; do julia --project=. "$f"; done
 
 # Run specific test
-julia --project=. test/v2/test_pave.jl
+julia --project=. test/v2/test_compton.jl
 
 # Beads
 bd ready              # available work
 bd stats              # project health
 bd list --status=open # all open issues
+bd create --title="..." --description="..." --type=task --priority=1
 
 # Ground truth
-ls refs/FeynCalc/Tests/         # MUnit test directories
-ls refs/papers/                 # local paper copies
+ls refs/FeynCalc/Tests/                              # MUnit test directories
+ls refs/FeynCalc/FeynCalc/Examples/QED/Tree/Mathematica/  # FeynCalc example computations
+ls refs/papers/                                      # local paper copies
+
+# Commit and push (session end protocol)
+git add <files>
+git commit -m "..."
+git push
+bd backup export-git  # sync beads to origin
+```
+
+---
+
+## FILE MAP
+
+```
+src/v2/
+├── FeynfeldX.jl          # Module root, includes + exports (89 LOC)
+├── coeff.jl              # DimPoly coefficients (142)
+├── types.jl              # PhysicsIndex, Momentum, MomentumSum (94)
+├── colour_types.jl       # SU(N): AdjointIndex, FundIndex, SUNT, SUNF, SUND (126)
+├── pair.jl               # Parametric Pair{A,B}, NOT exported (76)
+├── expr.jl               # AlgSum (Dict), AlgFactor (6-type union), FactorKey (151)
+├── sp_context.jl         # SPContext + ScopedValues (71)
+├── contract.jl           # Lorentz contraction + substitute_index (155)
+├── expand_sp.jl          # Scalar product bilinear expansion (83)
+├── dirac.jl              # DiracGamma{S}, Spinor{K}, DiracChain (113)
+├── dirac_trace.jl        # Dirac trace → AlgSum (65)
+├── dirac_expr.jl         # DiracExpr: matrix-valued expressions (104)
+├── dirac_trick.jl        # D-dim γ^μ...γ_μ for n=0,1,2 (117)
+├── spin_sum.jl           # Fermion spin sums (139)
+├── colour_trace.jl       # SU(N) trace → AlgSum (82)
+├── colour_simplify.jl    # Delta contraction, f·f identity (148)
+├── polarization_sum.jl   # Photon pol sum: -g^{μν} (16)
+├── model.jl              # AbstractModel, QEDModel, Field{Species} (101)
+├── rules.jl              # FeynmanRules callable (81)
+├── diagrams.jl           # FeynmanDiagram, hard-coded topologies (75)
+├── pave.jl               # PaVe{N} type, named constructors (68)
+├── pave_eval.jl          # evaluate(::PaVe) via QuadGK (90)
+├── schwinger.jl          # Schwinger correction + vacuum pol (53)
+├── cross_section.jl      # Mandelstam, Problem/Solve, σ (108)
+├── DESIGN.md             # Design choices, anti-patterns, cockroaches
+└── VERTICAL_PLAN.md      # Original vertical plan (historical)
+
+test/v2/
+├── test_coeff.jl         # DimPoly (29 tests)
+├── test_colour.jl        # SU(N) (22 tests)
+├── test_ee_mumu_x.jl     # e+e-→μ+μ- algebra (14 tests)
+├── test_self_energy.jl   # DiracExpr + DiracTrick (25 tests)
+├── test_vertical.jl      # Full pipeline (33 tests)
+├── test_pave.jl          # PaVe types + numerics (51 tests)
+├── test_schwinger.jl     # Schwinger correction (13 tests)
+├── test_compton.jl       # Compton |M|² vs P&S 5.87 (4 tests)
+└── test_munit_batch1.jl  # MUnit translations (23 tests)
+
+Total: ~2,700 source LOC, ~900 test LOC, 214 tests, all files < 200 LOC.
 ```
