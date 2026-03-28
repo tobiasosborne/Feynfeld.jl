@@ -3,11 +3,12 @@
 # Ref: refs/FeynCalc/Tests/Feynman/PolarizationSum.test, ID1
 # Ref: Peskin & Schroeder, discussion around Eq. (5.75)
 #
-# For a massless gauge boson (photon) in Feynman gauge:
-#   Σ_λ ε^μ(k,λ) ε^ν*(k,λ) = -g^{μν}
+# Feynman gauge: Σ_λ ε^μ ε^{ν*} = -g^{μν}
+# Axial gauge:   Σ_λ ε^μ ε^{ν*} = -g^{μν} + (k^μ n^ν + n^μ k^ν)/(k·n)
+#   for massless k and massless reference momentum n (n²=0, k·n≠0).
 #
-# This is the only form needed for tree-level QED. Massive boson and
-# axial/light-cone gauge forms are deferred to later spirals.
+# The axial gauge form sums over physical (transverse) polarizations only.
+# Required for QCD where individual diagram contributions are not gauge-invariant.
 
 """
     polarization_sum(mu, nu)
@@ -15,3 +16,26 @@
 Feynman gauge polarization sum: Σ_λ ε^μ ε^{ν*} = -g^{μν}.
 """
 polarization_sum(mu::LorentzIndex, nu::LorentzIndex) = -alg(pair(mu, nu))
+
+"""
+    polarization_sum(mu, nu, k, n)
+
+Axial gauge polarization sum for massless gauge boson with momentum `k`
+and massless reference momentum `n` (n²=0):
+  Σ_λ ε^μ ε^{ν*} = -g^{μν} + (k^μ n^ν + n^μ k^ν)/(k·n)
+
+Ref: FeynCalc DoPolarizationSums with reference vector.
+"""
+function polarization_sum(mu::LorentzIndex, nu::LorentzIndex,
+                          k::Momentum, n::Momentum; ctx::SPContext=CURRENT_SP[])
+    kn = _lookup_sp(k, n, ctx)
+    kn === nothing && error("polarization_sum: need k·n in SPContext for $(k.name)·$(n.name)")
+    -alg(pair(mu, nu)) +
+        (1 // kn) * (alg(pair(mu, k)) * alg(pair(nu, n)) +
+                     alg(pair(mu, n)) * alg(pair(nu, k)))
+end
+
+function _lookup_sp(a::Momentum, b::Momentum, ctx::SPContext)
+    key = a.name <= b.name ? (a.name, b.name) : (b.name, a.name)
+    get(ctx.values, key, nothing)
+end

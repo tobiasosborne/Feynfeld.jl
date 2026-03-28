@@ -92,72 +92,68 @@ using .FeynfeldX
             dirac_trace(gs)
         end
 
-        D_tt = dirac_trace_XY(gamma_t, gamma_t_conj)
-        D_uu = dirac_trace_XY(gamma_u, gamma_u_conj)
-        D_tu = dirac_trace_XY(gamma_t, gamma_u_conj)
+        # Use PRIMED indices for conjugate, apply PHYSICAL pol sum later
+        # (QCD requires physical pol sums — Ward identity only holds for full amplitude)
+        gamma_t_conj_p = DiracGamma[GAD(:mu_), DiracGamma(MomSumSlot(p1mk1)), GAD(:nu_)]
+        gamma_u_conj_p = DiracGamma[GAD(:nu_), DiracGamma(MomSumSlot(p1mk2)), GAD(:mu_)]
+
+        D_tt_raw = dirac_trace_XY(gamma_t, gamma_t_conj_p)
+        D_uu_raw = dirac_trace_XY(gamma_u, gamma_u_conj_p)
+        D_tu_raw = dirac_trace_XY(gamma_t, gamma_u_conj_p)
 
         # ──── s-channel ────
-        # Quark line: v̄(p2) γ^ρ u(p1) → after spin sum: Tr[p̸₂ γ^ρ p̸₁ γ^σ]
-        # where σ is from the conjugate. Then contracted with triple vertex.
-        #
-        # Triple gluon vertex (all momenta outgoing from vertex):
-        # V^{ρμν}(-q, k1, k2) where q = p1+p2 = k1+k2
-        # = g^{ρμ}(-q-k1)^ν + g^{μν}(k1-k2)^ρ + g^{νρ}(k2+q)^μ
-        # = g^{ρμ}(-2k1-k2)^ν + g^{μν}(k1-k2)^ρ + g^{νρ}(k1+2k2)^μ
-        #
-        # After gluon propagator (−g_{ρσ}/s) and polarization sums (−g_{μα}, −g_{νβ}):
-        # The s-channel contribution involves V contracted with metrics.
-        #
-        # D_ss = Tr[p̸₂ γ^ρ p̸₁ γ^σ] × V_{ρμν} × V_{σμν} / s²
-        # where μ,ν are contracted between V and V (from pol sums).
-
-        # Build V_{ρμν} as an AlgSum: sum of 3 terms, each a product of
-        # a metric tensor and a four-vector.
-        # V_{ρμν} = g_{ρμ} (-2k1-k2)_ν + g_{μν} (k1-k2)_ρ + g_{νρ} (k1+2k2)_μ
+        # Triple gluon vertex V_{ρμν}(-q,k1,k2) with q=k1+k2 (all outgoing):
+        # V = g_{ρμ}(-2k1-k2)_ν + g_{μν}(k1-k2)_ρ + g_{νρ}(k1+2k2)_μ
         rho = LorentzIndex(:rho, DimD())
+        sig = LorentzIndex(:sig, DimD())
         mu_idx = LorentzIndex(:mu, DimD())
         nu_idx = LorentzIndex(:nu, DimD())
-        sig = LorentzIndex(:sig, DimD())
+        mu_p = LorentzIndex(:mu_, DimD())
+        nu_p = LorentzIndex(:nu_, DimD())
 
-        # Momenta in the vertex
-        m2k1mk2 = MomentumSum([(-2//1, k1), (-1//1, k2)])  # -2k1-k2
-        k1mk2   = MomentumSum([(1//1, k1), (-1//1, k2)])    # k1-k2
-        k1p2k2  = MomentumSum([(1//1, k1), (2//1, k2)])     # k1+2k2
+        m2k1mk2 = MomentumSum([(-2//1, k1), (-1//1, k2)])
+        k1mk2   = MomentumSum([(1//1, k1), (-1//1, k2)])
+        k1p2k2  = MomentumSum([(1//1, k1), (2//1, k2)])
 
-        # V_{ρμν} = g_{ρμ}(-2k1-k2)_ν + g_{μν}(k1-k2)_ρ + g_{νρ}(k1+2k2)_μ
-        # Expand MomentumSums into individual FourVector terms
-        function vertex_term(g_idx1, g_idx2, mom_sum, mom_idx)
+        function vertex_term(g1, g2, ms, mi)
             result = AlgSum()
-            for (c, m) in mom_sum.terms
-                result = result + c * alg(pair(g_idx1, g_idx2)) * alg(pair(mom_idx, m))
+            for (c, m) in ms.terms
+                result = result + c * alg(pair(g1, g2)) * alg(pair(mi, m))
             end
             result
         end
 
-        V_rho_mu_nu = vertex_term(rho, mu_idx, m2k1mk2, nu_idx) +
-                      vertex_term(mu_idx, nu_idx, k1mk2, rho) +
-                      vertex_term(nu_idx, rho, k1p2k2, mu_idx)
+        V_amp = vertex_term(rho, mu_idx, m2k1mk2, nu_idx) +
+                vertex_term(mu_idx, nu_idx, k1mk2, rho) +
+                vertex_term(nu_idx, rho, k1p2k2, mu_idx)
 
-        # V_{σμν} (conjugate uses σ instead of ρ, same structure)
-        V_sig_mu_nu = vertex_term(sig, mu_idx, m2k1mk2, nu_idx) +
-                      vertex_term(mu_idx, nu_idx, k1mk2, sig) +
-                      vertex_term(nu_idx, sig, k1p2k2, mu_idx)
+        V_conj = vertex_term(sig, mu_p, m2k1mk2, nu_p) +
+                 vertex_term(mu_p, nu_p, k1mk2, sig) +
+                 vertex_term(nu_p, sig, k1p2k2, mu_p)
 
-        # D_ss = Tr[p̸₂ γ^ρ p̸₁ γ^σ] × V_{ρμν} × V_{σμν}
-        quark_trace_ss = dirac_trace(DiracGamma[GS(p2), GAD(:rho), GS(p1), GAD(:sig)])
-        D_ss = quark_trace_ss * V_rho_mu_nu * V_sig_mu_nu
+        qt_ss = dirac_trace(DiracGamma[GS(p2), GAD(:rho), GS(p1), GAD(:sig)])
+        D_ss_raw = qt_ss * V_amp * V_conj
 
-        # ──── COMBINE with colour factors and denominators ────
-        # |M̄|²/g_s⁴ = (1/36) × [C_tt D_tt/t² + C_uu D_uu/u² + 2C_tu D_tu/(tu) + C_ss D_ss/s²]
-        total = (1//36) * (
-            C_tt * D_tt * (1 // t_val^2) +
-            C_uu * D_uu * (1 // u_val^2) +
-            2 * C_tu * D_tu * (1 // (t_val * u_val)) +
-            C_ss * D_ss * (1 // s_val^2)
+        # ──── COMBINE ALL with colour factors BEFORE pol sum ────
+        total_raw = (1//36) * (
+            (C_tt // t_val^2) * D_tt_raw +
+            (C_uu // u_val^2) * D_uu_raw +
+            (C_tu // (t_val * u_val)) * D_tu_raw +
+            (C_tu // (t_val * u_val)) * dirac_trace_XY(gamma_u, gamma_t_conj_p) +
+            (C_ss // s_val^2) * D_ss_raw
         )
 
-        # ──── CONTRACT + EXPAND + EVALUATE ────
-        contracted = contract(total; ctx)
+        # ──── PHYSICAL POLARIZATION SUMS (axial gauge) ────
+        # Ref: FeynCalc DoPolarizationSums[#,k1,k2] convention
+        # For k1: Σ ε^μ ε^{μ'*} = -g^{μμ'} + (k1^μ k2^{μ'} + k2^μ k1^{μ'})/(k1·k2)
+        # For k2: Σ ε^ν ε^{ν'*} = -g^{νν'} + (k2^ν k1^{ν'} + k1^ν k2^{ν'})/(k1·k2)
+        pol1 = polarization_sum(mu_idx, mu_p, k1, k2; ctx)
+        pol2 = polarization_sum(nu_idx, nu_p, k2, k1; ctx)
+
+        # Multiply total by both pol sums, then contract
+        total_pol = total_raw * pol1 * pol2
+
+        contracted = contract(total_pol; ctx)
         expanded = expand_scalar_product(contracted)
         result = evaluate_sp(expanded; ctx)
 
