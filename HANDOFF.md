@@ -318,25 +318,78 @@ Layer 6: Evaluate   → solve_tree(prob) → σ             → Float64
 
 ---
 
-## WHAT TO DO NEXT: SPIRAL 8 (MUnit mop-up)
+## WHAT TO DO NEXT
 
-### Systematic translation of FeynCalc MUnit tests
+### Priority 1: Cleanup from Spiral 5-7 reviewer findings
 
-Translate remaining FeynCalc MUnit tests for functions already implemented.
-Target: push from ~300 tests toward 500+.
+These are small, self-contained fixes flagged by reviewers. Do them first.
 
-### Priority functions for MUnit translation
+1. **Fix massive pol sum citation** (`src/v2/polarization_sum.jl`, line ~40):
+   Current: "Peskin & Schroeder, Eq. (5.75) generalized to massive case"
+   Problem: P&S 5.75 is the massless axial-gauge sum, not the massive one.
+   Fix: Cite `refs/FeynCalc/Tests/Feynman/PolarizationSum.test` IDs 2-3.
+   Add verbatim equation string per Rule 2.
 
-1. **DiracTrace** (`Tests/Dirac/DiracTrace.test`) — many tests, core function
-2. **Contract** (`Tests/Lorentz/Contract.test`) — core operation
-3. **PolarizationSum** (`Tests/Feynman/PolarizationSum.test`) — including massive
-4. **PaVe/ToPaVe** (`Tests/LoopIntegrals/`) — integral functions
-5. **DiracTrick** (`Tests/Dirac/DiracTrick.test`) — n≥5 general case
+2. **Strengthen massive pol sum test** (`test/v2/test_ee_ww.jl`, lines 38-48):
+   Current test only checks `isa AlgSum` and `length(terms) == 2`.
+   Fix: Add test verifying actual coefficient values (metric tensor = -1,
+   k^μk^ν term = 1/M²) by evaluating at a concrete kinematic point.
+
+3. **Acquire Grozin book** (or demote citation):
+   `ew_cross_section.jl` cites Grozin "Using REDUCE in HEP" Ch. 5.4 but the
+   book is not in `refs/papers/`. Either fetch it (if available on arXiv/publisher)
+   or change citation to secondary, with FeynCalc AnelEl-WW.m as primary.
+
+### Priority 2: Spiral 8 — MUnit mop-up
+
+Systematic translation of FeynCalc MUnit tests for functions already implemented.
+Goal: push from 301 tests toward 500+.
+
+**Protocol per MUnit test file** (from CLAUDE.md):
+1. Read the `.test` file in `refs/FeynCalc/Tests/`.
+2. Translate each `Test[]` to a Julia `@test`, preserving math exactly.
+3. Document source file and test ID in a comment.
+4. Cite the textbook equation that validates the test (Rule 2).
+5. If MUnit test and textbook disagree, the textbook wins (Rule 1).
+
+**Priority functions for translation:**
+
+| MUnit file | Location | Est. tests | Notes |
+|------------|----------|-----------|-------|
+| `DiracTrace.test` | `Tests/Dirac/` | 50+ | Core function, many edge cases |
+| `Contract.test` | `Tests/Lorentz/` | 40+ | Core Lorentz contraction |
+| `PolarizationSum.test` | `Tests/Feynman/` | 15+ | Including massive vectors |
+| `DiracTrick.test` | `Tests/Dirac/` | 30+ | General n≥5 case (already have n=0..4) |
+| `ToPaVe.test` | `Tests/LoopIntegrals/` | 20+ | PaVe conversion tests |
+| `PaVeReduce.test` | `Tests/LoopIntegrals/` | 20+ | C-function reductions |
+
+**Approach:** Create `test/v2/test_munit_batch3.jl`, `batch4.jl`, etc. Each batch
+should target ~20-30 tests from one or two MUnit files. Keep each test file < 200 LOC.
+
+### Priority 3: Spiral 9+ — future work
+
+| Spiral | Process | Key capability needed |
+|--------|---------|----------------------|
+| 9 | Full EW Feynman rules | `EWModel`, automated WWγ/WWZ vertices, EW diagram generation |
+| 10 | BSM / ULDM | New model types, dark photon mixing, scalar DM |
+| 11 | D₀ evaluation | 4-point scalar integral (box diagrams) |
+| 12 | Full NLO automation | Tensor reduction + renormalization pipeline |
 
 ### Known open bugs
 
-- `feynfeld-83m` — colour_trace n≥4 missing i² factor
-- vertex_f2 iε not implemented for q² > 4m²
+- **`feynfeld-83m`** — colour_trace n≥4 missing i² factor. The recursive
+  decomposition T^aT^b = δ^{ab}/(2N) + (1/2)(d+if)T^c omits the imaginary
+  unit i on the f term. When two f terms combine, i²=-1 is missing. Workaround:
+  use analytical colour factors (Casimir identities) instead of recursive trace.
+  See Session 6 HANDOFF for details.
+
+- **B₀ imaginary part** — `_B0_quadgk` returns real part correctly but imaginary
+  part from iε prescription is approximate (uses `complex(f, -1e-30)` rather
+  than proper analytic continuation). Real part verified at <1e-8 accuracy.
+
+- **vertex_f2 iε** — `vertex_f2(q2, m2, lambda2)` doesn't implement iε for
+  q² > 4m² (above pair threshold). Documented in docstring. Use only for
+  q² ≤ 0 (spacelike) or q² < 4m² (below threshold).
 
 ---
 
@@ -355,12 +408,21 @@ All in `refs/` (gitignored):
 |------|-----------|
 | `...Peskin...djvu` | P&S textbook (1995), .djvu format (unreadable by tools) |
 | `MertigBohmDenner1991_FeynCalc_CPC64.pdf` | FeynCalc original, Eq. 2.9 (DiracTrick) |
-| `Denner1993_FortschrPhys41.pdf` | One-loop techniques, PV reduction, self-energies |
+| `Denner1993_FortschrPhys41.pdf` | One-loop techniques, PV reduction, self-energies, EW |
 | `PassarinoVeltman1979_NuclPhysB160.pdf` | PV decomposition |
 | `tHooftVeltman1979_NuclPhysB153.pdf` | Scalar integrals (A₀, B₀, C₀, D₀) |
 | `Shtabovenko2016_FeynCalc9_1601.01167.pdf` | FeynCalc 9.0 |
 | `Shtabovenko2020_FeynCalc93_2001.04407.pdf` | FeynCalc 9.3 |
 | `Shtabovenko2024_FeynCalc10_2312.14089.pdf` | FeynCalc 10 |
+| `PDG2024_rev_standard_model.pdf` | EW review: α, sin²θ_W, M_W/Z, Eqs. (10.11)-(10.63) |
+| `PDG2024_rev_quark_masses.pdf` | Quark masses review (MS-bar) |
+| `PDG2024_rev_phys_constants.pdf` | Physical constants table |
+| `PDG2024_sum_leptons.pdf` | Lepton summary: m_e, m_μ, m_τ |
+| `PDG2024_sum_quarks.pdf` | Quark summary: m_u through m_t |
+| `PDG2024_list_electron.pdf` | Full electron listings |
+| `PDG2024_list_muon.pdf` | Full muon listings |
+| `PDG2024_list_tau.pdf` | Full tau listings |
+| `PDG2024_list_z_boson.pdf` | Full Z boson listings |
 
 ### Ground truth acquisition
 
@@ -376,11 +438,17 @@ Note: .djvu format, unreadable by tools. Use FeynCalc examples as citation bridg
 # Branch
 git branch  # should show experimental/rebuild-v2
 
-# Run all v2 tests (200 tests across 13 files, excluding WIP test_qqbar_gg)
+# Run all v2 tests (301 tests across 16 files)
 for f in test/v2/test_*.jl; do julia --project=. "$f"; done
 
 # Run specific test
-julia --project=. test/v2/test_bhabha.jl
+julia --project=. test/v2/test_ee_ww.jl
+
+# Fast smoke test (skip slow C₀/vertex tests, ~2 min total)
+for f in test/v2/test_coeff.jl test/v2/test_colour.jl test/v2/test_vertical.jl \
+         test/v2/test_schwinger.jl test/v2/test_running_alpha.jl test/v2/test_ee_ww.jl; do
+    julia --project=. "$f"
+done
 
 # Beads
 bd ready              # available work
@@ -390,8 +458,8 @@ bd create --title="..." --description="..." --type=task --priority=1
 
 # Ground truth
 ls refs/FeynCalc/Tests/                              # MUnit test directories
-ls refs/FeynCalc/FeynCalc/Examples/QED/              # FeynCalc examples (Tree + OneLoop)
-ls refs/papers/                                      # local paper copies
+ls refs/FeynCalc/FeynCalc/Examples/                  # FeynCalc examples (QED/QCD/EW)
+ls refs/papers/                                      # local paper copies (16 files)
 
 # Commit and push (session end protocol)
 git add <files>
