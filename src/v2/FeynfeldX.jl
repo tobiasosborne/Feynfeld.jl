@@ -29,6 +29,9 @@ include("rules.jl")
 # ---- Layer 3: Diagrams ----
 include("diagrams.jl")
 
+# ---- Layer 4b: Polarization sums ----
+include("polarization_sum.jl")
+
 # ---- Layer 5: Integrals ----
 include("pave.jl")
 include("pave_eval.jl")
@@ -46,7 +49,7 @@ export Eps
 export AdjointIndex, FundIndex, SUNT, SUNDelta, FundDelta, SUNF, SUND, ColourChain
 export AlgSum, AlgFactor, FactorKey, alg, alg_from_factors
 export SPContext, set_sp, get_sp, with_sp, sp_context, evaluate_sp, CURRENT_SP
-export contract, expand_scalar_product
+export contract, expand_scalar_product, substitute_index
 export DiracGamma, DiracSlot, LISlot, MomSlot, MomSumSlot, Gamma5Slot
 export ProjPSlot, ProjMSlot, IdSlot
 export DiracChain, DiracElement, Spinor, SpinorKind
@@ -77,6 +80,7 @@ export vertex_factor, vertex_structure, propagator_num
 export ExternalLeg, FeynmanDiagram, build_amplitude, tree_diagrams
 
 # ---- Exports: Integrals (Layer 5) ----
+export polarization_sum
 export PaVe, A0, B0, B1, B00, B11, C0, D0
 export evaluate
 export schwinger_correction, vacuum_polarization, sigma_nlo_ee_mumu

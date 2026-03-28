@@ -128,6 +128,31 @@ end
 # Fallback
 _do_contraction(::AlgFactor, ::AlgFactor, ::LorentzIndex, ::SPContext) = nothing
 
+# ---- Index substitution (for polarization sums) ----
+# Replace every occurrence of `old_idx` with `new_idx` in an AlgSum.
+
+function substitute_index(s::AlgSum, old_idx::LorentzIndex, new_idx::LorentzIndex)
+    result = AlgSum()
+    for (fk, c) in s.terms
+        new_factors = AlgFactor[_subst_factor(f, old_idx, new_idx) for f in fk.factors]
+        result = result + alg_from_factors(new_factors, c)
+    end
+    result
+end
+
+_subst_li(li::LorentzIndex, old::LorentzIndex, new::LorentzIndex) =
+    li == old ? new : li
+_subst_mom(m::Momentum, ::LorentzIndex, ::LorentzIndex) = m
+_subst_mom(m::MomentumSum, ::LorentzIndex, ::LorentzIndex) = m
+_subst_pairarg(pa::LorentzIndex, old, new) = _subst_li(pa, old, new)
+_subst_pairarg(pa::Momentum, old, new) = pa
+_subst_pairarg(pa::MomentumSum, old, new) = pa
+
+function _subst_factor(p::Pair, old::LorentzIndex, new::LorentzIndex)
+    pair(_subst_pairarg(p.a, old, new), _subst_pairarg(p.b, old, new))
+end
+_subst_factor(f::AlgFactor, ::LorentzIndex, ::LorentzIndex) = f  # non-Pair: no indices to substitute
+
 # Surviving index: which index of a MetricTensor is NOT the contracted one?
 function _surviving(p::MetricTensor, idx::LorentzIndex)
     p.a == idx && return p.b

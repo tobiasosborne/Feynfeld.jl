@@ -79,6 +79,7 @@ function Base.show(io::IO, s::AlgSum)
 end
 
 Base.iszero(s::AlgSum) = isempty(s.terms)
+Base.:(==)(a::AlgSum, b::AlgSum) = a.terms == b.terms
 
 # ---- Constructors ----
 _d() = Dict{FactorKey, Coeff}
