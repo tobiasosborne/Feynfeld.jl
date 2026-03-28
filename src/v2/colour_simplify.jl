@@ -56,21 +56,18 @@ function _contract_colour_term(factors::Vector{AlgFactor}, coeff, N::Int)
         end
         changed && continue
 
-        # f^{acd} f^{bcd} = N δ^{ab} (two shared adjoint indices)
+        # Structure constant contractions: f·f, d·d, f·d
         for i in 1:length(factors)
-            factors[i] isa SUNF || continue
             for j in (i+1):length(factors)
-                factors[j] isa SUNF || continue
-                result = _contract_ff(factors[i]::SUNF, factors[j]::SUNF, N)
-                if result !== nothing
-                    new_coeff, new_factor = result
-                    deleteat!(factors, j)
-                    deleteat!(factors, i)
-                    coeff_acc = mul_coeff(coeff_acc, new_coeff)
-                    new_factor !== nothing && push!(factors, new_factor)
-                    changed = true
-                    break
-                end
+                result = _try_struct_contract(factors[i], factors[j], N)
+                result === nothing && continue
+                new_coeff, new_factor = result
+                iszero(new_coeff) && return AlgSum()  # f·d = 0 kills term
+                deleteat!(factors, j); deleteat!(factors, i)
+                coeff_acc = mul_coeff(coeff_acc, new_coeff)
+                new_factor !== nothing && push!(factors, new_factor)
+                changed = true
+                break
             end
             changed && break
         end
@@ -119,12 +116,48 @@ function _replace_adj_d(d::SUND, old::AdjointIndex, new_idx::AdjointIndex)
     nothing
 end
 
-# ---- f^{acd} f^{bcd} = N δ^{ab} (2 shared indices) ----
+# ---- Structure constant contraction dispatch ----
+_try_struct_contract(a::SUNF, b::SUNF, N) = _contract_ff(a, b, N)
+_try_struct_contract(a::SUND, b::SUND, N) = _contract_dd(a, b, N)
+_try_struct_contract(a::SUNF, b::SUND, N) = _contract_fd(a, b, N)
+_try_struct_contract(a::SUND, b::SUNF, N) = _contract_fd(b, a, N)
+_try_struct_contract(::AlgFactor, ::AlgFactor, _) = nothing
+
+# ---- f·f contraction ----
+# 2 shared: f^{acd} f^{bcd} = N δ^{ab}
+# 3 shared: f^{abc} f^{abc} = N(N²-1)
+# Ref: standard SU(N) identities (e.g. P&S Appendix, FeynCalc SUNSimplify)
 function _contract_ff(f1::SUNF, f2::SUNF, N::Int)
     shared, free1, free2 = _shared_adj([f1.a, f1.b, f1.c], [f2.a, f2.b, f2.c])
-    length(shared) == 2 || return nothing
     sign = f1.sign * f2.sign
-    (Rational{Int}(sign * N), SUNDelta(free1[1], free2[1]))
+    if length(shared) == 3
+        return (Rational{Int}(sign * N * (N^2 - 1)), nothing)
+    elseif length(shared) == 2
+        return (Rational{Int}(sign * N), SUNDelta(free1[1], free2[1]))
+    end
+    nothing
+end
+
+# ---- d·d contraction ----
+# 2 shared: d^{acd} d^{bcd} = (N²-4)/N δ^{ab}
+# 3 shared: d^{abc} d^{abc} = (N²-1)(N²-4)/N
+function _contract_dd(d1::SUND, d2::SUND, N::Int)
+    shared, free1, free2 = _shared_adj([d1.a, d1.b, d1.c], [d2.a, d2.b, d2.c])
+    if length(shared) == 3
+        return (Rational{Int}((N^2 - 1) * (N^2 - 4)) // N, nothing)
+    elseif length(shared) == 2
+        return (Rational{Int}(N^2 - 4) // N, SUNDelta(free1[1], free2[1]))
+    end
+    nothing
+end
+
+# ---- f·d contraction ----
+# 3 shared: f^{abc} d^{abc} = 0 (antisymmetric × symmetric)
+# 2 shared: f^{acd} d^{bcd} = 0 (also vanishes)
+function _contract_fd(f1::SUNF, d1::SUND, N::Int)
+    shared, _, _ = _shared_adj([f1.a, f1.b, f1.c], [d1.a, d1.b, d1.c])
+    length(shared) >= 2 || return nothing
+    (0//1, nothing)  # always zero
 end
 
 function _shared_adj(as::Vector{AdjointIndex}, bs::Vector{AdjointIndex})
