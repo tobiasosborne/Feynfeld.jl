@@ -1,12 +1,18 @@
 name = "Feynfeld"
 uuid = "988dcb6d-6268-4208-8b97-fedb35c5f86e"
+license = "GPL-3.0"
 version = "0.1.0"
 authors = ["Tobias J. Osborne <tobias.osborne@itp.uni-hannover.de>"]
-license = "GPL-3.0"
 
 [deps]
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
+PolyLog = "85e3b03c-9856-11eb-0374-4dc1f8670e7f"
+QuadGK = "1fd47b50-473d-5c70-9696-f719f8f3bcdc"
 TensorGR = "7336a8e7-6d30-4255-8f1d-f4d86d88ac00"
+
+[compat]
+PolyLog = "2.6.2"
+QuadGK = "2.11.2"
 
 [extras]
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"

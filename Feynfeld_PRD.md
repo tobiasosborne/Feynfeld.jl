@@ -1,349 +1,460 @@
 # Feynfeld.jl — Product Requirements Document
 
-**Version:** 0.1-draft
-**Date:** 2026-03-25
+**Version:** 0.2
+**Date:** 2026-03-28
 **Author:** Tobias J. Osborne / LUH
-**Status:** Pre-development
+**Status:** Active development (v2 on `experimental/rebuild-v2`)
 
 ---
 
 ## 1. Vision
 
-Feynfeld.jl is a unified Julia package for symbolic and numerical quantum field theory computation. It replaces the fragmented Mathematica ecosystem of FeynRules, FeynArts, FeynCalc, FormCalc, and LoopTools with a single, end-to-end pipeline: from Lagrangian to cross-section in one `using Feynfeld`.
+Feynfeld.jl is a Julia-native, agent-facing, full-stack physics computation suite.
 
-The fragmentation of the existing toolchain is an accident of Mathematica's limitations — namespace collisions between FeynArts and FeynCalc, Mathematica's inadequate numerical performance necessitating FORM and Fortran — not a reflection of logical boundaries in the physics. Feynfeld.jl dissolves these boundaries.
-
-## 2. Motivation
-
-### 2.1 Why this exists
-
-No open-source, high-performance, end-to-end symbolic QFT package exists outside the Mathematica ecosystem. The existing tools are:
-
-- **Fragmented**: Four packages (five counting FORM) that cannot coexist cleanly in one session.
-- **Proprietary-dependent**: All require Mathematica licenses. FormCalc additionally requires FORM.
-- **Slow**: Mathematica's symbolic engine is the bottleneck. FormCalc exists solely to offload work to FORM. LoopTools exists solely to offload numerics to Fortran.
-- **Poorly tested**: Only FeynCalc has a proper test suite (MUnit). FeynArts and FormCalc have none.
-- **Not composable**: Cannot be embedded in larger computational pipelines without Mathematica orchestration.
-
-Julia eliminates all five problems simultaneously.
-
-### 2.2 Immediate use case
-
-The VLBAI experiment at Leibniz Universität Hannover searches for ultralight dark matter (ULDM) via atom interferometry. The theory pipeline from BSM Lagrangian → coupling constants → atomic sensitivity → interferometer phase response → exclusion limits currently requires manual stitching of Mathematica notebooks, Python scripts, and Fortran codes. Feynfeld.jl provides the first layer of this pipeline (Lagrangian → coupling constants) natively in Julia, enabling integration with downstream Julia codes for atomic physics, signal processing, and statistical analysis.
-
-But ULDM is only the first testcase. The package is general-purpose.
-
-### 2.3 Relationship to TensorGR.jl
-
-TensorGR.jl (a Julia port of the xAct Mathematica suite for tensor calculus in general relativity) shares deep structural overlap with Feynfeld.jl:
-
-- **Index contraction engine**: TensorGR.jl already implements abstract index notation, metric contraction, symmetry-aware canonicalization. Feynfeld.jl needs Lorentz index contraction over η^μν. These are the same algorithm over different metric signatures.
-- **Tensor algebra**: Riemann tensor symmetries in TensorGR.jl and gamma-matrix algebra in Feynfeld.jl are both instances of term rewriting over indexed expressions with algebraic identities (Bianchi ↔ Clifford).
-- **Code generation**: Both need to produce efficient numerical code from symbolic tensor expressions.
-
-**Strategy**: Extract the shared index contraction and tensor algebra infrastructure from TensorGR.jl into a common foundation (or make TensorGR.jl a dependency). Feynfeld.jl's Lorentz layer is a specialisation of TensorGR.jl's abstract tensor layer to the Minkowski metric. This avoids reimplementing index gymnastics and gives both packages a shared, well-tested core.
-
-Concretely:
-- TensorGR.jl's `AbstractIndex`, `Metric`, `contract`, `canonicalize` → reused by Feynfeld.jl's Lorentz module.
-- Feynfeld.jl adds: `DiracGamma`, `SUNMatrix`, `FourMomentum`, `SpinorChain` as new tensor-like types that compose with the shared index machinery.
-- Gravitational coupling calculations (scalar field on curved background, graviton exchange) naturally live at the intersection: TensorGR.jl provides the geometry, Feynfeld.jl provides the QFT.
-
----
-
-## 3. Architecture
-
-### 3.1 One package, six layers
+You start Claude Code with a physics idea. You discuss the Lagrangian. Then everything
+is automated: the result is predictions of physical observables. Full stack, from
+fundamental physics idea to prediction. No Mathematica, no Fortran FFI, no manual
+stitching of notebooks.
 
 ```
-┌─────────────────────────────────────────────────┐
-│                  Feynfeld.jl                     │
-│                                                  │
-│  ┌─────────────────────────────────────────────┐ │
-│  │ Model                                       │ │
-│  │ Lagrangian, fields, parameters, symmetries  │ │
-│  └──────────────────┬──────────────────────────┘ │
-│                     ▼                            │
-│  ┌─────────────────────────────────────────────┐ │
-│  │ Rules                                       │ │
-│  │ Lagrangian → Feynman rules, vertex extract  │ │
-│  └──────────────────┬──────────────────────────┘ │
-│                     ▼                            │
-│  ┌─────────────────────────────────────────────┐ │
-│  │ Diagrams                                    │ │
-│  │ Topology generation, field insertion,       │ │
-│  │ amplitude construction                      │ │
-│  └──────────────────┬──────────────────────────┘ │
-│                     ▼                            │
-│  ┌─────────────────────────────────────────────┐ │
-│  │ Algebra  ← ← ← CORE, port first ← ← ← ←  │ │
-│  │ Lorentz · Dirac · Colour · Tensor           │ │
-│  │ Contraction, traces, simplify, PV reduction │ │
-│  └──────────────────┬──────────────────────────┘ │
-│                     ▼                            │
-│  ┌─────────────────────────────────────────────┐ │
-│  │ Integrals                                   │ │
-│  │ PV scalar functions A₀ B₀ C₀ D₀            │ │
-│  │ Symbolic + numerical evaluation             │ │
-│  └──────────────────┬──────────────────────────┘ │
-│                     ▼                            │
-│  ┌─────────────────────────────────────────────┐ │
-│  │ Evaluate                                    │ │
-│  │ |M|², cross-sections, decay rates,          │ │
-│  │ coupling RGE, codegen                       │ │
-│  └─────────────────────────────────────────────┘ │
-└─────────────────────────────────────────────────┘
+Human: "I want the one-loop correction to e+e- → μ+μ- in QED."
+
+Agent: reads Lagrangian → extracts Feynman rules → generates diagrams →
+       contracts indices → traces gamma matrices → reduces PaVe integrals →
+       evaluates numerically → returns σ_NLO with uncertainty.
 ```
 
-### 3.2 The Algebra layer is the type system
+### 1.1 Scope trajectory
 
-Everything above Algebra constructs expressions in its types. Everything below consumes them. The Algebra layer defines:
+**Now (spirals 1–4):** QED, QCD, electroweak at tree level and one loop.
+Standard Model processes. Validated against every FeynCalc MUnit test (15,222
+assertions, ~10,000 translatable to Julia).
 
-- `LorentzIndex`, `FourVector`, `FourMomentum`, `MetricTensor` — shared with / inherited from TensorGR.jl
-- `DiracGamma`, `DiracChain`, `SpinorU`, `SpinorV`, `Slash` — Clifford algebra
-- `SUNMatrix`, `SUNF`, `SUND`, `ColourDelta` — SU(N) colour algebra
-- `PaVe`, `A0`, `B0`, `B1`, `C0`, `D0` — Passarino-Veltman integral symbols
-- `Amplitude` — a sum of terms, each a product of the above
+**Near-term (spirals 5–8):** Arbitrary BSM via Lagrangian input. ULDM portal
+for VLBAI. UFO model import. Full SM at one loop.
 
-These are **not** Symbolics.jl expressions. They are a purpose-built algebraic type system with dispatch-based simplification. Mathematica's power for FeynCalc comes from pattern matching on symbolic expressions; Julia's equivalent is multiple dispatch on algebraic types.
+**Eventually (in scope, not yet scheduled):** SUSY. Quantum gravity (via
+TensorGR.jl bridge). Multi-loop. Real radiation / IR subtraction. Parton
+distributions. Monte Carlo event generation. ALL of physics, accessible through
+one `using Feynfeld`.
 
-### 3.3 Layer responsibilities
+### 1.2 Agent-facing, human-convenient
 
-| Layer | ex-Package | Core operations |
-|-------|-----------|-----------------|
-| Model | FeynRules | Define fields, parameters, gauge groups; write Lagrangian as Julia expression |
-| Rules | FeynRules | Functional differentiation of L w.r.t. fields → vertex functions |
-| Diagrams | FeynArts | Enumerate topologies (graph theory), insert fields at Generic/Classes/Particles levels |
-| Algebra | FeynCalc | Contract indices, Dirac traces, colour traces, tensor decomposition, PV reduction |
-| Integrals | LoopTools | Numerical evaluation of scalar 1-loop integrals via 't Hooft-Veltman |
-| Evaluate | FormCalc | Square amplitudes, sum/average over spins/colours, phase space integration |
+The primary user is an AI agent (Claude Code) that reads the Lagrangian, plans
+the calculation, and calls Feynfeld.jl functions. The API is designed for
+programmatic composition, not interactive exploration.
 
-FormCalc is **not ported**. Its reason for existence (Mathematica is slow, offload to FORM) does not apply. Its functionality (amplitude squaring, helicity method, Fortran codegen) is reimplemented natively in the Evaluate layer.
+But humans work at the REPL too. Convenience constructors (`SP(:p,:q)`,
+`GA(:mu)`, `qed_model()`) and `Base.show` methods make interactive use natural.
 
-### 3.4 Dimensional regularisation
+### 1.3 Relationship to TensorGR.jl
 
-The algebra must work in both D and 4 dimensions throughout. Following FeynCalc's convention:
-- D-dimensional objects carry explicit dimension tags
-- The limit D → 4 is taken only at the end
-- Support both conventional dimensional regularisation (CDR) and dimensional reduction (DRED) for SUSY compatibility
+TensorGR.jl (Julia port of xAct for tensor calculus in GR) is a sibling
+project. They share no code at present — v2 has its own Lorentz algebra (~200
+LOC). Future bridge: graviton exchange, scalar fields on curved backgrounds,
+quantum gravity calculations. The bridge is a future spiral, not a dependency.
 
 ---
 
-## 4. Build plan
+## 2. Architecture
 
-### 4.1 Phase 0: Foundation (TensorGR.jl integration)
+### 2.1 One package, six layers
 
-Extract or expose the abstract index contraction engine from TensorGR.jl. Define the `LorentzIndex` and `MetricTensor` types as specialisations. Validate: contracting g^μν g_νρ = δ^μ_ρ.
+```
+Layer 1: Model      Lagrangian, fields, parameters, gauge groups
+Layer 2: Rules      Lagrangian → Feynman rules (second quantisation)
+Layer 3: Diagrams   Topology generation, field insertion, amplitude construction
+Layer 4: Algebra    Lorentz · Dirac · Colour · Tensor contraction/traces
+Layer 5: Integrals  PaVe scalar functions, tensor decomposition, numerical eval
+Layer 6: Evaluate   |M|², cross-sections, decay rates, RGE, observables
+```
 
-### 4.2 Phase 1: Algebra layer
+**The Algebra layer is the type system.** Everything above constructs expressions
+in its types. Everything below consumes them.
 
-Port FeynCalc's core functions, validated against FeynCalc's MUnit test suite.
+### 2.2 The coefficient type IS the architecture
 
-Priority order (by dependency and test coverage):
+The single most important design insight from v2: `DimPoly` (polynomial in D)
+as the coefficient type eliminated ~150 LOC of adaptation code from v1. Get the
+coefficient representation right FIRST.
 
-1. **Lorentz algebra**: `Contract`, `MomentumExpand`, `MomentumCombine`, `Pair`, `ScalarProduct`
-2. **Dirac algebra**: `DiracSimplify`, `DiracTrace`, `DiracOrder`, `SpinorChainTrick`
-3. **Colour algebra**: `SUNSimplify`, `SUNTrace`, colour factor computation
-4. **Tensor decomposition**: `TID` (tensor integral decomposition), `Tdec`
-5. **PV reduction**: `PaVeReduce`, `PaVeOrder`, `PaVeAutoReduce`
+```
+Coeff = Union{Rational{Int}, DimPoly}    # never Any, never Expr
+AlgSum = Dict{FactorKey, Coeff}          # O(1) like-term collection
+```
 
-Each function is ported, tested against the corresponding MUnit test, and only then integrated.
+For new symbolic quantities (N for colour, masses, couplings), define a proper
+algebraic type. Never use `Any` or `Expr`.
 
-### 4.3 Phase 2: Integrals layer
+### 2.3 What exists (v2, 187 tests)
 
-Implement the scalar one-loop integrals A₀, B₀, B₁, B₀₀, C₀, D₀ numerically. Validate against LoopTools (call the Fortran library via `ccall` for comparison, then replace with native Julia).
+| Layer | Status | Files |
+|-------|--------|-------|
+| 4: Algebra | Tree-level complete | coeff, types, pair, expr, contract, expand_sp, dirac*, spin_sum, colour* |
+| 1: Model | Hard-coded QED | model.jl |
+| 2: Rules | Hard-coded QED | rules.jl |
+| 3: Diagrams | Hard-coded e+e-→μ+μ- | diagrams.jl |
+| 5: Integrals | PaVe types + A₀/B₀ numerical | pave.jl, pave_eval.jl, schwinger.jl |
+| 6: Evaluate | Tree-level σ | cross_section.jl |
 
-### 4.4 Phase 3: Model + Rules layers
+All code in `src/v2/`. Design choices documented in `src/v2/DESIGN.md`.
 
-Implement the Lagrangian DSL and vertex extraction. Validate against FeynRules' SM model: extract all SM vertices and compare to published Feynman rules.
+### 2.4 v1 is archived
 
-### 4.5 Phase 4: Diagrams layer
-
-Implement topology generation and field insertion. Validate against FeynArts' example calculations (e+e- → ff̄ at tree level and one loop).
-
-### 4.6 Phase 5: Evaluate layer
-
-Amplitude squaring, spin/colour summation, phase-space integration, cross-section computation. Validate against textbook SM cross-sections (e+e- → μ+μ- at tree level as the first target).
-
-### 4.7 Phase 6: ULDM application
-
-Implement the scalar ULDM portal Lagrangian, extract coupling constants, compute sensitivity coefficients, connect to downstream VLBAI pipeline. This is the end-to-end integration test for the full stack.
-
----
-
-## 5. Testing strategy
-
-### 5.1 Ground truth hierarchy
-
-1. **Published papers and textbooks**: Peskin & Schroeder cross-sections, Denner's one-loop formulae, PDG coupling constants. These are the ultimate ground truth.
-2. **FeynCalc MUnit tests**: The primary porting oracle. Each MUnit test is translated to a Julia `@test` and must pass before the corresponding function is considered ported.
-3. **Cross-validation against reference implementations**: For numerical results, compare against LoopTools (Fortran), COLLIER, or Package-X. At least two independent checks per numerical function.
-4. **Physics invariants**: Ward identities, gauge invariance of physical observables, unitarity cuts. These are structural tests that no specific implementation can fake.
-
-**Rule 6 applies absolutely**: physics is ground truth, not pinned numbers. If a FeynCalc MUnit test and a textbook disagree, the textbook wins and the test is suspect. Investigate before proceeding.
-
-### 5.2 Test infrastructure
-
-- Every exported function has at least one `@test`.
-- Tests are organized to mirror the layer structure: `test/algebra/`, `test/integrals/`, `test/model/`, etc.
-- A `test/references/` directory contains local copies of published formulae (from papers, not from LLM memory) used as ground truth.
-- CI runs the full test suite. No PR merges without green tests.
-
-### 5.3 MUnit translation protocol
-
-For each FeynCalc MUnit test file:
-1. Obtain a local copy of the MUnit `.mt` file from the FeynCalc repository.
-2. Translate each `MUnit`Test` to a Julia `@test`, preserving the mathematical content exactly.
-3. Where the MUnit test checks symbolic equality, the Julia test checks algebraic equivalence (expressions may be in different canonical forms).
-4. Where the MUnit test checks numerical equality, the Julia test checks to the same tolerance.
-5. Document the source MUnit file and test ID in a comment above each `@test`.
+v1 (616 tests, `src/algebra/`, `src/integrals/`) is **frozen and will be
+deleted** once v2 achieves equivalent coverage. v1 mirrored FeynCalc's
+Mathematica patterns (tagged unions, `Expr` coefficients, polymorphic returns)
+— these are anti-patterns in Julia. v1 exists only as an algorithmic reference
+for porting. Do not extend. Do not import patterns from.
 
 ---
 
-## 6. Development rules
+## 3. Development Methodology: The Spiral
+
+### 3.1 Geometric mean of vertical and horizontal
+
+Neither pure vertical (one process end-to-end) nor pure horizontal (one layer
+complete) is optimal. The spiral combines both:
+
+1. **Pick a process** (vertical target, e.g., Compton scattering)
+2. **Identify the FeynCalc functions** it requires
+3. **Translate the MUnit tests** for those functions (horizontal coverage)
+4. **Implement in v2** until the MUnit tests pass
+5. **Run the process end-to-end** (vertical validation)
+6. **Measure coverage gap** → pick next process to maximise coverage
+
+Each process is a spoke that drives outward through the MUnit test suite. After
+enough spokes, you've covered the full algebra.
+
+### 3.2 FeynCalc MUnit tests as ground truth
+
+FeynCalc has 15,222 MUnit test assertions across 300 files. ~10,000 are
+directly translatable to Julia (the rest test Mathematica-specific infrastructure).
+
+The MUnit suite solves the three hardest problems:
+- **Convention choices**: metric signature, gamma trace normalisation, PaVe
+  argument ordering — all encoded implicitly in the tests.
+- **Edge cases**: zero masses, collinear momenta, degenerate limits.
+- **25 years of cross-validation**: the FeynCalc team has validated against
+  textbooks, LoopTools, FORM, and published papers.
+
+Every translated MUnit test includes a comment citing the source file and test ID:
+```julia
+# Source: refs/FeynCalc/Tests/Lorentz/Contract.test, Test #42
+@test contract(MT(:mu,:nu) * MT(:mu,:rho)) == MT(:nu,:rho)  # fcstContract-ID42
+```
+
+### 3.3 Planned spiral sequence
+
+| Spiral | Process | New capabilities | Est. MUnit tests |
+|--------|---------|------------------|------------------|
+| 0 | *(done)* e+e-→μ+μ- tree | Full pipeline, DimPoly, AlgSum | ~800 |
+| 1 | Compton e+γ→e+γ | PolarizationSum, Eps, 2-diagram sum | ~600 |
+| 2 | Bhabha e+e-→e+e- | t-channel, full DiracTrick | ~900 |
+| 3 | QCD qq̄→gg | Full SUN algebra, gluon polarisation | ~500 |
+| 4 | 1-loop vertex correction | PaVeReduce, TID, Tdec, C₀ | ~2,500 |
+| 5 | 1-loop vacuum polarisation | PaVeUVPart, renormalisation | ~800 |
+| 6 | Full Schwinger correction | Complete 1-loop pipeline | ~1,200 |
+| 7 | EW e+e-→W+W- | Massive vectors, multi-gauge | ~800 |
+| 8 | Mop-up | Gordon, Fierz, Anti5, Pauli | ~1,900 |
+| 9+ | BSM / ULDM | Lagrangian DSL, model import | — |
+
+Cumulative target: ~10,000 MUnit tests passing.
+
+---
+
+## 4. Rules
 
 These are non-negotiable. They are learnt through suffering.
 
 ### TOBIAS'S RULES — FOLLOW TO THE LETTER
 
-1. **SKEPTICISM**: All subagent work, handoffs — verify everything twice.
-2. **DEEP BUGS**: Deep, complex, interlocked. Do not underestimate.
-3. **NO BANDAIDS**: Best-practices full solutions only.
-4. **WORKFLOW**: 3 subagents before any core code change (research local copy of port source + 2 solutions).
-5. **REVIEW**: Rigorous reviewer agent after every core change. No exceptions.
-6. **GROUND TRUTH**: Physics is ground truth, not pinned numbers. Tests may be suspect. Local copies of published papers, or reference implementations are the ONLY truth. Everything else is hallucination.
-7. **TESTING**: Targeted only, or full suite in background.
-8. **REPEAT RULES**: Repeat occasionally to maintain focus.
-9. **DO NOT UNDERESTIMATE**: This is deeply nontrivial.
-10. **NO PARALLEL AGENTS**: Julia precompilation cache conflicts. Run agents sequentially only.
+1. **GROUND TRUTH = PHYSICS.** Not pinned numbers. Not LLM memory. Not "I think
+   the formula is." Physics is the ONLY truth.
 
-### Additional development constraints
+2. **ANTI-HALLUCINATION: CITE EVERYTHING.** Every physics formula in source code
+   AND test code must have a comment citing: (a) the local file path of the
+   reference, (b) the exact equation number, (c) a verbatim copy of the equation
+   as it appears in the source. No equation is valid without this triple.
+   ```julia
+   # Ref: refs/papers/Denner1993.pdf, Eq. (4.18)
+   # "B₁(p², m₀², m₁²) = [A₀(m₁²) - A₀(m₀²) - (p²+m₀²-m₁²)B₀] / (2p²)"
+   B1 = (a0_m1 - a0_m0 - (p2 + m02 - m12) * b0) / (2 * p2)
+   ```
+   If you cannot find the formula in a local source, STOP and ask for it. Do not
+   proceed with an uncited formula. This is the critical anti-hallucination pattern.
 
-- **LOC limit**: No source file exceeds ~200 lines. Split aggressively.
-- **Handoff documentation**: Every work session ends with a handoff document describing what was done, what works, what doesn't, and what to do next.
-- **Beads issue tracker**: Use the Beads system for tracking issues. Each bead is a self-contained unit of work with clear entry/exit criteria.
-- **Anti-panic protocol**: When a deep bug is encountered, stop. Document. Research. Do not thrash. Three subagent investigations before any fix attempt.
+3. **SKEPTICISM.** All subagent work, handoffs — verify everything twice.
 
----
+4. **ALL BUGS ARE DEEP.** Deep, complex, interlocked. Do not underestimate. Do
+   not apply bandaids. Best-practices full solutions only.
 
-## 7. Design principles
+5. **WORKFLOW.** 3 subagents before any core code change: (a) research the local
+   copy of the porting source, (b) solution proposal 1, (c) solution proposal 2.
+   Then choose the better approach.
 
-### 7.1 Types over patterns
+6. **REVIEW.** Rigorous reviewer agent after every core change. No exceptions.
 
-Mathematica FeynCalc uses rule-based pattern matching on symbolic trees. Julia Feynfeld uses multiple dispatch on algebraic types. The translation principle:
+7. **TESTING.** Targeted only, or full suite in background. Every exported
+   function has at least one `@test`. MUnit test translation protocol (§3.2).
 
-- Mathematica `f[x_?SomeTest] := ...` → Julia `f(x::SomeType) = ...`
-- Mathematica `expr /. {rule1, rule2}` → Julia method dispatch or explicit `simplify` passes
-- Mathematica `Hold`, `HoldForm` → Julia expression types with lazy evaluation
+8. **JULIA IDIOMATIC ALL THE WAY.** Read the Julia Idiom Cheatsheet (§6) before
+   writing any code. If you catch yourself writing `x.field isa SomeType`, stop.
+   Use existing Julia packages (QuadGK, PolyLog, etc.) — never reimplement
+   standard library functionality.
 
-### 7.2 Immutable expressions, functional transformations
+9. **NO PARALLEL JULIA AGENTS.** Precompilation cache conflicts. Read-only
+   research/design agents CAN run in parallel.
 
-All algebraic expressions are immutable. Simplification produces new expressions, never mutates. This enables:
-- Safe parallel evaluation (future)
-- Reliable equality testing
-- Clear debugging (print any intermediate state)
+10. **RESEARCH IDIOMS FIRST.** Before every new layer, research Julia-idiomatic
+    patterns for 5 minutes. Check how ecosystem packages solve the same problem.
+    This saves hours of refactoring.
 
-### 7.3 Canonical forms
+11. **LOC LIMIT.** No source file exceeds ~200 lines. Split aggressively.
 
-Every expression type has a unique canonical form. Two mathematically equal expressions must produce identical canonical forms. This is tested exhaustively. The canonical form is the normal-ordered, fully-contracted, colour-decomposed representation.
+12. **REPEAT RULES.** Repeat occasionally to maintain focus.
 
-### 7.4 Performance is not premature
+### Anti-hallucination reference infrastructure
 
-Julia is chosen partly for performance. The algebra layer should be fast enough that FormCalc/FORM is unnecessary. Profile early. If Dirac trace computation is slower than FeynCalc+Mathematica, something is wrong.
+All reference sources must be stored locally:
+- `refs/FeynCalc/` — Primary porting oracle (MUnit tests in `Tests/`)
+- `refs/FeynArts/` — Diagram generation reference
+- `refs/FeynRules/` — Model/Lagrangian reference
+- `refs/LoopTools/` — Loop integral numerics (Fortran source)
+- `refs/papers/` — Published papers (Denner 1993, 't Hooft-Veltman 1979, P&S, etc.)
+- `refs/reports/` — Architecture analysis reports
 
-### 7.5 Interop
-
-- **TensorGR.jl**: Shared index algebra foundation. GR + QFT calculations in one session.
-- **Symbolics.jl**: Optional backend for symbolic parameter manipulation (masses, couplings as symbolic variables). Not used for the core algebra — too general, too slow for index-heavy computation.
-- **LoopTools via ccall**: During development, call the Fortran LoopTools library for numerical validation. Replace with native Julia implementation once validated.
-
----
-
-## 8. Scope boundaries
-
-### 8.1 In scope (v1.0)
-
-- Full SM at tree level and one loop
-- Arbitrary BSM models via Lagrangian input
-- Scalar, fermion, vector field types
-- SU(N) gauge groups
-- Dimensional regularisation (CDR and DRED)
-- One-loop PV reduction and numerical evaluation
-- Cross-section and decay rate computation for 2→2 processes
-- UFO-compatible model file import (read existing FeynRules models)
-
-### 8.2 Out of scope (v1.0, future work)
-
-- Multi-loop integrals (IBP reduction, sector decomposition)
-- Real radiation and IR subtraction (FKS, Catani-Seymour)
-- Parton distribution functions and hadron-level cross-sections
-- SUSY-specific features beyond DRED
-- Spin-3/2, spin-2 fields
-- Automated renormalisation (except for specific models)
-- Monte Carlo event generation
-
-### 8.3 Out of scope (permanently)
-
-- Reimplementing Mathematica's general-purpose CAS
-- GUI or interactive topology editor
-- Backward compatibility with FeynCalc's Mathematica API
+If a reference is not locally available, download it before citing.
 
 ---
 
-## 9. Success criteria
+## 5. Design Principles
 
-### 9.1 Minimum viable
+### 5.1 Types over patterns
 
-Feynfeld.jl can compute the tree-level cross-section for e+e- → μ+μ- in QED starting from the QED Lagrangian, and the result agrees with Peskin & Schroeder equation (5.10) to machine precision.
+Mathematica uses rule-based pattern matching. Julia uses multiple dispatch on
+algebraic types. The translation:
 
-### 9.2 ULDM milestone
+- `f[x_?SomeTest] := ...` → `f(x::SomeType) = ...`
+- `expr /. {rule1, rule2}` → method dispatch or explicit `simplify` passes
+- Tagged unions with `isa` checks → parametric types with dispatch
 
-Feynfeld.jl can derive the ULDM-electron and ULDM-photon coupling constants (d_{m_e}, d_e) from the scalar portal Lagrangian L_φ = φ√(4πG_N) [d_e/(4e²) F_μν F^μν − d_{m_e} m_e ψ̄_e ψ_e], compute the one-loop radiative corrections, and produce numerical coupling constants suitable for input to the VLBAI signal pipeline.
+### 5.2 Immutable expressions, functional transformations
 
-### 9.3 Community milestone
+All algebraic expressions are immutable. Simplification produces new expressions,
+never mutates. Canonical forms are enforced in constructors (sort, normalise).
 
-Feynfeld.jl can reproduce the sensitivity projections from Badurina et al. (2109.10965) for AION-10/100/km scalar ULDM searches, matching published figures to within plotting accuracy.
+### 5.3 Uniform return types
 
-### 9.4 Full SM milestone
+- Scalar algebra → `AlgSum` (always)
+- Matrix-valued Dirac → `DiracExpr` (always)
+- No mixed returns (`Int|Pair|Expr|Vector`)
 
-Feynfeld.jl can compute all 2→2 SM processes at one loop, matching published results from Denner et al. and/or the FormCalc HEP Process Repository.
+### 5.4 Construction is cheap, simplification is explicit
+
+Constructors canonicalise (sort, normalise signs) but never simplify. Contraction,
+trace, expand are explicit function calls.
+
+### 5.5 Use Julia packages
+
+- **QuadGK.jl** for numerical integration (not hand-rolled quadrature)
+- **PolyLog.jl** for dilogarithms (not reimplemented Li₂)
+- **LoopTools.jl** for cross-validation (test-time only)
+- **ScopedValues** for implicit context (SPContext pattern)
 
 ---
 
-## 10. Risks
+## 6. Julia Idiom Cheatsheet
+
+**READ THIS BEFORE WRITING ANY CODE.** This section is replicated in
+`JULIA_PATTERNS.md` and `CLAUDE.md` to ensure every agent sees it.
+
+### DO
+
+```julia
+# Parametric types for dispatch (not tagged unions)
+struct DiracGamma{S<:DiracSlot}
+    slot::S
+end
+
+# Multiple dispatch (not if/elseif isa cascades)
+contract(a::MetricTensor, b::FourVector, idx) = ...
+contract(a::FourVector, b::FourVector, idx) = ...
+
+# Dict-based expression storage (O(1) like-term collection)
+struct AlgSum
+    terms::Dict{FactorKey, Coeff}
+end
+
+# Concrete small Unions (Julia optimises up to ~4 types)
+const Coeff = Union{Rational{Int}, DimPoly}
+
+# Named constructors (plain functions returning types)
+A0(m2::Real) = PaVe{1}(Int[], Float64[], [Float64(m2)])
+
+# ScopedValues for implicit context
+const CURRENT_SP = ScopedValue(SPContext())
+
+# Use existing packages
+using QuadGK: quadgk
+using PolyLog: li2
+
+# evaluate via dispatch, not type-in-function-name
+evaluate(pv::PaVe{1}; mu2=1.0) = ...
+evaluate(pv::PaVe{2}; mu2=1.0) = ...
+```
+
+### DO NOT
+
+```julia
+# ✗ Tagged union with isa checks
+if x isa ScalarProduct ... elseif x isa MetricTensor ... end
+
+# ✗ Any or Expr as coefficient type
+struct BadTerm; coeff::Any; end
+
+# ✗ Building Expr trees
+coeff = :($(a) * $(b) + $(c))
+
+# ✗ Type-in-function-name (Java pattern)
+evaluate_pave(x)     # ✗
+evaluate(x::PaVe)    # ✓
+
+# ✗ Wrapper structs when a function will do
+struct SchwingerProblem; alpha::Float64; end   # ✗
+schwinger_correction(; alpha=1/137.036) = ...  # ✓
+
+# ✗ Hand-rolled numerical methods
+const MY_GAUSS_NODES = (...)  # ✗
+quadgk(f, 0, 1)              # ✓
+
+# ✗ Reimplementing standard functions
+function my_dilog(z) ... end  # ✗
+using PolyLog: li2            # ✓
+
+# ✗ OOP struct hierarchies by default
+abstract type AbstractIntegral end  # ✗ (unless dispatch genuinely needed)
+
+# ✗ Forcing types into unions they don't belong in
+const AlgFactor = Union{Pair, Eps, ..., PaVe}  # ✗ PaVe is scalar, not a tensor factor
+
+# ✗ Global mutable state
+CURRENT_MODEL = nothing  # ✗
+const CURRENT_MODEL = ScopedValue(nothing)  # ✓
+```
+
+### Julia ecosystem patterns to follow
+
+| Pattern | Example package | What to learn |
+|---------|----------------|---------------|
+| Dict-based expression storage | SymbolicUtils.jl | `AlgSum` pattern |
+| Problem/Solve | DiffEq.jl | `CrossSectionProblem` → `solve_tree` |
+| Abstract interface + traits | MultivariatePolynomials.jl | `AbstractModel` pattern |
+| Callable structs | Flux.jl | `FeynmanRules(fields)` |
+| ScopedValues | Julia 1.11+ stdlib | `SPContext` pattern |
+
+---
+
+## 7. Success Criteria
+
+### 7.1 Minimum viable (DONE ✓)
+
+e+e- → μ+μ- tree-level from Model → Rules → Diagrams → Algebra → Evaluate.
+P&S Eq. (5.10) and (5.12) to machine precision. **Achieved in v2.**
+
+### 7.2 Spiral 4 milestone
+
+1-loop vertex correction computed FROM the pipeline (not hard-coded). PaVe
+integrals extracted, reduced, evaluated. ~5,000 MUnit tests passing.
+
+### 7.3 ULDM milestone
+
+Scalar ULDM portal Lagrangian → coupling constants d_{m_e}, d_e → one-loop
+RGE → numerical values for VLBAI. Connect to downstream Julia pipeline.
+
+### 7.4 Full SM milestone
+
+All 2→2 SM processes at tree level and one loop. ~10,000 MUnit tests passing.
+All FeynCalc physics tests covered.
+
+### 7.5 Community milestone
+
+Reproduce AION sensitivity projections from Badurina et al. (2109.10965).
+
+---
+
+## 8. Testing Strategy
+
+### 8.1 Ground truth hierarchy
+
+1. **Published papers and textbooks** (locally stored, cited by equation number)
+2. **FeynCalc MUnit tests** (primary porting oracle, ~10,000 translatable)
+3. **Cross-validation** against LoopTools, COLLIER, or Package-X (≥2 checks per
+   numerical function)
+4. **Physics invariants**: Ward identities, gauge invariance, unitarity cuts
+
+Rule 6 applies absolutely: if MUnit and textbook disagree, textbook wins.
+
+### 8.2 MUnit translation protocol
+
+For each FeynCalc MUnit test:
+1. Read the `.test` file from `refs/FeynCalc/Tests/`
+2. Translate each `Test[]` to a Julia `@test`, preserving math exactly
+3. Document the source file and test ID in a comment
+4. If MUnit test and textbook disagree, the textbook wins (Rule 1)
+5. Cite the textbook equation that validates the test
+
+### 8.3 Anti-hallucination test pattern
+
+Every `@test` that checks a physics result must cite its source:
+```julia
+# Source: refs/FeynCalc/Tests/Lorentz/Contract.test, Test #42
+# Cross-ref: P&S Eq. (A.27): g^μν g_μρ = δ^ν_ρ
+@test contract(MT(:mu,:nu) * MT(:mu,:rho)) == ...
+```
+
+---
+
+## 9. Risks
 
 | Risk | Severity | Mitigation |
 |------|----------|------------|
-| Dirac algebra canonicalization is subtler than expected | High | Rule 9. Port FeynCalc's approach exactly first, optimise later. |
-| FeynCalc MUnit tests contain bugs | Medium | Rule 6. Cross-validate against textbooks. |
-| TensorGR.jl integration introduces coupling | Medium | Clean interface boundary. Depend on abstract types only. |
-| Colour algebra for exceptional groups (E₆, E₈) | Low | Not needed for SM or ULDM. Defer. |
-| Performance regression vs Mathematica+FORM | Medium | Profile continuously. Julia should win; if not, investigate. |
-| Scope creep into multi-loop | High | Hard scope boundary at v1.0. One loop only. |
+| Dirac algebra canonicalisation subtler than expected | High | MUnit tests catch it. Anti-panic: 3 subagents before fix. |
+| FeynCalc MUnit tests contain bugs | Medium | Rule 1. Cross-validate against textbooks. |
+| Convention drift between layers | High | MUnit tests enforce conventions end-to-end. |
+| Agent hallucinating physics formulas | Critical | Rule 2. Every formula cited from local source. |
+| Julia package ecosystem changes | Low | Pin versions in Project.toml. |
+| 1-loop vertical genuinely hard | High | Spirals 4–6 are dedicated to it. Don't rush. |
+| v1 patterns leaking into v2 | Medium | v1 archived. DESIGN.md anti-patterns list. |
 
 ---
 
-## 11. References
+## 10. References
 
-### Primary sources for validation
+### Primary sources (must be locally available)
 
-- M. E. Peskin, D. V. Schroeder, *An Introduction to Quantum Field Theory* (1995)
-- A. Denner, "Techniques for the Calculation of Electroweak Radiative Corrections at the One-Loop Level and Results for W-physics at LEP2", Fortschr. Phys. 41 (1993) 307
-- V. Shtabovenko, R. Mertig, F. Orellana, "FeynCalc 10", arXiv:2312.14089
-- T. Hahn, "Generating Feynman Diagrams and Amplitudes with FeynArts 3", hep-ph/0012260
-- T. Hahn, M. Pérez-Victoria, "FormCalc", Comput. Phys. Commun. 118 (1999) 153
-- A. Alloul et al., "FeynRules 2.0", Comput. Phys. Commun. 185 (2014) 2250
-- G. 't Hooft, M. Veltman, "Scalar One-Loop Integrals", Nucl. Phys. B153 (1979) 365
-- G. Passarino, M. Veltman, "One-Loop Corrections for e+e- Annihilation into μ+μ- in the Weinberg Model", Nucl. Phys. B160 (1979) 151
+- M. E. Peskin, D. V. Schroeder, *An Introduction to QFT* (1995)
+- A. Denner, Fortschr. Phys. 41 (1993) 307 — one-loop techniques
+- G. 't Hooft, M. Veltman, Nucl. Phys. B153 (1979) 365 — scalar integrals
+- G. Passarino, M. Veltman, Nucl. Phys. B160 (1979) 151 — PV reduction
+- V. Shtabovenko et al., "FeynCalc 10", arXiv:2312.14089
+
+### Reference codebases (in `refs/`, gitignored)
+
+- `refs/FeynCalc/` — 186k LOC Mathematica. MUnit tests in `Tests/`.
+- `refs/FeynArts/` — Diagram generation
+- `refs/FeynRules/` — Model/Lagrangian
+- `refs/LoopTools/` — Loop integral numerics (Fortran)
+- `refs/papers/` — Local copies of cited papers
 
 ### ULDM-specific
 
-- L. Badurina et al., "Refined ultralight scalar dark matter searches with compact atom gradiometers", Phys. Rev. D 105 (2022) 023006, arXiv:2109.10965
-- L. Badurina et al., "Prospective Sensitivities of Atom Interferometers to GWs and ULDM", arXiv:2108.02468
-- L. Badurina et al., "AION: An Atom Interferometer Observatory and Network", arXiv:1911.11755
-- Centers et al., "Stochastic fluctuations of bosonic dark matter", Nat. Commun. 12 (2021) 7321
+- Badurina et al., Phys. Rev. D 105 (2022) 023006, arXiv:2109.10965
+- Badurina et al., arXiv:2108.02468
+- Badurina et al., arXiv:1911.11755
 
 ---
 
 ## Appendix A: Name
 
-*Feynfeld* = Feynman + Feld (German: field). Consistent with the -feld naming convention: Abstractfeld.jl, Tensorfeld, Convexfeld, Alethfeld.
+*Feynfeld* = Feynman + Feld (German: field).

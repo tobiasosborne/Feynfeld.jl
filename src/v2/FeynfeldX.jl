@@ -29,6 +29,11 @@ include("rules.jl")
 # ---- Layer 3: Diagrams ----
 include("diagrams.jl")
 
+# ---- Layer 5: Integrals ----
+include("pave.jl")
+include("pave_eval.jl")
+include("schwinger.jl")
+
 # ---- Layer 6: Evaluate ----
 include("cross_section.jl")
 
@@ -70,6 +75,11 @@ export vertex_factor, vertex_structure, propagator_num
 
 # ---- Exports: Diagrams (Layer 3) ----
 export ExternalLeg, FeynmanDiagram, build_amplitude, tree_diagrams
+
+# ---- Exports: Integrals (Layer 5) ----
+export PaVe, A0, B0, B1, B00, B11, C0, D0
+export evaluate
+export schwinger_correction, vacuum_polarization, sigma_nlo_ee_mumu
 
 # ---- Exports: Evaluate (Layer 6) ----
 export Mandelstam, sp_context_from_mandelstam
