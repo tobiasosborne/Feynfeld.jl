@@ -38,6 +38,8 @@ include("pave_eval.jl")
 include("schwinger.jl")
 include("vertex.jl")
 include("running_alpha.jl")
+include("ew_parameters.jl")
+include("ew_cross_section.jl")
 
 # ---- Layer 6: Evaluate ----
 include("cross_section.jl")
@@ -89,6 +91,10 @@ export schwinger_correction, vacuum_polarization, sigma_nlo_ee_mumu
 export vertex_f2_zero, vertex_f2
 export SM_LEPTONS, SM_QUARKS, SM_FERMIONS
 export delta_alpha, running_alpha, sigma_improved_ee_mumu
+export polarization_sum_massive
+export EW_M_W, EW_M_Z, EW_SIN2_W, EW_COS2_W, EW_SIN_W, EW_COS_W, EW_ALPHA
+export EW_GV_E, EW_GA_E, EW_GL_E, EW_GR_E
+export sigma_ee_ww
 
 # ---- Exports: Evaluate (Layer 6) ----
 export Mandelstam, sp_context_from_mandelstam

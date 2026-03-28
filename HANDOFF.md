@@ -1,4 +1,4 @@
-# HANDOFF — 2026-03-28 (End of Session 7, Spirals 5-6 complete)
+# HANDOFF — 2026-03-28 (End of Session 7, Spirals 5-7 complete)
 
 ## DO NOT DELETE THIS FILE. Read it completely before working.
 
@@ -9,7 +9,7 @@
 3. Read `src/v2/DESIGN.md` — v2 type system, anti-patterns, cockroaches found
 4. Read `JULIA_PATTERNS.md` — Julia idiom cheatsheet (same content as in CLAUDE.md §6)
 5. Run `bd ready` to see available work (if beads errors, run `bd init --force --prefix feynfeld && bd backup restore`)
-6. Run `for f in test/v2/test_*.jl; do julia --project=. "$f"; done` to verify 268 tests pass
+6. Run `for f in test/v2/test_*.jl; do julia --project=. "$f"; done` to verify 301 tests pass
 7. **CHECK `refs/papers/`** — ensure required papers are present BEFORE writing any code
 
 ---
@@ -66,7 +66,8 @@ new process end-to-end and translates the MUnit tests for the functions it needs
 | 4 | 1-loop self-energy Σ(p) | DONE (Session 6) |
 | 5 | 1-loop vertex correction (g-2) | DONE (Session 7) |
 | 6 | 1-loop vacuum polarization (running α) | DONE (Session 7) |
-| **7** | **EW e+e-→W+W-** | **NEXT** |
+| 7 | EW tree-level e+e-→W+W- | DONE (Session 7) |
+| **8** | **MUnit mop-up** | **NEXT** |
 | 7 | EW e+e-→W+W- | Planned |
 | 8 | MUnit mop-up | Planned |
 | 9+ | BSM / ULDM | Planned |
@@ -74,8 +75,8 @@ new process end-to-end and translates the MUnit tests for the functions it needs
 ### Branch and code location
 
 - **Branch:** `experimental/rebuild-v2`
-- **v2 source:** `src/v2/` (26 files, ~3,200 LOC)
-- **v2 tests:** `test/v2/` (15 files, 268 tests)
+- **v2 source:** `src/v2/` (28 files, ~3,400 LOC)
+- **v2 tests:** `test/v2/` (16 files, 301 tests)
 - **v1:** `src/algebra/`, `src/integrals/` — FROZEN, will be deleted. Do NOT extend or import patterns from.
 
 ---
@@ -151,6 +152,7 @@ Layer 6: Evaluate   → solve_tree(prob) → σ             → Float64
 | `test_self_energy_1loop.jl` | 13 | 1-loop Σ(p) via B₀, B₁, A₀ at 2 off-shell points |
 | `test_vertex_g2.jl` | 32 | C₀/C₁/C₂ evaluation, F₂(0)=α/(2π) Schwinger |
 | `test_running_alpha.jl` | 34 | Running α(q²), Δα, improved Born σ(e+e-→μ+μ-) |
+| `test_ee_ww.jl` | 33 | Tree-level e⁺e⁻→W⁺W⁻ at LEP2 energies |
 
 ---
 
@@ -298,29 +300,38 @@ Layer 6: Evaluate   → solve_tree(prob) → σ             → Float64
    - Running α at M_Z, basic properties, leading-log check
    - Improved Born σ at M_Z and multiple energies
 
+### Spiral 7 completed: Tree-level e⁺e⁻ → W⁺W⁻
+
+1. **EW parameters** (`ew_parameters.jl`): M_W, M_Z, sin²θ_W, Z-electron couplings
+   (g_V, g_A, g_L, g_R). PDG 2024 on-shell values.
+
+2. **Grozin analytical formula** (`ew_cross_section.jl`): Total cross-section from
+   3 diagrams (s-channel γ/Z + t-channel ν_e) in massless electron limit. Formula
+   from Grozin "Using REDUCE in HEP" Ch. 5.4, cross-checked via FeynCalc AnelEl-WW.m.
+   Results at LEP2 energies: σ(200 GeV) ≈ 18 pb (tree-level; LEP measured ~16-17 pb
+   including NLO corrections).
+
+3. **Massive polarization sum**: `-g^μν + k^μk^ν/M²` for external W/Z bosons.
+
+4. **33 tests**: EW parameters, massive pol sum, threshold behavior, LEP2 energies,
+   high-energy gauge cancellation, α-scaling, M_W-dependence, QED comparison.
+
 ---
 
-## WHAT TO DO NEXT: SPIRAL 7 (EW e+e-→W+W-)
+## WHAT TO DO NEXT: SPIRAL 8 (MUnit mop-up)
 
-### Process: Electroweak e+e-→W+W- tree-level
+### Systematic translation of FeynCalc MUnit tests
 
-This is the first process that requires the full electroweak sector: SU(2)×U(1)
-gauge group, W/Z bosons, weak mixing angle.
+Translate remaining FeynCalc MUnit tests for functions already implemented.
+Target: push from ~300 tests toward 500+.
 
-### New capabilities needed
+### Priority functions for MUnit translation
 
-1. **EW model** — extend `model.jl` beyond QED: SU(2)×U(1) gauge group,
-   W±/Z bosons as massive vector fields, weak mixing angle θ_W.
-2. **Triple gauge coupling** — WWγ and WWZ vertices.
-3. **Massive vector propagator** — (g^μν - k^μk^ν/M²)/(k²-M²).
-4. **Multiple diagram channels** — s-channel (γ,Z) + t-channel (ν_e).
-5. **Tests vs FeynCalc/Denner** — differential and total cross-sections.
-
-### Ground truth
-
-- **Denner 1993:** Full EW corrections to e+e-→W+W-
-- **FeynCalc examples:** `refs/FeynCalc/FeynCalc/Examples/EW/`
-- **P&S:** Chapter 21
+1. **DiracTrace** (`Tests/Dirac/DiracTrace.test`) — many tests, core function
+2. **Contract** (`Tests/Lorentz/Contract.test`) — core operation
+3. **PolarizationSum** (`Tests/Feynman/PolarizationSum.test`) — including massive
+4. **PaVe/ToPaVe** (`Tests/LoopIntegrals/`) — integral functions
+5. **DiracTrick** (`Tests/Dirac/DiracTrick.test`) — n≥5 general case
 
 ### Known open bugs
 
@@ -419,6 +430,8 @@ src/v2/
 ├── schwinger.jl          # Schwinger correction + vacuum pol (ComplexF64)
 ├── vertex.jl             # QED vertex F₂(0)=α/(2π), vertex_f2_zero/vertex_f2
 ├── running_alpha.jl      # SM fermions, running_alpha(q²), sigma_improved
+├── ew_parameters.jl      # EW SM: M_W, M_Z, sin²θ_W, Z couplings (PDG 2024)
+├── ew_cross_section.jl   # σ(e+e-→W+W-) Grozin formula, tree-level
 ├── cross_section.jl      # Mandelstam, Problem/Solve, σ
 ├── DESIGN.md             # Design choices, anti-patterns, cockroaches
 └── VERTICAL_PLAN.md      # Original vertical plan (historical)
@@ -438,7 +451,8 @@ test/v2/
 ├── test_qqbar_gg.jl           # QCD qq̄→gg |M̄|² vs FeynCalc/ESW (2 tests)
 ├── test_self_energy_1loop.jl  # 1-loop Σ(p) via PaVe (13 tests)
 ├── test_vertex_g2.jl          # C₀/C₁/C₂ + F₂(0)=α/(2π) (32 tests)
-└── test_running_alpha.jl      # Running α, Δα, improved Born σ (34 tests)
+├── test_running_alpha.jl      # Running α, Δα, improved Born σ (34 tests)
+└── test_ee_ww.jl              # e⁺e⁻→W⁺W⁻ at LEP2 energies (33 tests)
 
-Total: ~3,200 source LOC, ~1,800 test LOC, 268 tests, all files < 200 LOC.
+Total: ~3,400 source LOC, ~2,000 test LOC, 301 tests, all files < 200 LOC.
 ```

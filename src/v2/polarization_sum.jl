@@ -35,6 +35,20 @@ function polarization_sum(mu::LorentzIndex, nu::LorentzIndex,
                      alg(pair(mu, n)) * alg(pair(nu, k)))
 end
 
+"""
+    polarization_sum_massive(mu, nu, k, M2; ctx)
+
+Massive vector boson polarization sum:
+  Σ_λ ε^μ ε^{ν*} = -g^{μν} + k^μ k^ν / M²
+
+Ref: Peskin & Schroeder, Eq. (5.75) generalized to massive case.
+Used for external W± and Z bosons.
+"""
+function polarization_sum_massive(mu::LorentzIndex, nu::LorentzIndex,
+                                  k::Momentum, M2::Number)
+    -alg(pair(mu, nu)) + (1 // M2) * alg(pair(mu, k)) * alg(pair(nu, k))
+end
+
 function _lookup_sp(a::Momentum, b::Momentum, ctx::SPContext)
     key = a.name <= b.name ? (a.name, b.name) : (b.name, a.name)
     get(ctx.values, key, nothing)
