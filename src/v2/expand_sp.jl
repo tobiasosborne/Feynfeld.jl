@@ -16,10 +16,10 @@ function _expand_term(factors::Vector{AlgFactor}, coeff)
         expanded = _try_expand(f)
         if expanded !== nothing
             # Replace factor i with expanded terms, recurse
-            other_factors = [factors[j] for j in eachindex(factors) if j != i]
+            other_factors = AlgFactor[factors[j] for j in eachindex(factors) if j != i]
             result = AlgSum()
             for (c, new_f) in expanded
-                new_factors = isnothing(new_f) ? copy(other_factors) : [other_factors; new_f]
+                new_factors = isnothing(new_f) ? copy(other_factors) : AlgFactor[other_factors; new_f]
                 sub = _expand_term(new_factors, mul_coeff(coeff, c))
                 result = result + sub
             end

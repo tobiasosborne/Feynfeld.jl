@@ -75,5 +75,21 @@ Base.:-(m::Momentum) = MomentumSum([(-1//1, m)])
 Base.:*(c::Number, m::Momentum) = MomentumSum([(Rational{Int}(c), m)])
 Base.:*(m::Momentum, c::Number) = c * m
 
+# Ordering for MomentumSum (needed for FactorKey sorting)
+function Base.isless(a::MomentumSum, b::MomentumSum)
+    length(a.terms) != length(b.terms) && return length(a.terms) < length(b.terms)
+    for (ta, tb) in zip(a.terms, b.terms)
+        ta[2] != tb[2] && return isless(ta[2], tb[2])
+        ta[1] != tb[1] && return ta[1] < tb[1]
+    end
+    false
+end
+
+# Cross-type ordering for PairArg sorting in Pair constructor
+Base.isless(::LorentzIndex, ::MomentumSum) = true
+Base.isless(::MomentumSum, ::LorentzIndex) = false
+Base.isless(::Momentum, ::MomentumSum) = true
+Base.isless(::MomentumSum, ::Momentum) = false
+
 # Union of things that can index into a Pair
 const PairArg = Union{LorentzIndex, Momentum, MomentumSum}
