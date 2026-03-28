@@ -1,4 +1,4 @@
-# HANDOFF — 2026-03-28 (End of Session 6, Spirals 2-4 complete)
+# HANDOFF — 2026-03-28 (End of Session 7, Spiral 5 complete)
 
 ## DO NOT DELETE THIS FILE. Read it completely before working.
 
@@ -9,7 +9,7 @@
 3. Read `src/v2/DESIGN.md` — v2 type system, anti-patterns, cockroaches found
 4. Read `JULIA_PATTERNS.md` — Julia idiom cheatsheet (same content as in CLAUDE.md §6)
 5. Run `bd ready` to see available work (if beads errors, run `bd init --force --prefix feynfeld && bd backup restore`)
-6. Run `for f in test/v2/test_*.jl; do julia --project=. "$f"; done` to verify 200 tests pass
+6. Run `for f in test/v2/test_*.jl; do julia --project=. "$f"; done` to verify 232 tests pass
 7. **CHECK `refs/papers/`** — ensure required papers are present BEFORE writing any code
 
 ---
@@ -64,8 +64,8 @@ new process end-to-end and translates the MUnit tests for the functions it needs
 | 2 | Bhabha e+e-→e+e- | DONE (Session 6) |
 | 3 | QCD qq̄→gg | DONE (Session 6) |
 | 4 | 1-loop self-energy Σ(p) | DONE (Session 6) |
-| **5** | **1-loop vertex correction (g-2)** | **NEXT** |
-| 6 | 1-loop vacuum polarization (running α) | Planned |
+| 5 | 1-loop vertex correction (g-2) | DONE (Session 7) |
+| **6** | **1-loop vacuum polarization (running α)** | **NEXT** |
 | 7 | EW e+e-→W+W- | Planned |
 | 8 | MUnit mop-up | Planned |
 | 9+ | BSM / ULDM | Planned |
@@ -73,8 +73,8 @@ new process end-to-end and translates the MUnit tests for the functions it needs
 ### Branch and code location
 
 - **Branch:** `experimental/rebuild-v2`
-- **v2 source:** `src/v2/` (24 files, ~3,000 LOC)
-- **v2 tests:** `test/v2/` (13 files, 200 tests)
+- **v2 source:** `src/v2/` (25 files, ~3,100 LOC)
+- **v2 tests:** `test/v2/` (14 files, 232 tests)
 - **v1:** `src/algebra/`, `src/integrals/` — FROZEN, will be deleted. Do NOT extend or import patterns from.
 
 ---
@@ -120,8 +120,9 @@ Layer 6: Evaluate   → solve_tree(prob) → σ             → Float64
 | `model.jl` | `QEDModel`, `Field{Species}`, `GaugeGroup`, traits |
 | `rules.jl` | `FeynmanRules` callable, vertex/propagator dispatch on species |
 | `diagrams.jl` | Hard-coded e+e-→μ+μ- s-channel topology |
-| `pave.jl` | `PaVe{N}` parametric type, named constructors A0/B0/B1/C0/D0 |
-| `pave_eval.jl` | `evaluate(::PaVe{1,2})`, B0 via QuadGK Feynman parameter |
+| `pave.jl` | `PaVe{N}` parametric type, named constructors A0/B0/B1/C0/C1/C2/D0 |
+| `pave_eval.jl` | `evaluate(::PaVe{1,2,3})`, B0/C0 via QuadGK, C1/C2 via PV reduction |
+| `vertex.jl` | `vertex_f2_zero`, `vertex_f2` — QED anomalous magnetic moment |
 | `schwinger.jl` | Analytical Schwinger correction formula, vacuum polarization |
 | `cross_section.jl` | `CrossSectionProblem`, `solve_tree`, Mandelstam, dσ/dΩ |
 
@@ -147,6 +148,7 @@ Layer 6: Evaluate   → solve_tree(prob) → σ             → Float64
 | `test_bhabha.jl` | 4 | Bhabha |M̄|² at 2 kinematic points vs FeynCalc |
 | `test_qqbar_gg.jl` | 2 | QCD qq̄→gg |M̄|² at 2 kinematic points vs FeynCalc/ESW |
 | `test_self_energy_1loop.jl` | 13 | 1-loop Σ(p) via B₀, B₁, A₀ at 2 off-shell points |
+| `test_vertex_g2.jl` | 32 | C₀/C₁/C₂ evaluation, F₂(0)=α/(2π) Schwinger |
 
 ---
 
@@ -217,47 +219,75 @@ Layer 6: Evaluate   → solve_tree(prob) → σ             → Float64
 
 ---
 
-## WHAT TO DO NEXT: SPIRAL 5 (QED vertex correction / g-2)
+## WHAT WAS DONE IN SESSION 7
 
-### Process: 1-loop QED vertex correction → anomalous magnetic moment
+### Spiral 5 completed: QED vertex correction (g-2)
 
-This is the next process in the spiral. It computes the famous Schwinger result
-F₂(0) = α/(2π) for the electron g-2.
+1. **C₀ scalar 3-point evaluation**: Implemented via nested 2D QuadGK Feynman
+   parameter integral. Formula from 't Hooft-Veltman (1979) Eq. 5.2 / Denner
+   (1993) Eq. 4.26. Handles spacelike and timelike kinematics via iε prescription.
+
+2. **C₁, C₂ tensor coefficients**: Passarino-Veltman reduction using Gram matrix
+   inversion. PV identity 2l·kⱼ = Dⱼ+mⱼ²-D₀-m₀²-kⱼ² cancels one propagator,
+   yielding R coefficients in terms of B₀ and C₀. Gram matrix singularity detected
+   and throws error. Formulas from Denner (1993) Eqs. 4.6-4.8.
+
+3. **F₂(0) = α/(2π)**: Direct Feynman parameter integral (P&S Chapter 6,
+   cross-checked via FeynCalc El-GaEl.m). At q²=0 the 2D integral reduces to 1D:
+   F₂(0) = (α/π) m² ∫₀¹ dz z(1-z)²/[m²(1-z)²+zλ²]. For λ→0: F₂(0) = α/(2π).
+   Also implemented general F₂(q²) for spacelike q² via 2D integral.
+
+4. **Named constructors**: C1, C2 added to pave.jl alongside existing C0.
+
+5. **32 tests** in `test_vertex_g2.jl`:
+   - C₀ at 7 kinematic points (zero momenta, asymmetric, g-2, zero mass, timelike)
+   - C₁/C₂ at 2 points with Gram matrix self-consistency check
+   - Gram matrix singularity detection
+   - F₂(0) = α/(2π) exact (λ=0), IR convergence (λ→0), mass-independence,
+     α-linearity, 1D/2D consistency, spacelike monotonicity
+
+### Key decisions
+
+1. **QuadGK over analytical C₀**: The 't Hooft-Veltman analytical formula involves
+   complex dilogarithms with intricate branch cut handling. QuadGK nested integration
+   is simpler, correct by construction, and fast enough (~5s for full test suite).
+
+2. **Direct F₂(0) over PaVe decomposition**: Computing F₂ from the Feynman parameter
+   integral directly (after textbook Dirac algebra) is simpler and more reliable than
+   the full amplitude → PaVe → form factor extraction pipeline. The PaVe C functions
+   are still implemented as infrastructure for future spirals.
+
+3. **vertex_f2 valid only below threshold**: The general q² function doesn't
+   implement iε for q² > 4m² (above pair-production threshold). Documented.
+
+---
+
+## WHAT TO DO NEXT: SPIRAL 6 (1-loop vacuum polarization / running α)
+
+### Process: 1-loop vacuum polarization → running coupling
 
 ### New capabilities needed
 
-1. **C₀ evaluation** — Triangle (3-point) scalar integral. Currently C₀ type exists
-   but `evaluate(::PaVe{3})` is not implemented. Options:
-   - Analytical formula from 't Hooft-Veltman 1979 (now in refs/papers/)
-   - Numerical via QuadGK (2D Feynman parameter integral)
-   - Via PolyLog.jl `li2()` for the analytical formula
+1. **Π(q²) computation** — vacuum polarization tensor. Already partially in
+   `schwinger.jl` (vacuum_polarization function), but needs extension for
+   arbitrary q² and proper renormalization.
 
-2. **Tensor reduction for rank-2 triangle** — The vertex correction involves
-   C^μ and C^{μν} tensor integrals. Need PV reduction to express in terms of
-   C₀, C₁, C₂, C₀₀, C₁₁, C₁₂, C₂₂. Denner 1993 Section 4.2 has the formulas.
+2. **Running α(q²)** — α(q²) = α/(1-Π(q²)). Need renormalization of Π.
 
-3. **Form factor extraction** — Decompose the vertex correction Γ^μ into
-   F₁(q²) γ^μ + F₂(q²) iσ^{μν}q_ν/(2m) (Gordon decomposition). Extract F₂(0).
+3. **σ(e+e-→μ+μ-) at NLO** — combine vacuum polarization correction with
+   existing tree-level cross section.
 
 ### Ground truth
 
-- **FeynCalc example:** `refs/FeynCalc/FeynCalc/Examples/QED/OneLoop/Mathematica/El-GaEl.m`
-- **Known result:** F₂(0) = α/(2π) = e²/(8π²) (Schwinger 1948)
-- **P&S:** Chapter 6, Eq. 6.58
-- **Denner 1993:** Appendix C (vertex form factors)
-
-### Approach
-
-1. Read FeynCalc El-GaEl.m and Denner Appendix C for exact formulas
-2. Implement C₀ evaluation (analytical via 't Hooft-Veltman, or numerical via QuadGK)
-3. Build the vertex correction Γ^μ using PaVe functions
-4. Extract F₂(0) and compare to α/(2π)
-5. Translate relevant MUnit tests
+- **P&S:** Chapter 7, Eqs. 7.70-7.95
+- **FeynCalc example:** `refs/FeynCalc/FeynCalc/Examples/QED/OneLoop/`
+- **Denner 1993:** Section 5 (renormalization)
 
 ### Known open bugs
 
 - `feynfeld-83m` — colour_trace n≥4 missing i² factor (blocks full colour algebra)
 - B₀ imaginary part (iε prescription) not implemented
+- vertex_f2 iε not implemented for q² > 4m²
 
 ---
 
@@ -346,9 +376,10 @@ src/v2/
 ├── model.jl              # AbstractModel, QEDModel, Field{Species}
 ├── rules.jl              # FeynmanRules callable
 ├── diagrams.jl           # FeynmanDiagram, hard-coded topologies
-├── pave.jl               # PaVe{N} type, named constructors
-├── pave_eval.jl          # evaluate(::PaVe) via QuadGK (A₀, B₀, B₁)
+├── pave.jl               # PaVe{N} type, named constructors (A0-D0, C1, C2)
+├── pave_eval.jl          # evaluate(::PaVe{1,2,3}) via QuadGK + PV reduction
 ├── schwinger.jl          # Schwinger correction + vacuum pol
+├── vertex.jl             # QED vertex F₂(0)=α/(2π), vertex_f2_zero/vertex_f2
 ├── cross_section.jl      # Mandelstam, Problem/Solve, σ
 ├── DESIGN.md             # Design choices, anti-patterns, cockroaches
 └── VERTICAL_PLAN.md      # Original vertical plan (historical)
@@ -366,7 +397,8 @@ test/v2/
 ├── test_munit_batch2.jl       # MUnit: DiracTrick n=3,4 (18 tests)
 ├── test_bhabha.jl             # Bhabha |M̄|² vs FeynCalc (4 tests)
 ├── test_qqbar_gg.jl           # QCD qq̄→gg |M̄|² vs FeynCalc/ESW (2 tests)
-└── test_self_energy_1loop.jl  # 1-loop Σ(p) via PaVe (13 tests)
+├── test_self_energy_1loop.jl  # 1-loop Σ(p) via PaVe (13 tests)
+└── test_vertex_g2.jl          # C₀/C₁/C₂ + F₂(0)=α/(2π) (32 tests)
 
-Total: ~3,000 source LOC, ~1,400 test LOC, 200 tests, all files < 200 LOC.
+Total: ~3,100 source LOC, ~1,600 test LOC, 232 tests, all files < 200 LOC.
 ```

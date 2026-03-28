@@ -36,6 +36,7 @@ include("polarization_sum.jl")
 include("pave.jl")
 include("pave_eval.jl")
 include("schwinger.jl")
+include("vertex.jl")
 
 # ---- Layer 6: Evaluate ----
 include("cross_section.jl")
@@ -81,9 +82,10 @@ export ExternalLeg, FeynmanDiagram, build_amplitude, tree_diagrams
 
 # ---- Exports: Integrals (Layer 5) ----
 export polarization_sum
-export PaVe, A0, B0, B1, B00, B11, C0, D0
+export PaVe, A0, B0, B1, B00, B11, C0, C1, C2, D0
 export evaluate
 export schwinger_correction, vacuum_polarization, sigma_nlo_ee_mumu
+export vertex_f2_zero, vertex_f2
 
 # ---- Exports: Evaluate (Layer 6) ----
 export Mandelstam, sp_context_from_mandelstam

@@ -41,6 +41,14 @@ C0(p10::Real, p12::Real, p20::Real, m02::Real, m12::Real, m22::Real) =
     PaVe{3}(Int[], [Float64(p10), Float64(p12), Float64(p20)],
              [Float64(m02), Float64(m12), Float64(m22)])
 
+C1(p10::Real, p12::Real, p20::Real, m02::Real, m12::Real, m22::Real) =
+    PaVe{3}([1], [Float64(p10), Float64(p12), Float64(p20)],
+             [Float64(m02), Float64(m12), Float64(m22)])
+
+C2(p10::Real, p12::Real, p20::Real, m02::Real, m12::Real, m22::Real) =
+    PaVe{3}([2], [Float64(p10), Float64(p12), Float64(p20)],
+             [Float64(m02), Float64(m12), Float64(m22)])
+
 D0(p10::Real, p12::Real, p23::Real, p30::Real, p20::Real, p13::Real,
    m02::Real, m12::Real, m22::Real, m32::Real) =
     PaVe{4}(Int[], [Float64(p10), Float64(p12), Float64(p23),
