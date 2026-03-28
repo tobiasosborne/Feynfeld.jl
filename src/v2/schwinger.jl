@@ -5,7 +5,7 @@
 # high-energy limit s >> m_e², m_μ² is:
 #   δσ/σ = (3α)/(4π) × (π²/3 - 1/2)
 #
-# This combines vertex + self-energy + vacuum polarization corrections.
+# This is the vertex + soft real emission correction only (VP not included).
 # IR divergences cancel between virtual and real emission (KLN theorem).
 
 using QuadGK: quadgk
@@ -29,11 +29,11 @@ Computed via Feynman parameter integral using QuadGK:
   Π̂(s) = -(2α/π) ∫₀¹ dx x(1-x) ln[1 - x(1-x)s/(m² - iε)]
 """
 function vacuum_polarization(s::Float64, m2::Float64;
-                              alpha::Float64 = 1 / 137.036)::Float64
-    s == 0.0 && return 0.0
+                              alpha::Float64 = 1 / 137.036)::ComplexF64
+    s == 0.0 && return 0.0 + 0.0im
     val, _ = quadgk(0.0, 1.0; rtol = 1e-12) do x
         arg = complex(1.0 - x * (1.0 - x) * s / m2, 1e-30)
-        real(x * (1.0 - x) * log(arg))
+        x * (1.0 - x) * log(arg)
     end
     -2.0 * alpha / π * val
 end

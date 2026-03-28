@@ -39,27 +39,30 @@ const α = 1 / 137.036
         s_low = 0.5 * m_e2
         vp_low = vacuum_polarization(s_low, m_e2; alpha = α)
         @test abs(vp_low) < 0.01  # small below threshold
+        @test imag(vp_low) ≈ 0.0 atol=1e-10  # below threshold → real
 
-        # Well above threshold: Π̂ is negative (screening)
+        # Well above threshold: Re(Π̂) is negative (screening)
         # At s = 1 GeV², the running is Π̂ ≈ -(α/3π) ln(s/m_e²) ≈ -0.033
         s_high = 1.0  # 1 GeV²
         vp_high = vacuum_polarization(s_high, m_e2; alpha = α)
-        @test vp_high < 0  # screening
+        @test real(vp_high) < 0  # screening
         # Rough estimate: -(α/3π) × ln(1/m_e²) ≈ -(1/137)/(3π) × 15 ≈ -0.012
-        @test -0.05 < vp_high < 0.0
+        @test -0.05 < real(vp_high) < 0.0
+        # Above 4m_e² threshold: imaginary part is nonzero
+        @test imag(vp_high) != 0.0
     end
 
     @testset "Vacuum polarization known limits" begin
         # For s = 0: Π̂(0) = 0 by definition (on-shell renormalization)
         m2 = 1.0
-        @test vacuum_polarization(0.0, m2; alpha = α) ≈ 0.0 atol = 1e-10
+        @test real(vacuum_polarization(0.0, m2; alpha = α)) ≈ 0.0 atol = 1e-10
 
         # For s >> m² (leading log approximation):
         # Π̂(s) ≈ -(α/(3π)) × [ln(s/m²) - 5/3]
         s = 1e8  # s/m² = 10⁸ >> 1
         vp = vacuum_polarization(s, m2; alpha = α)
         leading_log = -α / (3 * π) * (log(s / m2) - 5 / 3)
-        @test vp ≈ leading_log rtol = 0.05  # 5% accuracy for leading-log
+        @test real(vp) ≈ leading_log rtol = 0.05  # 5% accuracy for leading-log
     end
 
     @testset "PaVe evaluation spot checks at Schwinger kinematics" begin

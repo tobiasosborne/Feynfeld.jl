@@ -37,6 +37,7 @@ include("pave.jl")
 include("pave_eval.jl")
 include("schwinger.jl")
 include("vertex.jl")
+include("running_alpha.jl")
 
 # ---- Layer 6: Evaluate ----
 include("cross_section.jl")
@@ -86,6 +87,8 @@ export PaVe, A0, B0, B1, B00, B11, C0, C1, C2, D0
 export evaluate
 export schwinger_correction, vacuum_polarization, sigma_nlo_ee_mumu
 export vertex_f2_zero, vertex_f2
+export SM_LEPTONS, SM_QUARKS, SM_FERMIONS
+export delta_alpha, running_alpha, sigma_improved_ee_mumu
 
 # ---- Exports: Evaluate (Layer 6) ----
 export Mandelstam, sp_context_from_mandelstam
