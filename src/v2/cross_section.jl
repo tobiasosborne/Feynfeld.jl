@@ -42,29 +42,27 @@ struct CrossSectionProblem
 end
 
 # ---- Solve: the full pipeline ----
+# Model -> Rules -> Channels -> Amplitude -> Algebra -> |M|^2
 function solve_tree(prob::CrossSectionProblem)
     rules = feynman_rules(prob.model)
-    diagrams = tree_diagrams(prob.model, prob.incoming, prob.outgoing)
+    channels = tree_channels(prob.model, rules, prob.incoming, prob.outgoing)
+    isempty(channels) && error("No valid tree-level channels for this process")
 
-    # For each diagram, build amplitude chains
-    # Then spin-sum, trace, contract, evaluate
+    # Build amplitude for each channel
     all_chains = Tuple{DiracChain, DiracChain}[]
-    for d in diagrams
-        chains = build_amplitude(d, rules)
+    for ch in channels
+        chains = build_amplitude(ch, rules, prob.model)
         push!(all_chains, chains)
     end
 
-    # For single s-channel: spin sum → trace
-    chain_e, chain_mu = all_chains[1]
-    m_squared = spin_sum_amplitude_squared(chain_e, chain_mu)
-
-    # Contract Lorentz indices
+    # Single channel: spin sum -> trace -> contract -> expand
+    # TODO: multi-channel interference (Phase B)
+    chain_L, chain_R = all_chains[1]
+    m_squared = spin_sum_amplitude_squared(chain_L, chain_R)
     contracted = contract(m_squared)
-
-    # Expand and simplify
     expanded = expand_scalar_product(contracted)
 
-    (amplitude_squared=expanded, diagrams=diagrams, rules=rules)
+    (amplitude_squared=expanded, channels=channels, rules=rules)
 end
 
 # Evaluate |M|² at a specific kinematic point
@@ -74,7 +72,8 @@ function evaluate_m_squared(result, man::Mandelstam)
     # Extract scalar value
     scalar_key = FactorKey()
     haskey(evaluated.terms, scalar_key) || return 0//1
-    evaluated.terms[scalar_key]
+    coeff = evaluated.terms[scalar_key]
+    coeff isa DimPoly ? evaluate_dim(coeff) : coeff
 end
 
 # ---- Differential cross-section ----

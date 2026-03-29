@@ -1,4 +1,4 @@
-# HANDOFF — 2026-03-29 (End of Session 8, Spiral 8 complete)
+# HANDOFF — 2026-03-29 (End of Session 9, Spiral 9 complete)
 
 ## DO NOT DELETE THIS FILE. Read it completely before working.
 
@@ -62,8 +62,8 @@ FormCalc + LoopTools. See PRD for the full vision.
 ### Branch and code location
 
 - **Branch:** `experimental/rebuild-v2`
-- **v2 source:** `src/v2/` (29 files, ~3,600 LOC)
-- **v2 tests:** `test/v2/` (16 files, 307 tests)
+- **v2 source:** `src/v2/` (33 files, ~4,000 LOC)
+- **v2 tests:** `test/v2/` (17 files, 324 tests)
 - **v1:** `src/algebra/`, `src/integrals/` — FROZEN, will be deleted. Do NOT extend.
 
 ---
@@ -143,6 +143,58 @@ architectural problem. See `SPIRAL_9_PLAN.md` for the fix.
 | `test_vertex_g2.jl` | 32 | C₀/C₁/C₂ evaluation, F₂(0)=α/(2π) |
 | `test_running_alpha.jl` | 34 | Running α(q²), Δα, improved Born σ |
 | `test_ee_ww.jl` | 36 | Tree-level e⁺e⁻→W⁺W⁻, massive pol sum exact values |
+
+---
+
+## WHAT WAS DONE IN SESSION 9
+
+### Spiral 9 complete: Pipeline consolidation
+
+**6 beads issues closed** (feynfeld-e8d, -czy, -2yw, -cdf, -07g + previous).
+
+#### 1. Pipeline infrastructure (Phases A-B)
+
+| File | LOC | What |
+|------|-----|------|
+| `channels.jl` (NEW) | 103 | `TreeChannel`, `tree_channels()` — enumerate s/t/u channels by vertex filtering |
+| `amplitude.jl` (NEW) | 141 | `build_amplitude()` — boson exchange (2 chains) + fermion exchange (propagator decomp) |
+| `diagrams.jl` (TRIMMED) | 22 | `ExternalLeg` only — old FeynmanDiagram/tree_diagrams removed |
+| `cross_section.jl` (UPDATED) | — | `solve_tree` now uses tree_channels + build_amplitude |
+| `spin_sum.jl` (EXTENDED) | +93 | `spin_sum_interference()` for reconnected traces, `_cross_line_trace()` |
+
+#### 2. Model files (Phases C-D)
+
+| File | LOC | What |
+|------|-----|------|
+| `qcd_model.jl` (NEW) | 60 | `QCDModel` with qqg + ggg vertices, `triple_gauge_vertex()` |
+| `ew_model.jl` (NEW) | 49 | `EWModel` with eeγ/eeZ/eνW/WWγ/WWZ vertices |
+
+#### 3. Pipeline tests
+
+| File | Tests | What |
+|------|-------|------|
+| `test_pipeline.jl` (NEW) | 17 | Bhabha (3), Compton (4), qq→gg (2), ee→WW channels (8) |
+| `test_vertical.jl` (UPDATED) | 34 | Uses tree_channels + build_amplitude (no more FeynmanDiagram) |
+
+#### 4. Processes now through the pipeline
+
+| Process | Channels | Exchange type | Status |
+|---------|----------|---------------|--------|
+| e+e-→μ+μ- | s(γ) | boson | Full pipeline (solve_tree) |
+| Bhabha | s(γ)+t(γ) | boson+interference | Pipeline + manual compose |
+| Compton | s(e)+u(e) | fermion | Pipeline + manual compose |
+| qq̄→gg | t(q)+u(q)+s(g) | fermion+triple gauge | Pipeline for t/u, manual s |
+| ee→WW | s(γ)+s(Z)+t(ν)+u(ν) | channel enumeration only | Model + channels only |
+
+**Before Spiral 9**: Only e+e-→μ+μ- used the pipeline.
+**After Spiral 9**: 4 of 5 processes have pipeline-generated amplitudes.
+
+#### 5. Key design decisions
+
+- `ExternalLeg.mass` field added (backward-compatible default 0//1)
+- All amplitude indices use `DimD()` (D-dimensional, for consistent traces)
+- `evaluate_m_squared` now calls `evaluate_dim` for DimPoly coefficients
+- Channel-specific Lorentz indices (:mu_s, :mu_t, :mu_u) prevent interference collisions
 
 ---
 

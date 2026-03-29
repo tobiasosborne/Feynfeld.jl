@@ -27,8 +27,16 @@ include("model.jl")
 # ---- Layer 2: Rules ----
 include("rules.jl")
 
-# ---- Layer 3: Diagrams ----
+# ---- Layer 3: Diagrams / Channels / Amplitudes ----
 include("diagrams.jl")
+include("channels.jl")
+include("amplitude.jl")
+
+# ---- Layer 1b: QCD Model ----
+include("qcd_model.jl")
+
+# ---- Layer 1c: EW Model ----
+include("ew_model.jl")
 
 # ---- Layer 4b: Polarization sums ----
 include("polarization_sum.jl")
@@ -63,7 +71,7 @@ export GA, GAD, GS, GA5, GA6, GA7
 export u, v, ubar, vbar
 export dot, gammas, gamma_pair, lorentz_index
 export dirac_trace
-export fermion_spin_sum, spin_sum_amplitude_squared
+export fermion_spin_sum, spin_sum_amplitude_squared, spin_sum_interference
 export DiracExpr, dirac_trick
 export colour_trace, colour_delta_trace, contract_colour
 export casimir_fundamental, casimir_adjoint, trace_normalization
@@ -72,7 +80,8 @@ export casimir_fundamental, casimir_adjoint, trace_normalization
 export GaugeGroup, U1, SU
 export FieldSpecies, Fermion, Boson, Scalar
 export Field, fermion, vector_boson, scalar
-export AbstractModel, QEDModel, qed_model
+export AbstractModel, QEDModel, qed_model, QCDModel, qcd_model, triple_gauge_vertex
+export EWModel, ew_model
 export model_name, model_fields, gauge_groups
 export get_field, fermion_fields, boson_fields
 export mass_trait, charge_trait, species, Massive, Massless, Charged, Neutral
@@ -81,8 +90,9 @@ export mass_trait, charge_trait, species, Massive, Massless, Charged, Neutral
 export VertexRule, PropagatorRule, FeynmanRules, feynman_rules
 export vertex_factor, vertex_structure, propagator_num
 
-# ---- Exports: Diagrams (Layer 3) ----
-export ExternalLeg, FeynmanDiagram, build_amplitude, tree_diagrams
+# ---- Exports: Diagrams / Channels (Layer 3) ----
+export ExternalLeg
+export TreeChannel, tree_channels, vertex_legs, build_amplitude, propagator_momentum
 
 # ---- Exports: Integrals (Layer 5) ----
 export polarization_sum

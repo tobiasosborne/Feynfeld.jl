@@ -70,9 +70,10 @@ using .FeynfeldX
         @test prop_γ isa AlgSum
     end
 
-    # ======== Layer 3: Diagrams ========
-    @testset "Layer 3: Tree Diagrams" begin
+    # ======== Layer 3: Channels ========
+    @testset "Layer 3: Tree Channels" begin
         model = qed_model()
+        rules = feynman_rules(model)
         p1 = Momentum(:p1); p2 = Momentum(:p2)
         k1 = Momentum(:k1); k2 = Momentum(:k2)
 
@@ -85,34 +86,34 @@ using .FeynfeldX
             ExternalLeg(:mu, k2, false, true),    # μ+
         ]
 
-        diagrams = tree_diagrams(model, incoming, outgoing)
-        @test length(diagrams) == 1
-        @test diagrams[1].topology == :s_channel_ee_mumu
+        channels = tree_channels(model, rules, incoming, outgoing)
+        @test length(channels) == 1
+        @test channels[1].channel == :s
+        @test channels[1].exchanged == :gamma
 
         # Build amplitude
-        rules = feynman_rules(model)
-        chain_e, chain_mu = build_amplitude(diagrams[1], rules)
-        @test chain_e isa DiracChain
-        @test chain_mu isa DiracChain
-        @test length(chain_e.elements) == 3  # vbar, gamma, u
-        @test length(chain_mu.elements) == 3  # ubar, gamma, v
+        chain_L, chain_R = build_amplitude(channels[1], rules, model)
+        @test chain_L isa DiracChain
+        @test chain_R isa DiracChain
+        @test length(chain_L.elements) == 3  # vbar, gamma, u
+        @test length(chain_R.elements) == 3  # ubar, gamma, v
     end
 
     # ======== Layer 4: Algebra (validated before, run again) ========
     @testset "Layer 4: Spin sum → trace → contract" begin
         model = qed_model()
+        rules = feynman_rules(model)
         p1 = Momentum(:p1); p2 = Momentum(:p2)
         k1 = Momentum(:k1); k2 = Momentum(:k2)
 
         incoming = [ExternalLeg(:e, p1, true, false), ExternalLeg(:e, p2, true, true)]
         outgoing = [ExternalLeg(:mu, k1, false, false), ExternalLeg(:mu, k2, false, true)]
 
-        diagrams = tree_diagrams(model, incoming, outgoing)
-        rules = feynman_rules(model)
-        chain_e, chain_mu = build_amplitude(diagrams[1], rules)
+        channels = tree_channels(model, rules, incoming, outgoing)
+        chain_L, chain_R = build_amplitude(channels[1], rules, model)
 
         # Spin-averaged |M|²
-        m_sq = spin_sum_amplitude_squared(chain_e, chain_mu)
+        m_sq = spin_sum_amplitude_squared(chain_L, chain_R)
         @test m_sq isa AlgSum
         @test !iszero(m_sq)
 
