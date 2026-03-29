@@ -1,4 +1,4 @@
-# HANDOFF — 2026-03-29 (End of Session 9, Spiral 9 + P1 bugs complete)
+# HANDOFF — 2026-03-29 (End of Session 10, COLLIER integration)
 
 ## DO NOT DELETE THIS FILE. Read it completely before working.
 
@@ -8,8 +8,9 @@
 2. Read `Feynfeld_PRD.md` — vision, endgame interaction, spiral plan, hardness scale
 3. Read `src/v2/DESIGN.md` — type system, anti-patterns, Session 8 review findings
 4. Run `bd ready` to see available work
-5. Run `julia --project=. test/v2/test_vertical.jl` to verify pipeline works
-6. **CHECK `refs/papers/`** — ensure required papers are present BEFORE writing any code
+5. **BUILD COLLIER** (see section below — required on each machine)
+6. Run `julia --project=. test/v2/test_vertical.jl` to verify pipeline works
+7. **CHECK `refs/papers/`** — ensure required papers are present BEFORE writing any code
 
 ---
 
@@ -50,16 +51,138 @@ FormCalc + LoopTools. See PRD for the full vision.
 
 ### Branch and code location
 
-- **Branch:** `experimental/rebuild-v2`
-- **v2 source:** `src/v2/` (34 files, ~4,200 LOC)
+- **Branch:** `master` (experimental/rebuild-v2 merged into master Session 10)
+- **v2 source:** `src/v2/` (35 files, ~3,600 LOC)
 - **v2 tests:** `test/v2/` (17 files, 329 tests)
 - **v1:** `src/algebra/`, `src/integrals/` — FROZEN, will be deleted. Do NOT extend.
 
 ---
 
+## COLLIER SETUP (REQUIRED ON EACH MACHINE)
+
+COLLIER is the scalar loop integral library. `libcollier.so` is NOT checked in.
+If missing, C₀ falls back to slow quadgk (no crash — graceful fallback).
+
+```bash
+# Download and build (one time per machine)
+cd refs/COLLIER/COLLIER-1.2.8
+mkdir -p build && cd build
+cmake .. -DCMAKE_Fortran_COMPILER=gfortran -DCMAKE_BUILD_TYPE=Release
+make -j$(nproc)
+cd /path/to/Feynfeld.jl
+ls refs/COLLIER/COLLIER-1.2.8/libcollier.so  # verify
+
+# COLLIER writes log files here
+mkdir -p output
+```
+
+**If COLLIER source not present:** Download from HepForge:
+```bash
+mkdir -p refs/COLLIER
+curl -sL "https://www.hepforge.org/archive/collier/collier-1.2.8.tar.gz" | tar xz -C refs/COLLIER
+```
+
+---
+
+## WHAT WAS DONE IN SESSION 10
+
+### 1. Merged experimental/rebuild-v2 → master
+Deleted experimental branch locally and on remote. All development on `master`.
+
+### 2. COLLIER integration for C₀ (the main achievement)
+
+**File:** `src/v2/c0_analytical.jl` (82 LOC)
+
+Replaced broken Denner/Spence analytical C₀ with ccall to COLLIER (GPL v3).
+Three evaluation paths:
+- **C0p0** (all p²=0): analytical, pure logarithms
+- **General**: COLLIER `C0_coli` ccall (~μs, handles spacelike/timelike/threshold)
+- **Gram-degenerate** (Δ₂=0): quadgk fallback (~30s, rare edge case)
+
+**Key results:** C₁/C₂ tensor reduction went from ~60s to 0.1s (600× speedup).
+Spacelike C₀ went from ~30s to ~μs (100,000× speedup).
+
+### 3. Lessons learned (CRITICAL — read before touching loop integrals)
+
+- **Denner C0p3 formula (C0func.F) is a BACKUP, not the primary algorithm.**
+  It has broken η corrections for Kallen < 0. The primary is FF (ffxc0).
+  We wasted hours on this. DO NOT try to fix the Denner formula.
+
+- **LoopTools `spence(0, x, 0)` = Li₂(x)**, NOT Li₂(1-x). Verified by reading
+  auxCD.F: Li2series(z1) computes Li₂(1-z1), and spence(0,x,0) calls
+  Li2series(1-x) = Li₂(x).
+
+- **LoopTools.jl returns WRONG values** for Kallen < 0 unless you call
+  `LoopTools.setwarndigits(100)` first. Default warndigits=9 causes FF
+  result to be overridden by broken Denner backup.
+
+- **Gram-degenerate scalar C₀** (Δ₂=0) cannot be computed by ANY Spence-based
+  algorithm — the 1/√Δ₂ factor diverges. Neither COLLIER nor LoopTools
+  handles it. quadgk is correct.
+
+- **COLLIER argument convention:** Feynfeld (p10,p12,p20,m02,m12,m22) maps
+  directly to COLLIER C0_coli args — same ordering, NO reorder.
+
+- **COLLIER ccall pattern:**
+  ```julia
+  # Init (once, requires mkdir -p output):
+  ccall((:__collier_init_MOD_init_cll, lib), Cvoid,
+        (Ref{Int32}, Ref{Int32}, Ptr{UInt8}, Ref{Int32}, Csize_t),
+        Ref{Int32}(4), Ref{Int32}(4), "output", Ref{Int32}(0), 6)
+
+  # C0 (plain Fortran function, symbol c0_coli_):
+  ccall((:c0_coli_, lib), ComplexF64,
+        (Ref{ComplexF64}, ..., Ref{ComplexF64}),
+        ComplexF64(p10), ComplexF64(p12), ComplexF64(p20),
+        ComplexF64(m02), ComplexF64(m12), ComplexF64(m22))
+  ```
+
+### 4. Papers acquired
+- `refs/papers/vanOldenborgh1990_ZPhysC46.pdf` — FF algorithms paper
+
+### 5. LoopTools.jl added as dependency
+In Project.toml. Useful as test oracle (with setwarndigits fix).
+
+---
+
+## WHAT TO DO NEXT
+
+### Priority 1: D₀ via COLLIER ccall (~30 min)
+
+**THE OBVIOUS NEXT STEP.** Same pattern as C₀. COLLIER has `d0_coli_`:
+```bash
+nm -D refs/COLLIER/COLLIER-1.2.8/libcollier.so | grep d0_coli
+```
+D₀ takes 10 arguments: 6 momentum invariants + 4 masses. Check signature in
+`refs/COLLIER/COLLIER-1.2.8/src/COLI/coli_d0.F`. Unblocks Spiral 10 (box diagrams).
+
+| Issue | What | Effort |
+|-------|------|--------|
+| `feynfeld-62k.5` | D₀ via COLLIER ccall | ~30 min |
+
+### Priority 2: Single-process test runner (~1 hour)
+
+| Issue | What | Impact |
+|-------|------|--------|
+| `feynfeld-icg` | `test/v2/runtests.jl` — one Julia process | 12 min → 2 min |
+
+### Priority 3: Cross-validate PaVe against COLLIER (~1 hour)
+
+| Issue | What | Impact |
+|-------|------|--------|
+| `feynfeld-62k.9` | Systematic A₀/B₀/C₀ comparison | Trust in numerics |
+
+### Priority 4: Pipeline completion
+
+| Issue | What |
+|-------|------|
+| ee→WW full pipeline | Chiral vertices, triple gauge, massive propagators |
+
+---
+
 ## WHAT EXISTS (v2, 329 tests)
 
-### Six-layer pipeline (now with channel enumeration)
+### Six-layer pipeline
 
 ```
 Layer 1: Model      → qed_model() / qcd_model() / ew_model()  → AbstractModel
@@ -71,7 +194,7 @@ Layer 5: Integrals  → PaVe{N}, evaluate(::PaVe; mu2)            → ComplexF64
 Layer 6: Evaluate   → solve_tree(prob) → σ                      → Float64
 ```
 
-### Pipeline coverage (Session 9 result)
+### Pipeline coverage
 
 | Process | Channels | Status |
 |---------|----------|--------|
@@ -81,7 +204,7 @@ Layer 6: Evaluate   → solve_tree(prob) → σ                      → Float64
 | qq̄→gg | t(q)+u(q)+s(g) | Pipeline t/u, manual s (ggg vertex) |
 | ee→WW | s(γ)+s(Z)+t(ν)+u(ν) | Channel enumeration only |
 
-### Source files
+### Source files (35 files, ~3,600 LOC)
 
 | File | LOC | What |
 |------|-----|------|
@@ -101,20 +224,21 @@ Layer 6: Evaluate   → solve_tree(prob) → σ                      → Float64
 | `dirac_trick.jl` | 117 | D-dim γ^μ...γ_μ for n=0..5+ |
 | `spin_sum.jl` | 138 | Fermion spin sums (completeness) |
 | `interference.jl` | 98 | Cross-line traces, spin_sum_interference |
-| `colour_trace.jl` | 72 | SU(N) trace → (real, imag) AlgSum (**FIXED**: i² on f-terms) |
+| `colour_trace.jl` | 72 | SU(N) trace → (real, imag) AlgSum |
 | `colour_simplify.jl` | 148 | Delta contraction via dispatch |
 | `polarization_sum.jl` | 58 | Feynman/axial/massive pol sums |
 | **Layers 1-3** | | |
 | `model.jl` | 99 | AbstractModel, QEDModel, Field{Species} |
-| `qcd_model.jl` | 60 | QCDModel, qqg + ggg vertices, triple_gauge_vertex |
+| `qcd_model.jl` | 60 | QCDModel, qqg + ggg vertices |
 | `ew_model.jl` | 49 | EWModel, 5 SM vertex types |
 | `rules.jl` | 82 | FeynmanRules callable, vertex dispatch |
-| `diagrams.jl` | 22 | ExternalLeg (mass field, backward-compat) |
+| `diagrams.jl` | 22 | ExternalLeg (mass field) |
 | `channels.jl` | 103 | TreeChannel, tree_channels() |
 | `amplitude.jl` | 141 | build_amplitude: boson + fermion exchange |
 | **Layer 5: Integrals** | | |
 | `pave.jl` | ~80 | PaVe{N} type, named constructors |
-| `pave_eval.jl` | 182 | evaluate: A₀ closed, B₀ hybrid (quadgk real + Kallen imag), C₀/C₁/C₂ quadgk (**SLOW**) |
+| `pave_eval.jl` | ~200 | evaluate: A₀/B₀/B₁ + C₁/C₂ PV reduction + _C0_quadgk |
+| `c0_analytical.jl` | 82 | **C₀: COLLIER ccall + C0p0 analytical + quadgk fallback** |
 | **Layer 6 + Reference** | | |
 | `cross_section.jl` | ~100 | Mandelstam, solve_tree, σ |
 | `schwinger.jl` | ~50 | REFERENCE: Schwinger correction |
@@ -128,128 +252,22 @@ Layer 6: Evaluate   → solve_tree(prob) → σ                      → Float64
 | File | Tests | What |
 |------|-------|------|
 | `test_coeff.jl` | 29 | DimPoly arithmetic |
-| `test_colour.jl` | 27 | SU(N) traces (**incl n≥4 fixed**), δ contraction, f·f/d·d |
+| `test_colour.jl` | 27 | SU(N) traces, δ contraction |
 | `test_ee_mumu_x.jl` | 14 | e+e-→μ+μ- algebra (P&S 5.10) |
 | `test_self_energy.jl` | 25 | DiracExpr, DiracTrick n=0,1,2 |
 | `test_vertical.jl` | 34 | Full pipeline via solve_tree |
-| `test_pave.jl` | 53 | PaVe types + A₀/B₀/B₁ (**incl Im(B₀) analytical**) |
+| `test_pave.jl` | 53 | PaVe types + A₀/B₀/B₁ |
 | `test_schwinger.jl` | 15 | Schwinger correction + vacuum polarization |
 | `test_compton.jl` | 4 | Compton |M|² from pipeline vs P&S 5.87 |
 | `test_munit_batch1.jl` | 23 | MUnit: DiracTrace, Contract, PolarizationSum |
 | `test_munit_batch2.jl` | 18 | MUnit: DiracTrick n=3,4 |
-| `test_bhabha.jl` | 4 | Bhabha |M̄|² at 2 kinematic points |
-| `test_qqbar_gg.jl` | 2 | QCD qq̄→gg |M̄|² at 2 kinematic points |
-| `test_self_energy_1loop.jl` | 13 | 1-loop Σ(p) (**assertions fixed for correct Im(B₀)**) |
-| `test_vertex_g2.jl` | 32 | C₀/C₁/C₂, F₂(0)=α/(2π) (**SLOW: 8min, needs analytical C₀**) |
+| `test_bhabha.jl` | 4 | Bhabha |M̄|² |
+| `test_qqbar_gg.jl` | 2 | QCD qq̄→gg |M̄|² |
+| `test_self_energy_1loop.jl` | 13 | 1-loop Σ(p) |
+| `test_vertex_g2.jl` | 32 | C₀/C₁/C₂, F₂(0)=α/(2π) (SLOW: vertex_f2 uses own quadgk) |
 | `test_running_alpha.jl` | 34 | Running α(q²), Δα, improved Born σ |
 | `test_ee_ww.jl` | 36 | Tree-level e⁺e⁻→W⁺W⁻ reference formula |
-| `test_pipeline.jl` | 17 | **NEW**: Bhabha/Compton/qq→gg/ee→WW pipeline tests |
-
----
-
-## WHAT WAS DONE IN SESSION 9
-
-### Spiral 9: Pipeline consolidation (Phases A-D)
-
-**6 beads issues closed.** New files: channels.jl, amplitude.jl, interference.jl,
-qcd_model.jl, ew_model.jl, test_pipeline.jl.
-
-- **Phase A**: TreeChannel + tree_channels() + build_amplitude for boson exchange
-- **Phase B**: Fermion exchange + spin_sum_interference (Bhabha + Compton)
-- **Phase C**: QCDModel with qqg/ggg vertices, qq→gg pipeline test
-- **Phase D**: EWModel with 5 SM vertices, channel enumeration for ee→WW
-
-### P1 bug fixes
-
-- **feynfeld-83m (colour_trace i²)**: Recursive trace now returns (real, imag)
-  tuple. The product i·f × i·f = -f·f is correctly handled. Verified:
-  Tr(T^aT^bT^bT^a) = 16/3, Tr(T^aT^bT^aT^b) = -2/3 for N=3.
-
-- **feynfeld-1rb (B₀ imaginary part)**: Analytical Im(B₀) = π√λ/p² via
-  Kallen function λ(p²,m₀²,m₁²). One-massless case: Im = π(p²-m²)/p².
-  test_self_energy_1loop assertions updated (were masked by the bug).
-
-### Cleanup
-
-- spin_sum.jl split → spin_sum.jl (138) + interference.jl (98)
-- 4 standalone recipe files marked as REFERENCE IMPLEMENTATION
-- ExternalLeg gains mass field (backward-compatible default 0//1)
-- All amplitude indices use DimD() for D-dimensional traces
-- evaluate_m_squared calls evaluate_dim for DimPoly coefficients
-
----
-
-## WHAT TO DO NEXT
-
-### Priority 1: Performance — analytical loop integrals
-
-**THE #1 BOTTLENECK.** test_vertex_g2 takes 8 minutes because C₀ uses nested
-quadgk (O(N²) function evaluations). The field solved this in 1979.
-
-| Issue | What | Impact |
-|-------|------|--------|
-| `feynfeld-fqy` | Analytical C₀ via 't Hooft-Veltman Spence formulas | **8min → <1sec** |
-| `feynfeld-0ku` | Analytical B₀ closed-form (logs only) | ~2x speedup |
-| `feynfeld-2xv` | Analytical D₀ (needed for box diagrams, Spiral 10) | Unblocks Spiral 10 |
-
-**How to implement C₀:**
-1. Read `refs/papers/tHooftVeltman1979_NuclPhysB153.pdf` Eqs (5.2)-(5.30)
-2. Read `refs/LoopTools/src/C/C0func.F` for the case dispatch pattern
-3. Julia already has `PolyLog.jl` with `li2` (dilogarithm) — use it
-4. Dispatch on number of zero momenta: C0p0/C0p1/C0p2/C0p3
-5. Handle soft/collinear limits as separate cases
-6. ~200-400 LOC, all in a new `pave_analytical.jl`
-7. Keep quadgk as numerical fallback for validation
-
-**Expected result:**
-```
-C₀ evaluation: 1-5 ms → 1-10 μs (1000x speedup)
-test_vertex_g2: 8 min → < 1 sec
-Full test suite: 12 min → < 2 min
-```
-
-### Priority 2: Test runner performance
-
-| Issue | What | Impact |
-|-------|------|--------|
-| `feynfeld-icg` | Single-process test runner (1 Julia process, not 17) | **60s → 5s** JIT |
-| `feynfeld-6nu` | Make FeynfeldX precompilable (blocked by rename) | Near-instant startup |
-
-**How to implement test runner:**
-Create `test/v2/runtests.jl`:
-```julia
-using Test
-include("../../src/v2/FeynfeldX.jl")
-using .FeynfeldX
-@testset "FeynfeldX" begin
-    include("test_coeff.jl")  # each file uses @testset but not include/using
-    include("test_colour.jl")
-    ...
-end
-```
-Each test file needs the `include/using` lines removed (guarded by `@isdefined`).
-
-### Priority 3: Remaining pipeline work
-
-| Issue | What |
-|-------|------|
-| ee→WW full pipeline | Chiral vertices (eeZ with γ5), triple gauge (WWγ/WWZ), massive propagators |
-| `feynfeld-qyu` | Rename FeynfeldX → Feynfeld |
-| `feynfeld-akr` | CI/CD GitHub Actions |
-
-### Priority 4: Spiral 10 — D₀ + box diagrams
-
-Requires analytical D₀ (feynfeld-2xv) which requires analytical C₀ (feynfeld-fqy).
-The dependency chain: C₀ analytical → D₀ analytical → box diagrams → NLO physics.
-
----
-
-## KNOWN BUGS (all P1 fixed, remaining are P2+)
-
-- **vertex_f2 above threshold** — doesn't implement iε for q² > 4m². Use only
-  for spacelike or below threshold.
-- **B₀ real part** still uses quadgk (correct but slow). feynfeld-0ku tracks this.
-- **C₀/D₀** use nested quadgk (correct but 1000x slow). feynfeld-fqy/2xv track this.
+| `test_pipeline.jl` | 17 | Bhabha/Compton/qq→gg/ee→WW pipeline |
 
 ---
 
@@ -259,8 +277,9 @@ All in `refs/` (gitignored):
 - `refs/FeynCalc/` — 186k LOC Mathematica. MUnit tests in `Tests/`.
 - `refs/FeynArts/` — Diagram generation reference.
 - `refs/FeynRules/` — Model/Lagrangian reference.
-- `refs/LoopTools/` — **KEY for analytical integrals**: C₀ in `src/C/`, D₀ in `src/D/`.
-- `refs/papers/` — 16+ local paper copies.
+- `refs/LoopTools/` — FF library source, Denner C0func.F backup.
+- `refs/COLLIER/COLLIER-1.2.8/` — **COLLIER library. Build libcollier.so here.**
+- `refs/papers/` — 17+ local paper copies incl. vanOldenborgh1990.
 
 ---
 
@@ -268,20 +287,25 @@ All in `refs/` (gitignored):
 
 ```bash
 # Branch
-git branch  # should show experimental/rebuild-v2
+git branch  # should show master
+
+# Build COLLIER (required per machine)
+cd refs/COLLIER/COLLIER-1.2.8 && mkdir -p build && cd build
+cmake .. -DCMAKE_Fortran_COMPILER=gfortran && make -j$(nproc)
+cd /path/to/Feynfeld.jl && mkdir -p output
 
 # Run specific test (fast)
 julia --project=. test/v2/test_vertical.jl    # 5s, pipeline
 julia --project=. test/v2/test_pipeline.jl     # 7s, all processes
-julia --project=. test/v2/test_colour.jl       # 3s, incl n>=4
+julia --project=. test/v2/test_pave.jl         # 5s, integrals
 
-# Fast smoke test (~40s, skips slow vertex_g2)
+# Fast smoke test (~40s)
 for f in test/v2/test_coeff.jl test/v2/test_colour.jl test/v2/test_vertical.jl \
          test/v2/test_pipeline.jl test/v2/test_pave.jl; do
     julia --project=. "$f"
 done
 
-# Full suite (~12 min, vertex_g2 is 8min alone — fix with analytical C₀)
+# Full suite (~10 min, vertex_g2 slow due to vertex_f2 reference quadgk)
 for f in test/v2/test_*.jl; do julia --project=. "$f"; done
 
 # Beads
@@ -292,51 +316,4 @@ bd list --status=open # all open issues
 # Session end protocol
 git add <files> && git commit -m "..." && git push
 bd dolt push
-```
-
----
-
-## FILE MAP
-
-```
-src/v2/
-├── FeynfeldX.jl          # Module root, includes + exports
-├── coeff.jl              # DimPoly coefficients
-├── types.jl              # PhysicsIndex, Momentum, MomentumSum
-├── colour_types.jl       # SU(N): AdjointIndex, FundIndex, SUNT, SUNF, SUND
-├── pair.jl               # Parametric Pair{A,B}
-├── expr.jl               # AlgSum (Dict), AlgFactor, FactorKey
-├── sp_context.jl         # SPContext + ScopedValues
-├── contract.jl           # Lorentz contraction + Eps index handling
-├── eps_contract.jl       # ε·ε → -det[pair(aᵢ,bⱼ)]
-├── expand_sp.jl          # Scalar product bilinear expansion
-├── dirac.jl              # DiracGamma{S}, Spinor{K}, DiracChain
-├── dirac_trace.jl        # Dirac trace (gamma5 + projectors)
-├── spin_sum.jl           # Fermion spin sums (completeness)
-├── interference.jl       # NEW: cross-line traces, reconnected interference
-├── dirac_expr.jl         # DiracExpr: matrix-valued expressions
-├── dirac_trick.jl        # D-dim γ^μ...γ_μ
-├── colour_trace.jl       # FIXED: SU(N) trace with (real, imag) tracking
-├── colour_simplify.jl    # Delta contraction via dispatch
-├── polarization_sum.jl   # Feynman + axial + massive pol sums
-├── model.jl              # AbstractModel, QEDModel
-├── qcd_model.jl          # NEW: QCDModel, triple_gauge_vertex
-├── ew_model.jl           # NEW: EWModel with 5 SM vertices
-├── rules.jl              # FeynmanRules callable
-├── diagrams.jl           # ExternalLeg (with mass field)
-├── channels.jl           # NEW: TreeChannel, tree_channels()
-├── amplitude.jl          # NEW: build_amplitude (boson + fermion exchange)
-├── pave.jl               # PaVe{N} type, named constructors
-├── pave_eval.jl          # FIXED: B₀ imag via Kallen. SLOW: C₀ still quadgk
-├── schwinger.jl          # REFERENCE: Schwinger correction
-├── vertex.jl             # REFERENCE: QED g-2 F₂(0)
-├── running_alpha.jl      # REFERENCE: SM running α(q²)
-├── ew_parameters.jl      # EW: M_W, M_Z, sin²θ_W, Z couplings
-├── ew_cross_section.jl   # REFERENCE: σ(ee→WW) Grozin formula
-├── cross_section.jl      # Mandelstam, solve_tree, σ
-└── DESIGN.md             # Design choices + review findings
-
-test/v2/                  # 17 files, 329 tests
-reviews/                  # 6 review reports from Session 8
-SPIRAL_9_PLAN.md          # Spiral 9 plan (completed)
 ```
