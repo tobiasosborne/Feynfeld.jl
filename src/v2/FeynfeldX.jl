@@ -44,6 +44,7 @@ include("polarization_sum.jl")
 
 # ---- Layer 5: Integrals ----
 include("pave.jl")
+include("c0_analytical.jl")
 include("pave_eval.jl")
 include("schwinger.jl")
 include("vertex.jl")

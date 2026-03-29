@@ -150,12 +150,12 @@ end
 
 function _eval_C(pv::PaVe{3}; mu2::Float64)::ComplexF64
     isempty(pv.indices) || return _eval_C_tensor(pv; mu2)
-    _C0(pv.invariants[1], pv.invariants[2], pv.invariants[3],
-        pv.masses[1], pv.masses[2], pv.masses[3])
+    _C0_analytical(pv.invariants[1], pv.invariants[2], pv.invariants[3],
+                   pv.masses[1], pv.masses[2], pv.masses[3])
 end
 
-function _C0(p10::Float64, p12::Float64, p20::Float64,
-             m02::Float64, m12::Float64, m22::Float64)::ComplexF64
+function _C0_quadgk(p10::Float64, p12::Float64, p20::Float64,
+                    m02::Float64, m12::Float64, m22::Float64)::ComplexF64
     # rtol=1e-10 (vs 1e-12 for B₀): nested quadgk compounds the tolerance,
     # giving ~1e-10 overall accuracy, which is sufficient for C₀.
     val, _ = quadgk(0.0, 1.0; rtol = 1e-10) do x
@@ -185,7 +185,7 @@ end
 function _eval_C_tensor(pv::PaVe{3}; mu2::Float64)::ComplexF64
     p10, p12, p20 = pv.invariants
     m02, m12, m22 = pv.masses
-    c0 = _C0(p10, p12, p20, m02, m12, m22)
+    c0 = _C0_analytical(p10, p12, p20, m02, m12, m22)
     b0_02 = _B0(p20, m02, m22; mu2)   # ∫1/(D₀D₂) → B₀(k₂², m₀², m₂²)
     b0_12 = _B0(p12, m12, m22; mu2)   # ∫1/(D₁D₂) → B₀((k₁-k₂)², m₁², m₂²)
     b0_01 = _B0(p10, m02, m12; mu2)   # ∫1/(D₀D₁) → B₀(k₁², m₀², m₁²)
