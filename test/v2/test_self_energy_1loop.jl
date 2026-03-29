@@ -54,11 +54,12 @@ using .FeynfeldX
         @test isfinite(real(sigma_V))
         @test isfinite(real(sigma_S))
 
-        # Check known limits:
-        # At p² = 0 (on-shell for massless): Σ_V should be real for p² < 4m²
-        @test imag(sigma_V) ≈ 0.0 atol=1e-10  # below threshold
-        # Σ_S should also be real below threshold
-        @test imag(sigma_S) ≈ 0.0 atol=1e-10
+        # Check imaginary parts:
+        # B₀(2, 0, 1) is above one-massless threshold (p² > m²).
+        # Im(B₀) = π(p²-m²)/p² = π/2, so self-energies are complex.
+        # Σ_V = -(2B₁ + 1), Σ_S = -(4B₀ - 2)
+        @test imag(sigma_V) ≈ π / 4 atol=1e-8
+        @test imag(sigma_S) ≈ -2π atol=1e-8
 
         # The self-energy evaluated at p² = m² (on-shell) determines δm and Z₂.
         # At p² = 2m² (off-shell), the finite part should be a specific value.

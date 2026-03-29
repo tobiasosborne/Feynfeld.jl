@@ -76,26 +76,47 @@ function _B0_one_massless(p2::Float64, m2::Float64; mu2::Float64)::ComplexF64
     if p2 == 0.0
         return complex(1.0 - log(m2 / mu2))
     end
-    # f(x) = xm² - x(1-x)p² = x[m² - (1-x)p²] = x · g(x)
-    # B0 = -∫₀¹ ln(x·g(x)/μ²) dx = -∫₀¹ ln(x) dx - ∫₀¹ ln(g(x)/μ²) dx
-    #     = 1 - ∫₀¹ ln(g(x)/μ²) dx    [since ∫₀¹ ln(x) dx = -1]
-    # g(x) = m² - (1-x)p² is smooth on [0,1], no singularity → use quadgk
+    # Real part via complex-log quadrature (handles g(x)=0 smoothly)
     integral, _ = quadgk(0.0, 1.0; rtol = 1e-12) do x
         gx = m2 - (1.0 - x) * p2
         real(log(complex(gx / mu2, -1e-30)))
     end
-    complex(1.0 - integral)
+    real_part = 1.0 - integral
+
+    # Imaginary part via Kallen: λ(p², 0, m²) = (p² - m²)²
+    # Im(B₀) = π(p²-m²)/p² when p² > m²
+    # Ref: derived from -iε prescription, f(x)<0 region width = (p²-m²)/p²
+    imag_part = p2 > m2 ? π * (p2 - m2) / p2 : 0.0
+
+    complex(real_part, imag_part)
 end
 
-# General case: both masses nonzero. f(x) = (1-x)m₀² + xm₁² - x(1-x)p² > 0
-# for spacelike p² < 0 with positive masses, or below threshold.
-# Above threshold, f(x) can become negative → log gets imaginary part.
+# General case: both masses nonzero.
+# Below/at threshold: f(x) >= 0, original complex method (numerically stable).
+# Above threshold: real part via |f| quadrature, imaginary part via Kallen function.
+# Ref: refs/papers/Denner1993_FortschrPhys41.pdf, Eq. (4.23)
 function _B0_quadgk(p2::Float64, m02::Float64, m12::Float64; mu2::Float64)::ComplexF64
-    val, _ = quadgk(0.0, 1.0; rtol = 1e-12) do x
-        f = (1.0 - x) * m02 + x * m12 - x * (1.0 - x) * p2
-        -log(complex(f / mu2, -1e-30))
+    # Kallen function determines threshold
+    # λ = (p² - (m₀+m₁)²)(p² - (m₀-m₁)²)
+    lambda = p2^2 - 2.0 * p2 * (m02 + m12) + (m02 - m12)^2
+
+    if lambda > 0.0 && p2 > 0.0
+        # Above threshold: f(x) changes sign at two roots.
+        # Use |f| for real part (avoids complex log), analytical imaginary part.
+        real_part, _ = quadgk(0.0, 1.0; rtol = 1e-10) do x
+            f = (1.0 - x) * m02 + x * m12 - x * (1.0 - x) * p2
+            -log(max(abs(f / mu2), 1e-300))
+        end
+        imag_part = π * sqrt(lambda) / p2
+        complex(real_part, imag_part)
+    else
+        # Below/at threshold: f(x) >= 0, no sign change. Original method is stable.
+        val, _ = quadgk(0.0, 1.0; rtol = 1e-12) do x
+            f = (1.0 - x) * m02 + x * m12 - x * (1.0 - x) * p2
+            -log(complex(f / mu2, -1e-30))
+        end
+        val
     end
-    val
 end
 
 # ---- Tensor B-functions via Passarino-Veltman reduction ----

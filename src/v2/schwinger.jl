@@ -10,6 +10,13 @@
 # This is the vertex + soft real emission correction only (VP not included).
 # IR divergences cancel between virtual and real emission (KLN theorem).
 
+# ──────────────────────────────────────────────────────────────────
+# REFERENCE IMPLEMENTATION — validates physics formula directly.
+# The pipeline should reproduce this result via
+# Model → Rules → Diagrams → Algebra → Integrals → Evaluate.
+# Do NOT delete: used for cross-validation against pipeline results.
+# ──────────────────────────────────────────────────────────────────
+
 using QuadGK: quadgk
 
 """

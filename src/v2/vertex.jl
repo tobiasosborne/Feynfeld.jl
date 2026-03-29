@@ -20,6 +20,13 @@
 #
 # For λ→0 (IR-finite): F₂(0) = (α/π) × ½ = α/(2π)
 
+# ──────────────────────────────────────────────────────────────────
+# REFERENCE IMPLEMENTATION — validates physics formula directly.
+# The pipeline should reproduce this result via
+# Model → Rules → Diagrams → Algebra → Integrals → Evaluate.
+# Do NOT delete: used for cross-validation against pipeline results.
+# ──────────────────────────────────────────────────────────────────
+
 using QuadGK: quadgk
 
 """

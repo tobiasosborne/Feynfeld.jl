@@ -111,8 +111,20 @@ end
         # B0 with nonzero p² below threshold (p² < 4m²): should be real
         @test abs(imag(evaluate(B0(1.0, 1.0, 1.0)))) < 1e-10
 
-        # B0 above threshold (p² > 4m²): has imaginary part
-        @test imag(evaluate(B0(10.0, 1.0, 1.0))) != 0.0
+        # B0 above threshold (p² > 4m²): Im(B₀) = πβ where β = √(1-4m²/p²)
+        # Ref: derived from Denner 1993 Eq. (4.23), -iε prescription
+        # For p²=10, m²=1: β = √(1-4/10) = √(3/5), Im = π√(3/5)
+        @test imag(evaluate(B0(10.0, 1.0, 1.0))) ≈ π * sqrt(3 / 5) atol = 1e-10
+
+        # B0 above threshold, unequal masses: Im = π√λ/p²
+        # λ(p², m₀², m₁²) = p⁴ - 2p²(m₀²+m₁²) + (m₀²-m₁²)²
+        # For p²=20, m₀²=1, m₁²=4: λ = 400 - 2(20)(5) + 9 = 209
+        lambda_uneq = 20.0^2 - 2 * 20 * (1.0 + 4.0) + (1.0 - 4.0)^2
+        @test imag(evaluate(B0(20.0, 1.0, 4.0))) ≈ π * sqrt(lambda_uneq) / 20.0 atol = 1e-8
+
+        # One massless above threshold: Im = π(p²-m²)/p²
+        # For p²=5, m₀²=0, m₁²=1: Im = π(5-1)/5 = 4π/5
+        @test imag(evaluate(B0(5.0, 0.0, 1.0))) ≈ 4π / 5 atol = 1e-10
 
         # Verify B0(p², m², m²) = 2 - ln(m²/μ²) - β ln((β+1)/(β-1))
         # at p² = -4 (spacelike), m² = 1: β² = 1 + 1 = 2, β = √2

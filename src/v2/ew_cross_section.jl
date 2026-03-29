@@ -21,6 +21,13 @@
 # "e⁺(p₁) + e⁻(p₂) → W⁺(k₁) + W⁻(k₂)"
 # "s = (p₁+p₂)², t = (p₁-k₁)², s+t+u = 2m_e²+2M_W²"
 
+# ──────────────────────────────────────────────────────────────────
+# REFERENCE IMPLEMENTATION — validates physics formula directly.
+# The pipeline should reproduce this result via
+# Model → Rules → Diagrams → Algebra → Integrals → Evaluate.
+# Do NOT delete: used for cross-validation against pipeline results.
+# ──────────────────────────────────────────────────────────────────
+
 """
     sigma_ee_ww(s_gev2; M_W, sin2_W, alpha) → Float64
 

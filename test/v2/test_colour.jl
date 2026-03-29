@@ -58,6 +58,28 @@ using Test
         @test trace_normalization(3) == 1//2    # TF = 1/2
     end
 
+    @testset "Colour trace n>=4 (i² fix, feynfeld-83m)" begin
+        N = 3
+        # Tr(T^a T^b T^b T^a) = C_F^2 × (1/2)δ^{aa} = C_F^2 × (N^2-1)/2
+        # For N=3: C_F = 4/3, so C_F^2 × 4 = (16/9) × 4 = 64/9... wait.
+        #
+        # Direct calculation: T^b T^b = C_F × I, so
+        # Tr(T^a T^b T^b T^a) = C_F × Tr(T^a T^a) = C_F × (1/2)δ^{aa}
+        #                      = (4/3) × (1/2) × 8 = 16/3
+        # Ref: Casimir identity, C_F = (N²-1)/(2N)
+        tr4 = colour_trace([SUNT(a), SUNT(b), SUNT(b), SUNT(a)]; N=N)
+        contracted4 = contract_colour(tr4; N=N)
+        @test contracted4.terms[FactorKey()] == 16//3
+
+        # Tr(T^a T^b T^a T^b) = (C_F - C_A/2) × Tr(T^a T^a)
+        #                      = (C_F - C_A/2) × (N^2-1)/2
+        # For N=3: (4/3 - 3/2) × 4 = (-1/6) × 4 = -2/3
+        # Ref: use T^a T^b T^a = (C_F - C_A/2) T^b (standard identity)
+        tr4b = colour_trace([SUNT(a), SUNT(b), SUNT(a), SUNT(b)]; N=N)
+        contracted4b = contract_colour(tr4b; N=N)
+        @test contracted4b.terms[FactorKey()] == -2//3
+    end
+
     @testset "Delta traces (N=3)" begin
         # δ^{aa} = N² - 1 = 8
         @test colour_delta_trace(SUNDelta(a, a); N=3) == 8//1

@@ -21,6 +21,13 @@
 # QCD effects make the hadronic contribution uncertain at ~10%. For precision
 # work, use dispersion-relation data for Δα_had instead.
 
+# ──────────────────────────────────────────────────────────────────
+# REFERENCE IMPLEMENTATION — validates physics formula directly.
+# The pipeline should reproduce this result via
+# Model → Rules → Diagrams → Algebra → Integrals → Evaluate.
+# Do NOT delete: used for cross-validation against pipeline results.
+# ──────────────────────────────────────────────────────────────────
+
 # ---- Standard Model fermion table (PDG 2024 values) ----
 # Each entry: (mass² in GeV², charge², color factor N_c)
 # Ref: refs/papers/PDG2024_sum_leptons.pdf (lepton masses)

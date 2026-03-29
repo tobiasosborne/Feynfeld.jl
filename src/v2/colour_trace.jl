@@ -3,67 +3,68 @@
 #
 # Ref: refs/papers/MertigBohmDenner1991_FeynCalc_CPC64.pdf, Eqs. (2.15)-(2.16)
 # Cross-check: refs/FeynCalc/Tests/SUN/SUNTrace.test
-# Key identities (standard SU(N) generator trace formulas):
+# Key identities:
 #   "Tr(1) = N"                                        [Eq. (2.15)]
 #   "Tr(T^a) = 0"                                      [Eq. (2.15)]
 #   "Tr(T^a T^b) = T_F δ^{ab}  where T_F = 1/2"       [Eq. (2.16)]
 #   Tr(T^a T^b T^c) = (1/4)(d^{abc} + i·f^{abc})
-#   n ≥ 4: recursive reduction via T^a T^b = δ^{ab}/(2N) + (1/2)(d+if)T^f
+#   n >= 4: recursive via T^a T^b = δ^{ab}/(2N) + (1/2)(d+if)T^f
+#
+# The recursion tracks real and imaginary parts separately:
+#   trace = real_part + i × imag_part
+# so that i² = -1 is handled correctly for products of f-terms.
+# The public API returns the real part (sufficient for |M|²).
 
 function colour_trace(generators::Vector{SUNT}; N::Int=3)
-    n = length(generators)
-    _colour_trace_impl(generators, N)
+    re, _im = _colour_trace_ri(generators, N)
+    re
 end
 
 colour_trace(chain::ColourChain; N::Int=3) = colour_trace(chain.elements; N=N)
 
-function _colour_trace_impl(gs::Vector{SUNT}, N::Int)
+# Returns (real::AlgSum, imag::AlgSum) where trace = real + i*imag.
+function _colour_trace_ri(gs::Vector{SUNT}, N::Int)
     n = length(gs)
 
     # Tr(1) = N
-    n == 0 && return alg(N)
+    n == 0 && return (alg(N), AlgSum())
 
     # Tr(T^a) = 0
-    n == 1 && return AlgSum()
+    n == 1 && return (AlgSum(), AlgSum())
 
     # Tr(T^a T^b) = (1/2) δ^{ab}
     if n == 2
         a, b = gs[1].adj, gs[2].adj
-        return alg(SUNDelta(a, b)) * alg(1//2)
+        return ((1//2) * alg(SUNDelta(a, b)), AlgSum())
     end
 
     # Tr(T^a T^b T^c) = (1/4)(d^{abc} + i·f^{abc})
-    # We track only the REAL part for now (sufficient for |M|² calculations).
-    # The f^{abc} term contributes to imaginary part and cancels in |M|².
     if n == 3
         a, b, c = gs[1].adj, gs[2].adj, gs[3].adj
-        d_term = SUND(a, b, c)
-        f_term = SUNF(a, b, c)
-        # Return: (1/4) d^{abc} as the symmetric part
-        # and (1/4) f^{abc} as the antisymmetric part (with i)
-        # For real amplitudes, keep both — they appear in different interference terms
-        return (1//4) * alg(d_term) + (1//4) * alg(f_term)
+        return ((1//4) * alg(SUND(a, b, c)), (1//4) * alg(SUNF(a, b, c)))
     end
 
-    # n ≥ 4: recursive reduction
-    # T^a T^b = δ^{ab}/(2N) · I + (1/2)(d^{abf} + i·f^{abf}) T^f
-    # Tr(T^a T^b ... T^n) = δ^{ab}/(2N) · Tr(T^c...T^n)
-    #                      + (1/2) Σ_f (d^{abf} + i·f^{abf}) Tr(T^f T^c...T^n)
+    # n >= 4: recursive reduction
+    # T^a T^b = δ^{ab}/(2N) + (1/2)(d^{abf} + i·f^{abf}) T^f
     a, b = gs[1].adj, gs[2].adj
     rest = gs[3:end]
     f_idx = _fresh_adj()
 
-    # First term: δ^{ab}/(2N) · Tr(rest)
-    sub1 = _colour_trace_impl(rest, N)
-    term1 = (1 // (2*N)) * alg(SUNDelta(a, b)) * sub1
+    # First term: δ^{ab}/(2N) × Tr(rest)
+    re_rest, im_rest = _colour_trace_ri(rest, N)
+    t1_re = (1 // (2*N)) * alg(SUNDelta(a, b)) * re_rest
+    t1_im = (1 // (2*N)) * alg(SUNDelta(a, b)) * im_rest
 
-    # Second term: (1/2)(d^{abf} + i·f^{abf}) · Tr(T^f · rest)
-    new_chain = [SUNT(f_idx); rest]
-    sub2 = _colour_trace_impl(new_chain, N)
-    d_part = (1//2) * alg(SUND(a, b, f_idx)) * sub2
-    f_part = (1//2) * alg(SUNF(a, b, f_idx)) * sub2
+    # Second term: (1/2)(d + if) × Tr(T^f · rest)
+    # (d + if)(re_sub + i·im_sub) = (d·re - f·im) + i(d·im + f·re)
+    re_sub, im_sub = _colour_trace_ri([SUNT(f_idx); rest], N)
+    d = (1//2) * alg(SUND(a, b, f_idx))
+    f = (1//2) * alg(SUNF(a, b, f_idx))
 
-    term1 + d_part + f_part
+    t2_re = d * re_sub + (-1//1) * f * im_sub
+    t2_im = d * im_sub + f * re_sub
+
+    (t1_re + t2_re, t1_im + t2_im)
 end
 
 # ---- Colour delta contraction ----
