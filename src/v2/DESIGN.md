@@ -156,6 +156,44 @@ Design patterns per layer:
 
 ---
 
+## Session 8 Architectural Review Findings (2026-03-29)
+
+Six-agent deep review (reports in `reviews/`). New cockroaches found:
+
+### Type Instabilities (MUST FIX)
+
+| Location | Issue | Fix |
+|----------|-------|-----|
+| `types.jl:56-67` | `MomentumSum()` returns `Union{Nothing, Momentum, MomentumSum}` | Split: pure constructor + `momentum_sum()` factory |
+| `dirac.jl:106-113` | `gamma_pair()` returns `Union{Nothing, Number, Pair}` | Return `AlgSum` uniformly |
+| `pair.jl:37-44` | `pair()` returns `Union{Int, Pair}` | Two dispatch methods |
+| `spin_sum.jl:117` | `Tuple{Any, Vector{DiracGamma}}` | `Tuple{Rational{Int}, ...}` |
+| `expand_sp.jl:41,55,69` | `Tuple{Any, Union{AlgFactor, Nothing}}` | `Tuple{Coeff, ...}` |
+| `model.jl:84` | `params::Dict{Symbol, Any}` (unused) | Remove entirely |
+| `colour_types.jl:122-126` | `_COLOUR_DUMMY_COUNTER` global mutable | Use `gensym(:c)` |
+
+### Performance Concerns
+
+| Location | Issue | Fix |
+|----------|-------|-----|
+| `dirac_expr.jl:36-38` | `Base.:+` concatenates without simplifying → O(N) blowup | Simplify on add or use Dict |
+| `coeff.jl` | `DimPoly` allocates on every operation | Consider `DimPoly2` (inline 3-field struct) for degree ≤ 2 |
+| `colour_simplify.jl:23-35` | `isa` cascades instead of dispatch | Extract to dispatch methods |
+| `colour_simplify.jl:81-87` | `_delta_substitute` double-calls `_replace_adj` | Capture result in variable |
+
+### Architectural Gaps
+
+- **Layers 1-3 are scaffolding.** Only e+e-→μ+μ- uses the full pipeline.
+  Other processes bypass Model/Rules/Diagrams entirely.
+- **Layer 5 standalone recipes** (schwinger.jl, vertex.jl, running_alpha.jl,
+  ew_cross_section.jl) validate physics but don't exercise the pipeline.
+- **AlgFactor union at 6 types.** Plan two-level: `LorentzFactor = Union{Pair, Eps}`,
+  `ColourFactor = Union{SUNDelta, FundDelta, SUNF, SUND}`.
+- **No γ5 traces, no Eps contraction.** Blocks all chiral/EW physics.
+- **Inconsistent iε sign** between schwinger.jl (+1e-30) and pave_eval.jl (-1e-30).
+
+---
+
 ## How to Add a New Physics Space
 
 Proven pattern (used for colour algebra):

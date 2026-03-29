@@ -38,7 +38,7 @@ _try_expand(::Eps) = nothing
 
 # MomentumSum in first slot
 function _try_expand(p::Pair{MomentumSum, A}) where {A<:PairArg}
-    result = Tuple{Any, Union{AlgFactor, Nothing}}[]
+    result = Tuple{Coeff, Union{AlgFactor, Nothing}}[]
     for (c, m) in p.a.terms
         new_p = pair(m, p.b)
         if new_p isa Number
@@ -52,7 +52,7 @@ end
 
 # MomentumSum in second slot
 function _try_expand(p::Pair{A, MomentumSum}) where {A<:PairArg}
-    result = Tuple{Any, Union{AlgFactor, Nothing}}[]
+    result = Tuple{Coeff, Union{AlgFactor, Nothing}}[]
     for (c, m) in p.b.terms
         new_p = pair(p.a, m)
         if new_p isa Number
@@ -66,7 +66,7 @@ end
 
 # Both slots are MomentumSum
 function _try_expand(p::Pair{MomentumSum, MomentumSum})
-    result = Tuple{Any, Union{AlgFactor, Nothing}}[]
+    result = Tuple{Coeff, Union{AlgFactor, Nothing}}[]
     for (c1, m1) in p.a.terms
         for (c2, m2) in p.b.terms
             c = mul_coeff(c1, c2)

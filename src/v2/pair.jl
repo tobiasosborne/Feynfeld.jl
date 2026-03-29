@@ -34,14 +34,13 @@ const ScalarProduct = Pair{Momentum, Momentum}
 
 # Safe factory: checks BMHV vanishing, returns 0 if it vanishes.
 # This is the public API. Direct Pair() is internal.
-function pair(a::PairArg, b::PairArg)
-    # BMHV projection: 4 ∩ (D-4) = 0
-    if a isa LorentzIndex && b isa LorentzIndex
-        dc = dim_contract(a.dim, b.dim)
-        dc === nothing && return 0
-    end
+# Dispatch: LorentzIndex × LorentzIndex checks BMHV vanishing.
+function pair(a::LorentzIndex, b::LorentzIndex)
+    dc = dim_contract(a.dim, b.dim)
+    dc === nothing && return 0
     Pair(a, b)
 end
+pair(a::PairArg, b::PairArg) = Pair(a, b)
 
 # ---- Equality, hashing, ordering (structural, not repr-based) ----
 Base.:(==)(a::Pair, b::Pair) = a.a == b.a && a.b == b.b

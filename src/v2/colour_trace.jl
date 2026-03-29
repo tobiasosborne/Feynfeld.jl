@@ -1,12 +1,13 @@
 # SU(N) colour trace: always returns AlgSum.
 # Evaluates immediately for concrete N. Default N=3 (QCD).
 #
-# Key identities:
-#   Tr(1) = N
-#   Tr(T^a) = 0
-#   Tr(T^a T^b) = T_F δ^{ab}  where T_F = 1/2
+# Ref: refs/papers/MertigBohmDenner1991_FeynCalc_CPC64.pdf, Eqs. (2.15)-(2.16)
+# Cross-check: refs/FeynCalc/Tests/SUN/SUNTrace.test
+# Key identities (standard SU(N) generator trace formulas):
+#   "Tr(1) = N"                                        [Eq. (2.15)]
+#   "Tr(T^a) = 0"                                      [Eq. (2.15)]
+#   "Tr(T^a T^b) = T_F δ^{ab}  where T_F = 1/2"       [Eq. (2.16)]
 #   Tr(T^a T^b T^c) = (1/4)(d^{abc} + i·f^{abc})
-#     → real part: (1/4)d^{abc}, imaginary part: (1/4)f^{abc}
 #   n ≥ 4: recursive reduction via T^a T^b = δ^{ab}/(2N) + (1/2)(d+if)T^f
 
 function colour_trace(generators::Vector{SUNT}; N::Int=3)

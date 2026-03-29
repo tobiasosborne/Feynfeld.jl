@@ -102,12 +102,16 @@ gammas(c::DiracChain) = [e for e in c.elements if e isa DiracGamma]
 lorentz_index(g::DiracGamma{LISlot}) = g.slot.index
 lorentz_index(::DiracGamma) = nothing
 
-# gamma_pair: metric contraction of two gammas (dispatch, not isa cascade!)
-gamma_pair(a::DiracGamma{LISlot}, b::DiracGamma{LISlot}) = pair(a.slot.index, b.slot.index)
-gamma_pair(a::DiracGamma{LISlot}, b::DiracGamma{MomSlot}) = pair(a.slot.index, b.slot.mom)
-gamma_pair(a::DiracGamma{MomSlot}, b::DiracGamma{LISlot}) = pair(a.slot.mom, b.slot.index)
-gamma_pair(a::DiracGamma{MomSlot}, b::DiracGamma{MomSlot}) = pair(a.slot.mom, b.slot.mom)
+# gamma_pair: metric contraction of two gammas → AlgSum (uniform return type).
+# Returns zero AlgSum for non-matching pairs (g5, projectors, MomSumSlot).
+function _gamma_pair_to_alg(p)
+    p isa Number ? (iszero(p) ? AlgSum() : alg(p)) : alg(p)
+end
+gamma_pair(a::DiracGamma{LISlot}, b::DiracGamma{LISlot}) = _gamma_pair_to_alg(pair(a.slot.index, b.slot.index))
+gamma_pair(a::DiracGamma{LISlot}, b::DiracGamma{MomSlot}) = alg(pair(a.slot.index, b.slot.mom))
+gamma_pair(a::DiracGamma{MomSlot}, b::DiracGamma{LISlot}) = alg(pair(a.slot.mom, b.slot.index))
+gamma_pair(a::DiracGamma{MomSlot}, b::DiracGamma{MomSlot}) = alg(pair(a.slot.mom, b.slot.mom))
 
 # MomSumSlot: handled by expanding before tracing (see dirac_trace.jl).
 # gamma_pair does NOT handle MomSumSlot — it falls through to the fallback.
-gamma_pair(::DiracGamma, ::DiracGamma) = nothing  # g5, projectors, MomSumSlot: no direct metric
+gamma_pair(::DiracGamma, ::DiracGamma) = AlgSum()  # zero: g5, projectors, MomSumSlot

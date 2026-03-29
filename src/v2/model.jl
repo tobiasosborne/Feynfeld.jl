@@ -65,7 +65,7 @@ abstract type AbstractModel end
 model_name(m::AbstractModel) = error("implement model_name")
 model_fields(m::AbstractModel) = error("implement model_fields")
 gauge_groups(m::AbstractModel) = error("implement gauge_groups")
-model_params(m::AbstractModel) = error("implement model_params")
+# model_params removed — was Dict{Symbol, Any} (Rule violation), unused by pipeline
 
 # Derived interface (free from required methods):
 fermion_fields(m::AbstractModel) = [f for f in model_fields(m) if f isa Field{Fermion}]
@@ -81,20 +81,17 @@ struct QEDModel <: AbstractModel
     electron::Field{Fermion}
     muon::Field{Fermion}
     photon::Field{Boson}
-    params::Dict{Symbol, Any}
 end
 
 model_name(::QEDModel) = :QED
 model_fields(m::QEDModel) = Field[m.electron, m.muon, m.photon]
 gauge_groups(::QEDModel) = GaugeGroup[U1()]
-model_params(m::QEDModel) = m.params
 
 function qed_model(; m_e=:m_e, m_mu=:m_mu)
     QEDModel(
         fermion(:e, m_e; charge=-1//1),
         fermion(:mu, m_mu; charge=-1//1),
         vector_boson(:gamma, :zero),
-        Dict{Symbol,Any}(:e => :e, :alpha => :(e^2/(4π)))
     )
 end
 

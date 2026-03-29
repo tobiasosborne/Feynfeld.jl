@@ -1,7 +1,8 @@
 # Numerical evaluation of Passarino-Veltman scalar loop integrals.
 # MS-bar scheme: UV poles (1/epsilon) subtracted. Returns finite part only.
 # All functions return ComplexF64 (loop integrals are generically complex).
-# Reference: 't Hooft & Veltman (1979), Denner (1993).
+# Ref: refs/papers/tHooftVeltman1979_NuclPhysB153.pdf (scalar integrals A₀, B₀, C₀, D₀)
+# Ref: refs/papers/Denner1993_FortschrPhys41.pdf (PV reduction, Eqs. 4.18-4.23, App. B)
 #
 # B0 uses QuadGK adaptive quadrature on the Feynman parameter integral —
 # correct by construction, no hand-derived analytical special cases needed.
@@ -17,7 +18,9 @@ evaluate(pv::PaVe{N}; mu2::Float64 = 1.0) where {N} =
     error("evaluate not yet implemented for PaVe{$N}")
 
 # ---- A0: scalar 1-point function ----
-# A0(m²) = m²(1 - ln(m²/μ²))  [MS-bar finite part, closed form]
+# Ref: refs/papers/Denner1993_FortschrPhys41.pdf, Eq. (4.21)
+# "A₀(m) = m²(Δ - ln(m²/μ²) + 1) + O(D-4)"
+# In MS-bar (Δ=0): A₀(m²) = m²(1 - ln(m²/μ²))
 # A0(0) = 0  [massless tadpole vanishes in dim-reg]
 
 function _eval_A(pv::PaVe{1}; mu2::Float64)::ComplexF64
@@ -27,9 +30,10 @@ function _eval_A(pv::PaVe{1}; mu2::Float64)::ComplexF64
 end
 
 # ---- B0: scalar 2-point function ----
-# B0(p², m₀², m₁²) = Δ - ∫₀¹ dx ln[f(x)/μ²]
+# Ref: refs/papers/Denner1993_FortschrPhys41.pdf, Eq. (4.23)
+# "B₀(p², m₀, m₁) = Δ - ∫₀¹ dx ln[(p²x²-x(p²-m₀²+m₁²)+m₀²-iε)/μ²]"
+# In MS-bar (Δ=0): B₀ = -∫₀¹ dx ln[f(x)/μ²]
 # where f(x) = (1-x)m₀² + xm₁² - x(1-x)p² - iε
-# In MS-bar (Δ=0): B0 = -∫₀¹ dx ln[f(x)/μ²]
 #
 # We evaluate this directly via QuadGK. The only special cases are
 # where the integrand has a log singularity at x=0 or x=1 (zero masses).
@@ -56,6 +60,9 @@ function _B0(p2::Float64, m02::Float64, m12::Float64; mu2::Float64)::ComplexF64
 end
 
 # Both massless: B0(p², 0, 0) = 2 - ln(-p²/μ² - iε)  [closed form]
+# Ref: refs/papers/Denner1993_FortschrPhys41.pdf, Eq. (4.23) with m₀=m₁=0
+# "B₀(p², m₀, m₁) = Δ - ∫₀¹ dx log[(p²x²-x(p²-m₀²+m₁²)+m₀²-iε)/μ²]"
+# Setting m₀=m₁=0, MS-bar (Δ=0): B₀(p²,0,0) = 2 - ln(-p²/μ²)
 function _B0_both_massless(p2::Float64; mu2::Float64)::ComplexF64
     p2 == 0.0 && error("B0(0, 0, 0) is IR divergent")
     # For p² > 0 (timelike): ln(-p²-iε) = ln(p²) - iπ
@@ -92,7 +99,10 @@ function _B0_quadgk(p2::Float64, m02::Float64, m12::Float64; mu2::Float64)::Comp
 end
 
 # ---- Tensor B-functions via Passarino-Veltman reduction ----
-# B1 = [A₀(m₁²) - A₀(m₀²) - (p²+m₀²-m₁²)B₀] / (2p²)  [Denner Eq. B.7]
+# Ref: refs/papers/Denner1993_FortschrPhys41.pdf, Eq. (B.9)
+# "B₁(p², m₀, m₁) = (m₁²-m₀²)/(2p²)(B₀(p²,m₀,m₁) - B₀(0,m₀,m₁)) - ½B₀(p²,m₀,m₁)"
+# Equivalent form via Eq. (4.18) PV reduction + Eq. (4.21) A₀:
+# B₁ = [A₀(m₁²) - A₀(m₀²) - (p²+m₀²-m₁²)B₀] / (2p²)
 
 function _eval_B_tensor(pv::PaVe{2}; mu2::Float64)::ComplexF64
     p2, m02, m12 = pv.invariants[1], pv.masses[1], pv.masses[2]

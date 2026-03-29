@@ -4,8 +4,10 @@
 # (Higgs diagram vanishes for m_e = 0.)
 #
 # Ref: refs/FeynCalc/FeynCalc/Examples/EW/Tree/Mathematica/AnelEl-WW.m
-#      lines 193-198: known result from Grozin, "Using REDUCE in
-#      High Energy Physics", Chapter 5.4
+#      lines 193-198: verified "CORRECT" against Grozin formula
+# Secondary: Grozin, "Using REDUCE in HEP", Ch. 5.4 (not locally stored)
+# Ref: refs/papers/Denner1993_FortschrPhys41.pdf, Eqs. (11.1)-(11.2)
+#      (process definition and kinematics for e+e-→W+W-)
 #
 # The formula uses s in units of M_W² (dimensionless):
 #   σ = Part_log(s) + Part_sqrt(s)    [in units of M_W⁻²]

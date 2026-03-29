@@ -1,9 +1,12 @@
 # Electroweak Standard Model parameters and derived couplings.
 #
 # Ref: refs/papers/PDG2024_rev_standard_model.pdf, Eqs. (10.11), (10.22a), (10.63)
-#      "α⁻¹ = 137.036", "sin²θ_W = 0.22348", "M_W = 80.360 GeV"
+#      "α⁻¹ = 137.035999178(8)"                     [Eq. (10.11)]
+#      "sin²θ_W = 1 - M_W²/M_Z²"                    [Eq. (10.22a), on-shell definition]
+#      "sin²θ_W = 0.22348 ± 0.00006"                 [Table 10.2, on-shell]
 # Ref: refs/papers/PDG2024_list_z_boson.pdf
 #      "M_Z = 91.1880 ± 0.0020 GeV"
+# M_W derived: M_W = M_Z √(1 - sin²θ_W) = 91.1880 × √(0.77652) = 80.360 GeV
 
 # ---- Physical constants (PDG 2024 on-shell scheme) ----
 

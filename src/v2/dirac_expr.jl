@@ -34,7 +34,7 @@ end
 
 # ---- Arithmetic ----
 function Base.:+(a::DiracExpr, b::DiracExpr)
-    DiracExpr(vcat(a.terms, b.terms))
+    simplify(DiracExpr(vcat(a.terms, b.terms)))
 end
 
 function Base.:-(a::DiracExpr)

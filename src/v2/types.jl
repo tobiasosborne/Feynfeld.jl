@@ -52,27 +52,31 @@ Base.show(io::IO, m::Momentum) = print(io, m.name)
 # ---- MomentumSum (stores full Momentum objects, not Symbols) ----
 struct MomentumSum
     terms::Vector{Tuple{Rational{Int}, Momentum}}
-
-    function MomentumSum(terms_raw::Vector{Tuple{Rational{Int}, Momentum}})
-        # Combine like terms, sort, drop zeros
-        d = Dict{Momentum, Rational{Int}}()
-        for (c, m) in terms_raw
-            d[m] = get(d, m, Rational{Int}(0)) + c
-        end
-        terms = sort!([(c, m) for (m, c) in d if !iszero(c)]; by=last)
-        isempty(terms) && return nothing  # zero momentum
-        length(terms) == 1 && isone(first(terms)[1]) && return first(terms)[2]
+    # Inner constructor: type-pure, always returns MomentumSum
+    function MomentumSum(terms::Vector{Tuple{Rational{Int}, Momentum}})
         new(terms)
     end
 end
 
+# Factory: combines like terms, may return Nothing/Momentum/MomentumSum
+function momentum_sum(terms_raw::Vector{Tuple{Rational{Int}, Momentum}})
+    d = Dict{Momentum, Rational{Int}}()
+    for (c, m) in terms_raw
+        d[m] = get(d, m, Rational{Int}(0)) + c
+    end
+    terms = sort!([(c, m) for (m, c) in d if !iszero(c)]; by=last)
+    isempty(terms) && return nothing  # zero momentum
+    length(terms) == 1 && isone(first(terms)[1]) && return first(terms)[2]
+    MomentumSum(terms)
+end
+
 Base.show(io::IO, ms::MomentumSum) = join(io, ["$(c)*$(m)" for (c,m) in ms.terms], " + ")
 
-# Arithmetic on momenta
-Base.:+(a::Momentum, b::Momentum) = MomentumSum([(1//1, a), (1//1, b)])
-Base.:-(a::Momentum, b::Momentum) = MomentumSum([(1//1, a), (-1//1, b)])
-Base.:-(m::Momentum) = MomentumSum([(-1//1, m)])
-Base.:*(c::Number, m::Momentum) = MomentumSum([(Rational{Int}(c), m)])
+# Arithmetic on momenta (use factory for simplification)
+Base.:+(a::Momentum, b::Momentum) = momentum_sum([(1//1, a), (1//1, b)])
+Base.:-(a::Momentum, b::Momentum) = momentum_sum([(1//1, a), (-1//1, b)])
+Base.:-(m::Momentum) = momentum_sum([(-1//1, m)])
+Base.:*(c::Number, m::Momentum) = momentum_sum([(Rational{Int}(c), m)])
 Base.:*(m::Momentum, c::Number) = c * m
 
 # Ordering for MomentumSum (needed for FactorKey sorting)

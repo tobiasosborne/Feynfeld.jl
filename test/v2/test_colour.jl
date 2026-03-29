@@ -85,9 +85,24 @@ using Test
         f2 = SUNF(b, c, d_idx)
         expr2 = alg(f1) * alg(f2)
         contracted2 = contract_colour(expr2; N=3)
-        # Should give N * sign * δ^{ab}
-        # The signs from SUNF canonicalization should work out
+        # f^{acd} f^{bcd} = N δ^{ab}  for N=3 → 3 δ^{ab}
+        # Ref: standard SU(N) identity, cross-check FeynCalc SUNSimplify
         @test !iszero(contracted2)
+        expected_ff = 3 * alg(SUNDelta(a, b))
+        @test contracted2 == expected_ff
+
+        # Test: d^{acd} d^{bcd} = (N²-4)/N δ^{ab}  for N=3 → 5/3 δ^{ab}
+        d1 = SUND(a, c, d_idx)
+        d2 = SUND(b, c, d_idx)
+        expr_dd = alg(d1) * alg(d2)
+        contracted_dd = contract_colour(expr_dd; N=3)
+        expected_dd = (5 // 3) * alg(SUNDelta(a, b))
+        @test contracted_dd == expected_dd
+
+        # Test: f^{acd} d^{bcd} = 0
+        expr_fd = alg(f1) * alg(d2)
+        contracted_fd = contract_colour(expr_fd; N=3)
+        @test iszero(contracted_fd)
     end
 
     @testset "AlgFactor integration" begin

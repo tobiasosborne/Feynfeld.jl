@@ -97,9 +97,8 @@ function _apply_sandwich(coeff, left, inner, right, dim)
         p = gamma_pair(ga, gb)
 
         # Term 1: metric contraction
-        term1 = if p !== nothing && !(p isa Number && iszero(p))
-            p_coeff = p isa Number ? p * coeff : alg(p) * coeff
-            _trick_gammas(4 * p_coeff, DiracGamma[left; right])
+        term1 = if !iszero(p)
+            _trick_gammas(4 * (p * coeff), DiracGamma[left; right])
         else
             DiracExpr()
         end
@@ -175,12 +174,11 @@ function _apply_sandwich(coeff, left, inner, right, dim)
         for j in i+1:n
             pair_sign = iseven(j - i) ? 1 : -1
             p = gamma_pair(inner[i], inner[j])
-            p === nothing && continue
+            iszero(p) && continue
 
             remaining = DiracGamma[inner[k] for k in 1:n if k != i && k != j]
             chain = DiracGamma[left; remaining; right]
-            p_coeff = p isa Number ? (overall * pair_sign * p) * coeff :
-                                    (overall * pair_sign) * (alg(p) * coeff)
+            p_coeff = (overall * pair_sign) * (p * coeff)
             result = result + _trick_gammas(p_coeff, chain)
         end
     end

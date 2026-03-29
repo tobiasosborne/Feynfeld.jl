@@ -21,17 +21,12 @@ function _contract_colour_term(factors::Vector{AlgFactor}, coeff, N::Int)
 
         # Look for delta self-contractions (δ^{aa})
         for (i, f) in enumerate(factors)
-            if f isa SUNDelta && f.a == f.b
-                coeff_acc = mul_coeff(coeff_acc, Rational{Int}(N^2 - 1))
-                deleteat!(factors, i)
-                changed = true
-                break
-            elseif f isa FundDelta && f.i == f.j
-                coeff_acc = mul_coeff(coeff_acc, Rational{Int}(N))
-                deleteat!(factors, i)
-                changed = true
-                break
-            end
+            sc = _self_contract(f, N)
+            sc === nothing && continue
+            coeff_acc = mul_coeff(coeff_acc, sc)
+            deleteat!(factors, i)
+            changed = true
+            break
         end
         changed && continue
 
@@ -76,14 +71,21 @@ function _contract_colour_term(factors::Vector{AlgFactor}, coeff, N::Int)
     alg_from_factors(factors, normalise_coeff(coeff_acc))
 end
 
+# ---- Self-contraction dispatch (δ^{aa} → N²-1 or N) ----
+_self_contract(d::SUNDelta, N::Int) = d.a == d.b ? Rational{Int}(N^2 - 1) : nothing
+_self_contract(d::FundDelta, N::Int) = d.i == d.j ? Rational{Int}(N) : nothing
+_self_contract(::AlgFactor, ::Int) = nothing
+
 # ---- Delta substitution into another factor ----
 # δ^{ab} * F(a,...) → F(b,...) (replace a with b in F)
 function _delta_substitute(d::SUNDelta, f::SUNF)
-    _replace_adj(f, d.a, d.b) !== nothing && return _replace_adj(f, d.a, d.b)
+    result = _replace_adj(f, d.a, d.b)
+    result !== nothing && return result
     _replace_adj(f, d.b, d.a)
 end
 function _delta_substitute(d::SUNDelta, f::SUND)
-    _replace_adj_d(f, d.a, d.b) !== nothing && return _replace_adj_d(f, d.a, d.b)
+    result = _replace_adj_d(f, d.a, d.b)
+    result !== nothing && return result
     _replace_adj_d(f, d.b, d.a)
 end
 function _delta_substitute(d::SUNDelta, g::SUNDelta)
@@ -124,9 +126,9 @@ _try_struct_contract(a::SUND, b::SUNF, N) = _contract_fd(b, a, N)
 _try_struct_contract(::AlgFactor, ::AlgFactor, _) = nothing
 
 # ---- f·f contraction ----
-# 2 shared: f^{acd} f^{bcd} = N δ^{ab}
-# 3 shared: f^{abc} f^{abc} = N(N²-1)
-# Ref: standard SU(N) identities (e.g. P&S Appendix, FeynCalc SUNSimplify)
+# Ref: refs/papers/Shtabovenko2016_FeynCalc9_1601.01167.pdf, Section 3.4
+# Cross-check: refs/FeynCalc/Tests/SUN/SUNSimplify.test
+# "f^{acd} f^{bcd} = N δ^{ab}", "f^{abc} f^{abc} = N(N²-1)"
 function _contract_ff(f1::SUNF, f2::SUNF, N::Int)
     shared, free1, free2 = _shared_adj([f1.a, f1.b, f1.c], [f2.a, f2.b, f2.c])
     sign = f1.sign * f2.sign
@@ -139,8 +141,8 @@ function _contract_ff(f1::SUNF, f2::SUNF, N::Int)
 end
 
 # ---- d·d contraction ----
-# 2 shared: d^{acd} d^{bcd} = (N²-4)/N δ^{ab}
-# 3 shared: d^{abc} d^{abc} = (N²-1)(N²-4)/N
+# Ref: refs/papers/Shtabovenko2016_FeynCalc9_1601.01167.pdf, Section 3.4
+# "d^{acd} d^{bcd} = (N²-4)/N δ^{ab}", "d^{abc} d^{abc} = (N²-1)(N²-4)/N"
 function _contract_dd(d1::SUND, d2::SUND, N::Int)
     shared, free1, free2 = _shared_adj([d1.a, d1.b, d1.c], [d2.a, d2.b, d2.c])
     if length(shared) == 3
@@ -152,8 +154,8 @@ function _contract_dd(d1::SUND, d2::SUND, N::Int)
 end
 
 # ---- f·d contraction ----
-# 3 shared: f^{abc} d^{abc} = 0 (antisymmetric × symmetric)
-# 2 shared: f^{acd} d^{bcd} = 0 (also vanishes)
+# Ref: antisymmetric × symmetric contraction vanishes by index symmetry
+# "f^{acd} d^{bcd} = 0", "f^{abc} d^{abc} = 0"
 function _contract_fd(f1::SUNF, d1::SUND, N::Int)
     shared, _, _ = _shared_adj([f1.a, f1.b, f1.c], [d1.a, d1.b, d1.c])
     length(shared) >= 2 || return nothing

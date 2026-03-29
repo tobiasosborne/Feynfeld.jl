@@ -11,6 +11,7 @@ include("pair.jl")
 include("expr.jl")
 include("sp_context.jl")
 include("contract.jl")
+include("eps_contract.jl")
 include("expand_sp.jl")
 include("dirac.jl")
 include("dirac_trace.jl")
@@ -46,14 +47,14 @@ include("cross_section.jl")
 
 # ---- Exports: Algebra ----
 export DimPoly, DIM, DIM_MINUS_4, Coeff, evaluate_dim, normalise_coeff, mul_coeff, add_coeff
-export PhysicsIndex, Dim4, DimD, DimDm4, LorentzIndex, Momentum, MomentumSum
+export PhysicsIndex, Dim4, DimD, DimDm4, LorentzIndex, Momentum, MomentumSum, momentum_sum
 export MetricTensor, FourVector, ScalarProduct
 export pair, SP, FV, MT, SPD, FVD, MTD
 export Eps
 export AdjointIndex, FundIndex, SUNT, SUNDelta, FundDelta, SUNF, SUND, ColourChain
 export AlgSum, AlgFactor, FactorKey, alg, alg_from_factors
 export SPContext, set_sp, get_sp, with_sp, sp_context, evaluate_sp, CURRENT_SP
-export contract, expand_scalar_product, substitute_index
+export contract, eps_contract, expand_scalar_product, substitute_index
 export DiracGamma, DiracSlot, LISlot, MomSlot, MomSumSlot, Gamma5Slot
 export ProjPSlot, ProjMSlot, IdSlot
 export DiracChain, DiracElement, Spinor, SpinorKind
@@ -72,7 +73,7 @@ export GaugeGroup, U1, SU
 export FieldSpecies, Fermion, Boson, Scalar
 export Field, fermion, vector_boson, scalar
 export AbstractModel, QEDModel, qed_model
-export model_name, model_fields, gauge_groups, model_params
+export model_name, model_fields, gauge_groups
 export get_field, fermion_fields, boson_fields
 export mass_trait, charge_trait, species, Massive, Massless, Charged, Neutral
 

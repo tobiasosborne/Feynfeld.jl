@@ -118,9 +118,5 @@ function _parity(perm::Vector{Int})
     sign
 end
 
-# ---- Fresh index counter (for dummy indices in traces) ----
-const _COLOUR_DUMMY_COUNTER = Ref(0)
-function _fresh_adj()
-    _COLOUR_DUMMY_COUNTER[] += 1
-    AdjointIndex(Symbol("_c$(_COLOUR_DUMMY_COUNTER[])"))
-end
+# ---- Fresh dummy index generation (for dummy indices in traces) ----
+_fresh_adj() = AdjointIndex(gensym(:c))

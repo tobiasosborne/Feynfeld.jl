@@ -1,10 +1,14 @@
 # Running fine-structure constant α(q²) from vacuum polarization.
 #
-# Ref: refs/papers/Denner1993_FortschrPhys41.pdf, Section 3
+# Ref: refs/papers/Denner1993_FortschrPhys41.pdf, Section 3, Eq. (3.10)
+#      "α(s) = α / (1 - (Δα(s))_ferm)" [on-shell running coupling]
 # Ref: refs/papers/PDG2024_rev_standard_model.pdf, Eq. (10.11)-(10.12)
 #      "α⁻¹(0) = 137.035999178(8)", "Δα_had^(5)(M_Z) = 0.02783 ± 0.00006"
 #
 # The renormalized vacuum polarization for fermion f (charge Q_f, N_c colors):
+# Ref: refs/papers/Denner1993_FortschrPhys41.pdf, Eq. (4.23) + on-shell subtraction
+# "Π̂(q²) = Π(q²) - Π(0)", with Π from B₀ via Eq. (4.23)
+# In Feynman parameter form (standard textbook result, e.g. P&S Ch. 7):
 #   Π̂_f(q²) = Q_f² N_c × [-(2α/π) ∫₀¹ dx x(1-x) ln(1 - x(1-x)q²/m_f²)]
 #
 # Running coupling (1-loop resummation):

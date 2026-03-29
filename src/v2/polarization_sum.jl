@@ -1,7 +1,8 @@
 # Polarization sum for gauge bosons.
 #
-# Ref: refs/FeynCalc/Tests/Feynman/PolarizationSum.test, ID1
-# Ref: Peskin & Schroeder, discussion around Eq. (5.75)
+# Ref: refs/FeynCalc/Tests/Feynman/PolarizationSum.test, IDs 1-3
+# Ref: refs/papers/MertigBohmDenner1991_FeynCalc_CPC64.pdf, Eq. (2.13)
+# "Σ_λ ε^μ(k) ε^{ν*}(k) = -g^{μν}" [Feynman gauge, Eq. (2.13)]
 #
 # Feynman gauge: Σ_λ ε^μ ε^{ν*} = -g^{μν}
 # Axial gauge:   Σ_λ ε^μ ε^{ν*} = -g^{μν} + (k^μ n^ν + n^μ k^ν)/(k·n)
@@ -41,7 +42,8 @@ end
 Massive vector boson polarization sum:
   Σ_λ ε^μ ε^{ν*} = -g^{μν} + k^μ k^ν / M²
 
-Ref: Peskin & Schroeder, Eq. (5.75) generalized to massive case.
+Ref: refs/FeynCalc/Tests/Feynman/PolarizationSum.test, IDs 2-3
+"Σ_λ ε^μ ε^{ν*} = -g^{μν} + k^μ k^ν / M²"
 Used for external W± and Z bosons.
 """
 function polarization_sum_massive(mu::LorentzIndex, nu::LorentzIndex,

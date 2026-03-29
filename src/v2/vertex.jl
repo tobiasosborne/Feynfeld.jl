@@ -9,7 +9,9 @@
 # Ref: refs/papers/Denner1993_FortschrPhys41.pdf, Appendix C, Eqs. (C.1)-(C.39)
 #      (general vertex form factors; our F₂ formula is the QED on-shell specialization)
 #
-# After Dirac algebra, on-shell projection, and D-dimensional loop integration:
+# Ref: refs/papers/Denner1993_FortschrPhys41.pdf, Appendix C, Eq. (C.1)
+# "Γ_μ = F₁(q²) γ_μ + F₂(q²) iσ_{μν}q^ν/(2m)"
+# F₂ integral from Feynman parameter representation (P&S Eq. 6.47 via El-GaEl.m):
 #   F₂(q²) = (α/π) m² ∫₀¹ dz ∫₀^{1-z} dx  z(1-z) / Δ(x,z)
 #   Δ(x,z) = m²(1-z)² - q² x(1-x-z) + z λ²
 #

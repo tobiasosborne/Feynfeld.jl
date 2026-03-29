@@ -1,5 +1,7 @@
 # Schwinger correction: O(α) QED correction to σ(e+e- → μ+μ-).
-# Reference: Peskin & Schroeder Ch. 6-7, Schwartz Ch. 20.
+# Ref: refs/papers/Denner1993_FortschrPhys41.pdf, Section 7.2 + Section 8
+# Cross-check: refs/FeynCalc/FeynCalc/Examples/QED/OneLoop/Mathematica/El-GaEl.m
+# "δσ/σ = (3α)/(4π) × (π²/3 - 1/2)"
 #
 # The total NLO correction (virtual + soft real, inclusive) in the
 # high-energy limit s >> m_e², m_μ² is:

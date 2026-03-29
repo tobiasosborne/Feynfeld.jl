@@ -24,21 +24,59 @@ Agent: reads Lagrangian → extracts Feynman rules → generates diagrams →
        evaluates numerically → returns σ_NLO with uncertainty.
 ```
 
-### 1.1 Scope trajectory
+### 1.1 Scope trajectory (updated 2026-03-29)
 
-**Now (spirals 1–4):** QED, QCD, electroweak at tree level and one loop.
-Standard Model processes. Validated against every FeynCalc MUnit test (15,222
-assertions, ~10,000 translatable to Julia).
+**Done (spirals 0–7):** QED tree-level (e+e-→μ+μ-, Compton, Bhabha), QCD tree
+(qq̄→gg), EW tree (e+e-→W+W-), one-loop vertex/self-energy/vacuum polarization.
+301 tests, 28 source files.
 
-**Near-term (spirals 5–8):** Arbitrary BSM via Lagrangian input. ULDM portal
-for VLBAI. UFO model import. Full SM at one loop.
+**Current (spiral 8):** Bug fixes, γ5 traces, Eps contraction. Unblock chiral
+physics and the full EW sector.
 
-**Eventually (in scope, not yet scheduled):** SUSY. Quantum gravity (via
-TensorGR.jl bridge). Multi-loop. Real radiation / IR subtraction. Parton
-distributions. Monte Carlo event generation. ALL of physics, accessible through
-one `using Feynfeld`.
+**Next (spirals 9–10):** Pipeline consolidation. Every existing process through
+the full 6-layer pipeline. Minimal diagram generation for tree-level 2→2 via
+channel filtering (~200 LOC). EW/QCD models with explicit SM vertex dispatch.
+D₀ evaluation and box diagrams.
 
-### 1.2 Agent-facing, human-convenient
+**Medium-term (spirals 11–15):** Full SM at one loop. Automated 1-loop tensor
+reduction (TID/OPP). Renormalization. 2→3 tree-level diagrams. IR subtraction
+(Catani-Seymour or FKS). PDF convolution interface. Phase space Monte Carlo.
+
+**Long-term (spirals 16+):** BSM via Lagrangian DSL / UFO import. ULDM portal
+for VLBAI. 2-loop via IBP reduction. TensorGR.jl bridge for graviton exchange.
+
+### 1.2 The endgame interaction
+
+```
+Human: "Compute pp → H + jet at NLO QCD."
+
+Agent: parses process → identifies partonic subprocesses (gg→Hg, qg→Hq, qq̄→Hg)
+     → generates tree + 1-loop diagrams for each
+     → contracts, traces, reduces to PaVe
+     → evaluates loop integrals numerically
+     → adds real emission with IR subtraction
+     → convolves with PDFs
+     → integrates over phase space
+     → returns σ(pp → H+jet) = 29.6 ± 0.3 pb at √s = 13 TeV
+```
+
+This is the target. It requires every layer of the pipeline to work for
+arbitrary SM processes at NLO. The architectural foundation (pipeline
+principle, Julia dispatch, DimPoly coefficients, Dict-based AlgSum) scales
+to this level. The limiting factors are physics algorithms (IBP reduction,
+IR subtraction), not software architecture.
+
+**Hardness scale for loop orders:**
+
+| Order | Status | Effort | Notes |
+|-------|--------|--------|-------|
+| Tree (LO) | Spiral 9 | Weeks | Channel filtering, ~200 LOC |
+| 1-loop (NLO) | Spirals 10-14 | Months | PV reduction + IR subtraction |
+| 2-loop (NNLO) | Spirals 15+ | Person-years | IBP reduction (FIRE/Kira-class) |
+| 3-loop (N3LO) | Aspirational | Years | Cutting-edge research, handful of results exist |
+| 4-loop+ | Out of scope | — | Nobody has done this for physical collider processes |
+
+### 1.3 Agent-facing, human-convenient
 
 The primary user is an AI agent (Claude Code) that reads the Lagrangian, plans
 the calculation, and calls Feynfeld.jl functions. The API is designed for
@@ -72,6 +110,12 @@ Layer 6: Evaluate   |M|², cross-sections, decay rates, RGE, observables
 **The Algebra layer is the type system.** Everything above constructs expressions
 in its types. Everything below consumes them.
 
+**THE PIPELINE PRINCIPLE: The pipeline IS the architecture.** If a process
+bypasses it, the architecture is incomplete. Every physics process must flow
+through all 6 layers. Standalone analytical recipes are reference
+implementations for cross-validation, not substitutes. No hand-built
+amplitudes in test files. Fix the pipeline, don't work around it.
+
 ### 2.2 The coefficient type IS the architecture
 
 The single most important design insight from v2: `DimPoly` (polynomial in D)
@@ -86,18 +130,25 @@ AlgSum = Dict{FactorKey, Coeff}          # O(1) like-term collection
 For new symbolic quantities (N for colour, masses, couplings), define a proper
 algebraic type. Never use `Any` or `Expr`.
 
-### 2.3 What exists (v2, 187 tests)
+### 2.3 What exists (v2, 301 tests, updated 2026-03-29)
 
 | Layer | Status | Files |
 |-------|--------|-------|
-| 4: Algebra | Tree-level complete | coeff, types, pair, expr, contract, expand_sp, dirac*, spin_sum, colour* |
+| 4: Algebra | Tree+1-loop complete | coeff, types, pair, expr, contract, expand_sp, dirac*, spin_sum, colour*, polarization_sum |
 | 1: Model | Hard-coded QED | model.jl |
 | 2: Rules | Hard-coded QED | rules.jl |
-| 3: Diagrams | Hard-coded e+e-→μ+μ- | diagrams.jl |
-| 5: Integrals | PaVe types + A₀/B₀ numerical | pave.jl, pave_eval.jl, schwinger.jl |
-| 6: Evaluate | Tree-level σ | cross_section.jl |
+| 3: Diagrams | Hard-coded e+e-→μ+μ- (scaffolding) | diagrams.jl |
+| 5: Integrals | PaVe A₀/B₀/B₁/C₀/C₁/C₂ + standalone recipes | pave.jl, pave_eval.jl, schwinger.jl, vertex.jl, running_alpha.jl |
+| 6: Evaluate | Tree-level σ + EW cross-section | cross_section.jl, ew_parameters.jl, ew_cross_section.jl |
 
+28 source files (~3,400 LOC), 16 test files (~2,000 LOC), 301 tests.
 All code in `src/v2/`. Design choices documented in `src/v2/DESIGN.md`.
+
+**Architectural review note:** Layer 5 standalone recipes (schwinger.jl, vertex.jl,
+running_alpha.jl, ew_cross_section.jl) are analytical reference implementations,
+not pipeline components. They validate physics but do not exercise the six-layer
+pipeline. Future spirals should add pipeline tests that reproduce these results
+through Model→Evaluate.
 
 ### 2.4 v1 is archived
 
@@ -144,22 +195,30 @@ Every translated MUnit test includes a comment citing the source file and test I
 @test contract(MT(:mu,:nu) * MT(:mu,:rho)) == MT(:nu,:rho)  # fcstContract-ID42
 ```
 
-### 3.3 Planned spiral sequence
+### 3.3 Spiral sequence (updated 2026-03-29 after architectural review)
 
-| Spiral | Process | New capabilities | Est. MUnit tests |
-|--------|---------|------------------|------------------|
-| 0 | *(done)* e+e-→μ+μ- tree | Full pipeline, DimPoly, AlgSum | ~800 |
-| 1 | Compton e+γ→e+γ | PolarizationSum, Eps, 2-diagram sum | ~600 |
-| 2 | Bhabha e+e-→e+e- | t-channel, full DiracTrick | ~900 |
-| 3 | QCD qq̄→gg | Full SUN algebra, gluon polarisation | ~500 |
-| 4 | 1-loop vertex correction | PaVeReduce, TID, Tdec, C₀ | ~2,500 |
-| 5 | 1-loop vacuum polarisation | PaVeUVPart, renormalisation | ~800 |
-| 6 | Full Schwinger correction | Complete 1-loop pipeline | ~1,200 |
-| 7 | EW e+e-→W+W- | Massive vectors, multi-gauge | ~800 |
-| 8 | Mop-up | Gordon, Fierz, Anti5, Pauli | ~1,900 |
-| 9+ | BSM / ULDM | Lagrangian DSL, model import | — |
+| Spiral | Process | Status | Tests |
+|--------|---------|--------|-------|
+| 0 | e+e-→μ+μ- tree | DONE (Session 4) | ~65 |
+| 1 | Compton e+γ→e+γ | DONE (Session 5) | +58 |
+| 2 | Bhabha e+e-→e+e- | DONE (Session 6) | +4 |
+| 3 | QCD qq̄→gg | DONE (Session 6) | +2 |
+| 4 | 1-loop self-energy Σ(p) | DONE (Session 6) | +13 |
+| 5 | 1-loop vertex (g-2) | DONE (Session 7) | +32 |
+| 6 | Running α(q²) | DONE (Session 7) | +36 |
+| 7 | EW e+e-→W+W- tree | DONE (Session 7) | +33 |
+| **8** | **Bug fixes + γ5 + Eps** | **NEXT** | target: +50 |
+| 9 | Diagram generation + EW model | Planned | target: +50 |
+| 10 | D₀ + box diagrams | Planned | target: +50 |
+| 11+ | BSM / ULDM | Planned | — |
 
-Cumulative target: ~10,000 MUnit tests passing.
+**Revised from Session 8 review:** Spiral 8 was "MUnit mop-up" — changed to
+"bug fixes + γ5 + Eps contraction" based on 6-agent architectural review.
+MUnit translation is now continuous alongside spirals, not a dedicated phase.
+
+**Metric change:** Drop raw test count target (was ~10,000). Adopt function
+coverage: track how many of ~60 core FeynCalc functions have ≥5 translated
+MUnit tests. Current: ~6 functions with ≥5 tests (~10% function coverage).
 
 ---
 

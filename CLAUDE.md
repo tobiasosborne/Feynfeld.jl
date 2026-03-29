@@ -17,9 +17,35 @@ The Algebra layer is the type system. Development follows the spiral methodology
 coverage) progress.
 
 ## Active code
-- **v2** (`src/v2/`, branch `experimental/rebuild-v2`): Active development. 187 tests.
+- **v2** (`src/v2/`, branch `experimental/rebuild-v2`): Active development. 301 tests,
+  28 source files (~3,400 LOC), 16 test files. Spirals 0-7 complete.
 - **v1** (`src/algebra/`, `src/integrals/`): FROZEN. Will be deleted. Do not extend.
   Do not import patterns from. v1 used Mathematica-shaped anti-patterns.
+
+## Architectural review findings (Session 8, 2026-03-29)
+
+Six-agent review produced reports in `reviews/`. Key findings:
+
+**Core algebra (Layer 4) is excellent.** Pair{A,B}, Dict-based AlgSum, DimPoly
+coefficients, dispatch architecture — all validated. Keep.
+
+**Layers 1-3 are scaffolding.** Only e+e-→μ+μ- uses the full pipeline. All other
+processes bypass Model/Rules/Diagrams. Diagram generation is the #1 strategic gap.
+
+**Known type instabilities (MUST FIX):**
+- `MomentumSum` constructor returns `Union{Nothing, Momentum, MomentumSum}`
+- `gamma_pair` returns `Union{Nothing, Number, Pair}`
+- `pair()` factory returns `Union{Int, Pair}`
+- `Tuple{Any,...}` in spin_sum.jl and expand_sp.jl
+- `QEDModel.params` is `Dict{Symbol, Any}` (dead code, remove)
+- `_COLOUR_DUMMY_COUNTER` is global mutable state (use gensym)
+
+**Revised spiral plan:**
+- Spiral 8: Bug fixes + gamma5 + Eps contraction (NOT MUnit mop-up)
+- Spiral 9: Diagram generation + EW model
+- Spiral 10: D₀ + box diagrams
+- MUnit translation: continuous alongside spirals, not a dedicated phase
+- Metric: function coverage %, not raw test count
 
 ## Reference codebases (ground truth)
 All in `refs/` (gitignored):
@@ -96,6 +122,25 @@ git push
 
 ---
 
+## THE PIPELINE PRINCIPLE
+
+**The pipeline IS the architecture. If a process bypasses it, the architecture is incomplete.**
+
+Every physics process MUST flow through the full 6-layer pipeline:
+Model → Rules → Diagrams → Algebra → Integrals → Evaluate.
+No hand-built amplitudes in test files. No standalone analytical recipes
+that skip the pipeline. If you can't generate the amplitude through the
+pipeline, the pipeline is broken — fix the pipeline, don't work around it.
+
+Standalone analytical formulas (schwinger.jl, ew_cross_section.jl, etc.)
+are REFERENCE IMPLEMENTATIONS for cross-validation, not substitutes for
+the pipeline. Every reference implementation must eventually have a
+pipeline-generated counterpart that reproduces the same result.
+
+See `SPIRAL_9_PLAN.md` for the concrete plan to eliminate pipeline bypasses.
+
+---
+
 ## TOBIAS'S RULES — FOLLOW TO THE LETTER
 
 1. **GROUND TRUTH = PHYSICS.** Not pinned numbers. Not LLM memory. Physics only.
@@ -113,11 +158,15 @@ git push
 
 4. **ALL BUGS ARE DEEP.** Do not underestimate. No bandaids. Full solutions only.
 
-5. **WORKFLOW.** 3 subagents before core code change (research source + 2 solutions).
+5. **WORKFLOW (TIERED).** Scale effort to change size:
+   - Trivial (<5 LOC, typo/comment fix): direct fix, no subagents.
+   - Small (<20 LOC, single function): 1 research + 1 review.
+   - Core (new type, new algorithm, >20 LOC): 3 research + 1 review.
 
 6. **REVIEW.** Rigorous reviewer agent after every core change.
 
 7. **TESTING.** Targeted only, or full suite in background.
+   Known bugs MUST have `@test_broken` regression tests.
 
 8. **JULIA IDIOMATIC ALL THE WAY.** Read the cheatsheet below before writing code.
 
@@ -134,8 +183,15 @@ For each FeynCalc MUnit test file in `refs/FeynCalc/Tests/`:
 1. Read the `.test` file.
 2. Translate each `Test[]` to a Julia `@test`, preserving math exactly.
 3. Document source file and test ID in a comment.
-4. Cite the textbook equation that validates the test (Rule 2).
+4. Cite the textbook equation that validates the test (Rule 2, tiered):
+   - **Core identity** (first instance of a formula): full triple citation.
+   - **Routine permutation** (same formula, different indices): MUnit source sufficient.
 5. If MUnit test and textbook disagree, the textbook wins (Rule 1).
+6. **File naming**: one file per FeynCalc function, in `test/v2/munit/`:
+   `test_DiracTrace.jl`, `test_Contract.jl`, etc. NOT `test_munit_batchN.jl`.
+7. **Metric**: track function coverage (how many of ~60 core FeynCalc functions
+   have ≥5 translated tests?), not raw test count.
+8. **Continuous**: translate MUnit tests alongside spirals, not as a dedicated phase.
 
 ---
 

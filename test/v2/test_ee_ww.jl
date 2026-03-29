@@ -42,10 +42,19 @@ using .FeynfeldX
         M2 = 1 // 1  # M² = 1
 
         pol = polarization_sum_massive(mu, nu, k, M2)
-        # Should be -g^{μν} + k^μ k^ν / M²
+        # Σ_λ ε^μ ε^{ν*} = -g^{μν} + k^μ k^ν / M²
+        # Ref: refs/FeynCalc/Tests/Feynman/PolarizationSum.test, IDs 2-3
         @test pol isa AlgSum
-        # Contains metric tensor term and momentum term
         @test length(pol.terms) == 2
+        # Verify exact coefficients
+        mt_key = FactorKey([pair(mu, nu)])
+        kk_key = FactorKey([pair(mu, k), pair(nu, k)])
+        @test pol.terms[mt_key] == -1 // 1       # metric tensor coeff = -1
+        @test pol.terms[kk_key] == 1 // 1         # k^μk^ν/M² coeff = 1/M² = 1 (M²=1)
+
+        # Test with M² = 4: k^μk^ν coefficient should be 1/4
+        pol4 = polarization_sum_massive(mu, nu, k, 4 // 1)
+        @test pol4.terms[kk_key] == 1 // 4
     end
 
     # ----------------------------------------------------------------

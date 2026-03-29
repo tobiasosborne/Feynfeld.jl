@@ -2,6 +2,7 @@
 # Returns AlgSum always — no mixed return types.
 
 function contract(s::AlgSum; ctx::SPContext=CURRENT_SP[])
+    s = eps_contract(s)  # Eps·Eps → determinant of metrics (pre-pass)
     result = AlgSum()
     for (fk, c) in s.terms
         contracted = _contract_factors(fk.factors, c, ctx)
@@ -77,7 +78,14 @@ _indices(p::Pair{LorentzIndex, LorentzIndex}) = [p.a, p.b]
 _indices(p::Pair{LorentzIndex, Momentum}) = [p.a]
 _indices(p::Pair{Momentum, LorentzIndex}) = [p.b]
 _indices(p::Pair{Momentum, Momentum}) = LorentzIndex[]
-_indices(::Eps) = LorentzIndex[]  # TODO: for Eps
+function _indices(e::Eps)
+    result = LorentzIndex[]
+    e.a isa LorentzIndex && push!(result, e.a)
+    e.b isa LorentzIndex && push!(result, e.b)
+    e.c isa LorentzIndex && push!(result, e.c)
+    e.d isa LorentzIndex && push!(result, e.d)
+    result
+end
 _indices(::AlgFactor) = LorentzIndex[]
 
 # ---- Self-contraction: same factor has both occurrences of idx ----
@@ -151,7 +159,11 @@ _subst_pairarg(pa::MomentumSum, old, new) = pa
 function _subst_factor(p::Pair, old::LorentzIndex, new::LorentzIndex)
     pair(_subst_pairarg(p.a, old, new), _subst_pairarg(p.b, old, new))
 end
-_subst_factor(f::AlgFactor, ::LorentzIndex, ::LorentzIndex) = f  # non-Pair: no indices to substitute
+function _subst_factor(e::Eps, old::LorentzIndex, new::LorentzIndex)
+    Eps(_subst_pairarg(e.a, old, new), _subst_pairarg(e.b, old, new),
+        _subst_pairarg(e.c, old, new), _subst_pairarg(e.d, old, new))
+end
+_subst_factor(f::AlgFactor, ::LorentzIndex, ::LorentzIndex) = f  # colour factors: no Lorentz indices
 
 # Surviving index: which index of a MetricTensor is NOT the contracted one?
 function _surviving(p::MetricTensor, idx::LorentzIndex)

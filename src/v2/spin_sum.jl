@@ -114,10 +114,10 @@ _relabel_gamma(g::DiracGamma) = g  # MomSlot etc: no index to relabel
 
 # Build and compute the trace from completeness + gammas
 function _build_and_trace(mom1, mass1, gammas_mid, mom2, mass2, gammas_end)
-    parts = Tuple{Any, Vector{DiracGamma}}[]
+    parts = Tuple{Rational{Int}, Vector{DiracGamma}}[]
 
     # (p1-slash)(gammas_mid)(p2-slash)(gammas_end)
-    push!(parts, (1, [GS(mom1); gammas_mid; GS(mom2); gammas_end]))
+    push!(parts, (1//1, [GS(mom1); gammas_mid; GS(mom2); gammas_end]))
 
     if !iszero(mass1) && !iszero(mass2)
         push!(parts, (mass1 * mass2, [gammas_mid; gammas_end]))
