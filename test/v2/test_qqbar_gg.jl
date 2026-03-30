@@ -22,7 +22,7 @@
 # This manifests as a -1 on D_ss in the colour-separated decomposition.
 
 using Test
-include("../../src/v2/FeynfeldX.jl")
+@isdefined(FeynfeldX) || include("../../src/v2/FeynfeldX.jl")
 using .FeynfeldX
 
 @testset "Spiral 3: qq̄ → gg" begin

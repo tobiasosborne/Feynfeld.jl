@@ -3,7 +3,7 @@
 # Translated per protocol: CLAUDE.md §MUnit translation protocol.
 
 using Test
-include("../../src/v2/FeynfeldX.jl")
+@isdefined(FeynfeldX) || include("../../src/v2/FeynfeldX.jl")
 using .FeynfeldX
 
 # ---- Helpers for concise test writing ----

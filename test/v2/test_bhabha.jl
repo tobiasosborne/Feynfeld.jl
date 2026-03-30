@@ -15,7 +15,7 @@
 #   Interference: single 8-gamma trace (fermion lines reconnect)
 
 using Test
-include("../../src/v2/FeynfeldX.jl")
+@isdefined(FeynfeldX) || include("../../src/v2/FeynfeldX.jl")
 using .FeynfeldX
 
 @testset "Spiral 2: Bhabha scattering" begin

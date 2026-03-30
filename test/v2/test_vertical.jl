@@ -10,7 +10,7 @@
 #            P&S Eq (5.12): σ = 4πα²/(3s)
 
 using Test
-include(joinpath(@__DIR__, "..", "..", "src", "v2", "FeynfeldX.jl"))
+@isdefined(FeynfeldX) || include(joinpath(@__DIR__, "..", "..", "src", "v2", "FeynfeldX.jl"))
 using .FeynfeldX
 
 @testset "Vertical: e+e- → μ+μ-" begin

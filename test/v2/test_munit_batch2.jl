@@ -4,7 +4,7 @@
 # Translated per protocol: CLAUDE.md §MUnit translation protocol.
 
 using Test
-include("../../src/v2/FeynfeldX.jl")
+@isdefined(FeynfeldX) || include("../../src/v2/FeynfeldX.jl")
 using .FeynfeldX
 
 @testset "MUnit batch 2: DiracTrick n≥3" begin

@@ -14,7 +14,7 @@
 #   α(q²) = α / (1 - Δα(q²)),  Δα = -Σ_f Π̂_f
 
 using Test
-include("../../src/v2/FeynfeldX.jl")
+@isdefined(FeynfeldX) || include("../../src/v2/FeynfeldX.jl")
 using .FeynfeldX
 
 const α = 1.0 / 137.036

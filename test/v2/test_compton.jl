@@ -10,7 +10,7 @@
 # Ref: refs/FeynCalc/.../ElGa-ElGa.md confirms "CORRECT" vs P&S 5.87.
 
 using Test
-include("../../src/v2/FeynfeldX.jl")
+@isdefined(FeynfeldX) || include("../../src/v2/FeynfeldX.jl")
 using .FeynfeldX
 
 @testset "Spiral 1: Compton scattering" begin

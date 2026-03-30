@@ -4,7 +4,7 @@
 # Each test uses tree_channels + build_amplitude instead of direct chain construction.
 
 using Test
-include("../../src/v2/FeynfeldX.jl")
+@isdefined(FeynfeldX) || include("../../src/v2/FeynfeldX.jl")
 using .FeynfeldX
 
 @testset "Pipeline: all processes" begin

@@ -3,7 +3,7 @@
 # Ref: refs/papers/tHooftVeltman1979_NuclPhysB153.pdf, Eq. (5.2)
 
 using Test
-include("../../src/v2/FeynfeldX.jl")
+@isdefined(FeynfeldX) || include("../../src/v2/FeynfeldX.jl")
 using .FeynfeldX
 
 const _LIB = joinpath(@__DIR__, "../../refs/COLLIER/COLLIER-1.2.8/libcollier.so")

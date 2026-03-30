@@ -2,7 +2,7 @@
 # Ground truth: textbook formulas + known special values.
 
 using Test
-include("../../src/v2/FeynfeldX.jl")
+@isdefined(FeynfeldX) || include("../../src/v2/FeynfeldX.jl")
 using .FeynfeldX
 
 @testset "PaVe type system" begin

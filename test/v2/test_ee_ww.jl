@@ -11,7 +11,7 @@
 #      "sin²θ_W = 0.22348", "M_W = 80.360 GeV"
 
 using Test
-include("../../src/v2/FeynfeldX.jl")
+@isdefined(FeynfeldX) || include("../../src/v2/FeynfeldX.jl")
 using .FeynfeldX
 
 @testset "Spiral 7: e⁺e⁻ → W⁺W⁻" begin

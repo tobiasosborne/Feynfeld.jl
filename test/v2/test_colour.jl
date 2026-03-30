@@ -1,6 +1,6 @@
 # Tests for SU(N) colour algebra
 
-include(joinpath(@__DIR__, "..", "..", "src", "v2", "FeynfeldX.jl"))
+@isdefined(FeynfeldX) || include(joinpath(@__DIR__, "..", "..", "src", "v2", "FeynfeldX.jl"))
 using .FeynfeldX
 using Test
 

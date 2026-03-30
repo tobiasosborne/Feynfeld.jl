@@ -19,7 +19,7 @@
 # Ref: refs/FeynCalc/.../El-El.m, lines 125-128
 
 using Test
-include("../../src/v2/FeynfeldX.jl")
+@isdefined(FeynfeldX) || include("../../src/v2/FeynfeldX.jl")
 using .FeynfeldX
 
 @testset "Spiral 4: QED electron self-energy (1-loop)" begin

@@ -7,7 +7,7 @@
 using Test
 
 # Load FeynfeldX module
-include(joinpath(@__DIR__, "..", "..", "src", "v2", "FeynfeldX.jl"))
+@isdefined(FeynfeldX) || include(joinpath(@__DIR__, "..", "..", "src", "v2", "FeynfeldX.jl"))
 using .FeynfeldX
 
 @testset "FeynfeldX: e+e- → mu+mu- tracer bullet" begin
