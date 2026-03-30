@@ -48,8 +48,8 @@ const α = 1 / 137.036
         @test real(vp_high) < 0  # screening
         # Rough estimate: -(α/3π) × ln(1/m_e²) ≈ -(1/137)/(3π) × 15 ≈ -0.012
         @test -0.05 < real(vp_high) < 0.0
-        # Above 4m_e² threshold: imaginary part is nonzero
-        @test imag(vp_high) != 0.0
+        # Above 4m_e² threshold: Im(Π̂) > 0 (optical theorem)
+        @test imag(vp_high) > 0.0
     end
 
     @testset "Vacuum polarization known limits" begin

@@ -41,7 +41,8 @@ function vacuum_polarization(s::Float64, m2::Float64;
                               alpha::Float64 = 1 / 137.036)::ComplexF64
     s == 0.0 && return 0.0 + 0.0im
     val, _ = quadgk(0.0, 1.0; rtol = 1e-12) do x
-        arg = complex(1.0 - x * (1.0 - x) * s / m2, 1e-30)
+        # -iε prescription: m² → m² - iε, so ln arg gets -iε
+        arg = complex(1.0 - x * (1.0 - x) * s / m2, -1e-30)
         x * (1.0 - x) * log(arg)
     end
     -2.0 * alpha / π * val
