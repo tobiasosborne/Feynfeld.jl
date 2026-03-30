@@ -47,6 +47,7 @@ include("pave.jl")
 include("c0_analytical.jl")
 include("d0_collier.jl")
 include("pave_eval.jl")
+include("d_tensor.jl")
 include("schwinger.jl")
 include("vertex.jl")
 include("running_alpha.jl")
@@ -99,7 +100,7 @@ export TreeChannel, tree_channels, vertex_legs, build_amplitude, propagator_mome
 
 # ---- Exports: Integrals (Layer 5) ----
 export polarization_sum
-export PaVe, A0, B0, B1, B00, B11, C0, C1, C2, D0
+export PaVe, A0, B0, B1, B00, B11, C0, C1, C2, D0, D1, D2, D3
 export evaluate
 export schwinger_correction, vacuum_polarization, sigma_nlo_ee_mumu
 export vertex_f2_zero, vertex_f2

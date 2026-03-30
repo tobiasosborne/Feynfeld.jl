@@ -207,9 +207,9 @@ end
 # Ref: refs/papers/tHooftVeltman1979_NuclPhysB153.pdf, Eq. (5.2)
 
 function _eval_D(pv::PaVe{4}; mu2::Float64)::ComplexF64
-    isempty(pv.indices) ||
-        error("PaVe{4} tensor indices $(pv.indices) not yet implemented")
-    _D0_evaluate(pv.invariants[1], pv.invariants[2], pv.invariants[3],
-                 pv.invariants[4], pv.invariants[5], pv.invariants[6],
-                 pv.masses[1], pv.masses[2], pv.masses[3], pv.masses[4])
+    isempty(pv.indices) && return _D0_evaluate(
+        pv.invariants[1], pv.invariants[2], pv.invariants[3],
+        pv.invariants[4], pv.invariants[5], pv.invariants[6],
+        pv.masses[1], pv.masses[2], pv.masses[3], pv.masses[4])
+    _eval_D_tensor(pv; mu2)
 end

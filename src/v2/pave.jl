@@ -55,6 +55,16 @@ D0(p10::Real, p12::Real, p23::Real, p30::Real, p20::Real, p13::Real,
                      Float64(p30), Float64(p20), Float64(p13)],
              [Float64(m02), Float64(m12), Float64(m22), Float64(m32)])
 
+# D-tensor named constructors (D₁, D₂, D₃)
+for i in 1:3
+    fname = Symbol(:D, i)
+    @eval $fname(p10::Real, p12::Real, p23::Real, p30::Real, p20::Real, p13::Real,
+                 m02::Real, m12::Real, m22::Real, m32::Real) =
+        PaVe{4}([$i], [Float64(p10), Float64(p12), Float64(p23),
+                        Float64(p30), Float64(p20), Float64(p13)],
+                 [Float64(m02), Float64(m12), Float64(m22), Float64(m32)])
+end
+
 # ---- Standard Julia interface ----
 
 function Base.:(==)(a::PaVe{N}, b::PaVe{N}) where {N}

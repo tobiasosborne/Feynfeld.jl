@@ -38,10 +38,11 @@ const HAS_COLLIER = isfile(_LIB)
         @test isfinite(real(result))
     end
 
-    @testset "D0 tensor not yet implemented" begin
-        d1 = PaVe{4}([1], [1.0, 2.0, 3.0, 4.0, 5.0, 6.0],
-                      [1.0, 2.0, 3.0, 4.0])
-        @test_throws ErrorException evaluate(d1)
+    @testset "D-tensor via evaluate dispatch" begin
+        d1 = PaVe{4}([1], [-1.0, -1.0, -1.0, -1.0, -1.0, -1.0],
+                      [1.0, 1.0, 1.0, 1.0])
+        r = evaluate(d1)
+        @test isfinite(real(r))
     end
 
     if HAS_COLLIER
@@ -75,5 +76,32 @@ const HAS_COLLIER = isfile(_LIB)
         # and compare against _D0_collier for the same point.
     else
         @warn "COLLIER not available — D₀ quadgk fallback is too slow for automated tests"
+    end
+
+    # ---- D-tensor coefficients (PV reduction) ----
+    if HAS_COLLIER
+        @testset "D₁/D₂/D₃ tensor coefficients" begin
+            # General kinematics: all coefficients finite
+            # Ref: Denner1993 Eqs. (4.7)-(4.9), PV reduction via 3×3 Gram matrix
+            args = (-1.0, -2.0, -1.5, -3.0, -2.5, -1.8, 1.0, 2.0, 1.5, 3.0)
+            d1 = evaluate(D1(args...))
+            d2 = evaluate(D2(args...))
+            d3 = evaluate(D3(args...))
+            @test isfinite(real(d1))
+            @test isfinite(real(d2))
+            @test isfinite(real(d3))
+
+            # Symmetric kinematics: D₁ = D₂ = D₃
+            args_sym = (-1.0,-1.0,-1.0,-1.0,-1.0,-1.0, 1.0,1.0,1.0,1.0)
+            d1s = evaluate(D1(args_sym...))
+            d2s = evaluate(D2(args_sym...))
+            d3s = evaluate(D3(args_sym...))
+            @test d1s ≈ d2s atol=1e-12
+            @test d2s ≈ d3s atol=1e-12
+
+            # D-tensor negative for spacelike (like D₀)
+            @test real(d1) < 0
+            @test real(d1s) < 0
+        end
     end
 end
