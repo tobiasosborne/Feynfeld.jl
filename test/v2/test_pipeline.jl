@@ -252,28 +252,19 @@ using .FeynfeldX
         D_tu = eval_D(fermion_trace(amp_t, amp_u))
         D_ut = eval_D(fermion_trace(amp_u, amp_t))
 
-        # ---- s-channel: qqg fermion trace x ggg tensor vertex ----
-        rho = LorentzIndex(:rho, DimD()); sig = LorentzIndex(:sig, DimD())
-        qt_ss = dirac_trace(DiracGamma[GS(p2), DiracGamma(LISlot(rho)),
-                                        GS(p1), DiracGamma(LISlot(sig))])
+        # ---- s-channel: via pipeline (gauge exchange) ----
+        ch_s = first(c for c in channels if c.channel == :s)
+        chain_s, vtx_s = build_amplitude(ch_s, rules, model)
 
-        # Triple gluon vertex (all-outgoing: -q, k1, k2 where q=k1+k2)
-        # Ref: Peskin & Schroeder Eq. (16.10)
-        function vtx(g1, g2, ms, mi_v)
-            r = AlgSum()
-            for (c, m) in ms.terms
-                r = r + c * alg(pair(g1, g2)) * alg(pair(mi_v, m))
-            end
-            r
-        end
-        m2k1mk2 = MomentumSum([(-2//1, k1), (-1//1, k2)])
-        k1mk2   = MomentumSum([(1//1, k1), (-1//1, k2)])
-        k1p2k2  = MomentumSum([(1//1, k1), (2//1, k2)])
+        # Spin sum: Tr[p̸_out γ^ρ p̸_in γ^σ] from the fermion chain
+        rho_s = LorentzIndex(:rho_s, DimD()); sig_s = LorentzIndex(:sig_s, DimD())
+        qt_ss = dirac_trace(DiracGamma[GS(p2), DiracGamma(LISlot(rho_s)),
+                                        GS(p1), DiracGamma(LISlot(sig_s))])
 
-        # V_{rho,mu_k1,mu_k2}(-q, k1, k2) and conjugate V_{sig,mu_k1_,mu_k2_}
-        Va = vtx(rho, mi, m2k1mk2, ni) + vtx(mi, ni, k1mk2, rho) + vtx(ni, rho, k1p2k2, mi)
-        Vc = vtx(sig, mp, m2k1mk2, np) + vtx(mp, np, k1mk2, sig) + vtx(np, sig, k1p2k2, mp)
-        D_ss = eval_D(qt_ss * Va * Vc)
+        # Conjugate vertex: same structure with sig_s and primed external indices
+        neg_q = MomentumSum([(-1//1, p1), (-1//1, p2)])
+        Vc = triple_gauge_vertex(sig_s, mp, np, neg_q, k1, k2)
+        D_ss = eval_D(qt_ss * vtx_s * Vc)
 
         # ---- Combine with SU(3) colour factors ----
         # Ref: refs/FeynCalc/.../QQbar-GlGl.m, lines 98-105

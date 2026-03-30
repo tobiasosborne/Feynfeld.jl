@@ -46,15 +46,27 @@ Ref: Peskin & Schroeder, Eq. (16.10)
 "V^{abc}_{μνρ} = gf^{abc}[(k1-k2)_ρ g_{μν} + (k2-k3)_μ g_{νρ} + (k3-k1)_ν g_{μρ}]"
 Returns AlgSum (coupling stripped).
 """
+const _MomLike = Union{Momentum, MomentumSum}
+
 function triple_gauge_vertex(mu1::LorentzIndex, mu2::LorentzIndex, mu3::LorentzIndex,
-                              p1::Momentum, p2::Momentum, p3::Momentum)
+                              p1::_MomLike, p2::_MomLike, p3::_MomLike)
     _vtx_term(mu1, mu2, p1, p2, mu3) +
     _vtx_term(mu2, mu3, p2, p3, mu1) +
     _vtx_term(mu3, mu1, p3, p1, mu2)
 end
 
-# g_{ga,gb} × (pa - pb)_{gc} = Σ_m c_m pair(ga,gb) × pair(gc,m)
+# g_{ga,gb} × (pa - pb)_{gc} — expands MomentumSum into individual pairs
 function _vtx_term(ga::LorentzIndex, gb::LorentzIndex,
-                   pa::Momentum, pb::Momentum, gc::LorentzIndex)
-    alg(pair(ga, gb)) * alg(pair(gc, pa)) - alg(pair(ga, gb)) * alg(pair(gc, pb))
+                   pa::_MomLike, pb::_MomLike, gc::LorentzIndex)
+    g_ab = alg(pair(ga, gb))
+    _mom_pair(gc, pa) * g_ab - _mom_pair(gc, pb) * g_ab
+end
+
+_mom_pair(li::LorentzIndex, p::Momentum) = alg(pair(li, p))
+function _mom_pair(li::LorentzIndex, ms::MomentumSum)
+    result = AlgSum()
+    for (c, m) in ms.terms
+        result = result + c * alg(pair(li, m))
+    end
+    result
 end
