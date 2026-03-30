@@ -87,32 +87,32 @@ function _build_fermion_exchange(ch::TreeChannel, rules::FeynmanRules, model::Ab
     # Bar spinor (left of chain), plain spinor (right of chain)
     if pos_fL == :left
         bar_sp, plain_sp = sp_fL, sp_fR
-        mu_bar = LorentzIndex(Symbol(:mu_, boson_L.momentum.name), DimD())
-        mu_plain = LorentzIndex(Symbol(:mu_, boson_R.momentum.name), DimD())
+        ferm_bar, boson_bar = ferm_L, boson_L
+        ferm_plain, boson_plain = ferm_R, boson_R
     else
         bar_sp, plain_sp = sp_fR, sp_fL
-        mu_bar = LorentzIndex(Symbol(:mu_, boson_R.momentum.name), DimD())
-        mu_plain = LorentzIndex(Symbol(:mu_, boson_L.momentum.name), DimD())
+        ferm_bar, boson_bar = ferm_R, boson_R
+        ferm_plain, boson_plain = ferm_L, boson_L
     end
 
-    # Propagator momentum
+    # Vertex Lorentz indices (named after the external boson)
+    mu_bar = LorentzIndex(Symbol(:mu_, boson_bar.momentum.name), DimD())
+    mu_plain = LorentzIndex(Symbol(:mu_, boson_plain.momentum.name), DimD())
+
+    # Look up vertex structures from rules (e.g. γ^μ for QED, GA7()γ^μ for eνW)
+    vtx_bar = _lookup_vertex(rules, ferm_bar, boson_bar, ch.exchanged, mu_bar)
+    vtx_plain = _lookup_vertex(rules, ferm_plain, boson_plain, ch.exchanged, mu_plain)
+    gs_bar = vtx_bar.terms[1][2].elements
+    gs_plain = vtx_plain.terms[1][2].elements
+
+    # Propagator momentum and mass
     q = propagator_momentum(ch)
-
-    # Propagator mass (from exchanged fermion field)
     exch = get_field(model, ch.exchanged)
-    mass_val = exch.mass == :zero ? 0//1 : 1//1  # symbolic mass → use 1 as placeholder
+    mass_val = exch.mass == :zero ? 0//1 : 1//1
 
-    # Build chains: bar_sp × gamma^{mu_bar} × [propagator] × gamma^{mu_plain} × plain_sp
-    chain_mom = dot(bar_sp,
-        DiracGamma(LISlot(mu_bar)),
-        DiracGamma(MomSumSlot(q)),
-        DiracGamma(LISlot(mu_plain)),
-        plain_sp)
-
-    chain_mass = dot(bar_sp,
-        DiracGamma(LISlot(mu_bar)),
-        DiracGamma(LISlot(mu_plain)),
-        plain_sp)
+    # Build chains: bar_sp × [vtx_bar] × [propagator] × [vtx_plain] × plain_sp
+    chain_mom = dot(bar_sp, gs_bar..., DiracGamma(MomSumSlot(q)), gs_plain..., plain_sp)
+    chain_mass = dot(bar_sp, gs_bar..., gs_plain..., plain_sp)
 
     (chain_mom, chain_mass, mass_val)
 end

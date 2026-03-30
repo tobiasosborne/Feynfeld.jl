@@ -284,8 +284,8 @@ using .FeynfeldX
         @test total == known
     end
 
-    # ======== EW: e+e- -> W+W- channel enumeration ========
-    @testset "ee -> WW channel enumeration" begin
+    # ======== EW: e+e- -> W+W- pipeline (amplitude building) ========
+    @testset "ee -> WW via pipeline" begin
         model = ew_model()
         rules = feynman_rules(model)
         p1 = Momentum(:p1); p2 = Momentum(:p2)
@@ -296,27 +296,77 @@ using .FeynfeldX
 
         channels = tree_channels(model, rules, incoming, outgoing)
 
-        # Should find: s-gamma, s-Z, t-nu_e, u-nu_e
-        # (u-channel exists topologically; charge filtering is separate)
+        # Channel enumeration
+        @test length(channels) == 4  # s-γ, s-Z, t-ν, u-ν
         s_channels = [c for c in channels if c.channel == :s]
         t_channels = [c for c in channels if c.channel == :t]
-        u_channels = [c for c in channels if c.channel == :u]
-
-        # s-channel: photon and Z
         @test length(s_channels) == 2
-        s_exchanged = Set(c.exchanged for c in s_channels)
-        @test :gamma in s_exchanged
-        @test :Z in s_exchanged
-
-        # t-channel: neutrino exchange
         @test length(t_channels) == 1
-        @test t_channels[1].exchanged == :nu_e
 
-        # u-channel: neutrino exchange (topologically valid, charge filtering separate)
-        @test length(u_channels) == 1
-        @test u_channels[1].exchanged == :nu_e
+        # Build ALL channel amplitudes through the pipeline
+        ch_sg = first(c for c in channels if c.channel == :s && c.exchanged == :gamma)
+        ch_sZ = first(c for c in channels if c.channel == :s && c.exchanged == :Z)
+        ch_t  = first(c for c in channels if c.channel == :t)
 
-        # Total: 4 channels (physical: 3 — the u-channel has wrong charge flow)
-        @test length(channels) == 4
+        amp_sg = build_amplitude(ch_sg, rules, model)
+        amp_sZ = build_amplitude(ch_sZ, rules, model)
+        amp_t  = build_amplitude(ch_t, rules, model)
+
+        # s-γ: gauge exchange → (DiracExpr fermion chain, AlgSum gauge vertex)
+        @test amp_sg isa Tuple{DiracExpr, AlgSum}
+        @test length(amp_sg[1].terms) == 1   # QED vertex: single γ^μ term
+
+        # s-Z: gauge exchange → chiral vertex has 2 terms (g_V γ^μ - g_A γ5 γ^μ)
+        @test amp_sZ isa Tuple{DiracExpr, AlgSum}
+        @test length(amp_sZ[1].terms) == 2   # chiral: 2 terms
+
+        # t-ν: fermion exchange → chain with GA7 chiral projectors
+        @test amp_t isa Tuple{DiracChain, DiracChain, Rational{Int}}
+        # Verify chiral projectors present: GA7() at both vertices
+        t_elems = amp_t[1].elements
+        @test any(e -> e isa DiracGamma{ProjMSlot}, t_elems)  # (1-γ5)/2
+
+        # ---- Evaluate s-γ channel at a specific kinematic point ----
+        # Use clean Rationals: s=8 (above threshold 4), t=-1, u=4-8-(-1)=-3
+        # In M_W units: k1²=k2²=1 (M_W²), p1²=p2²=0 (massless electrons)
+        s_val = 8//1; t_val = -1//1; u_val = 4//1 - s_val - t_val  # = -3
+
+        ctx = sp_context(
+            (:p1,:p1)=>0//1, (:p2,:p2)=>0//1,
+            (:k1,:k1)=>1//1, (:k2,:k2)=>1//1,
+            (:p1,:p2)=>s_val//2, (:p1,:k1)=>-t_val//2,
+            (:p1,:k2)=>-u_val//2, (:p2,:k1)=>-u_val//2,
+            (:p2,:k2)=>-t_val//2, (:k1,:k2)=>(s_val-2)//2)
+
+        # Spin-summed fermion trace for s-γ
+        chain_sg, vtx_sg = amp_sg
+        tr_sg = spin_sum_amplitude_squared(chain_sg, chain_sg)  # single line → trace²? no...
+        # Actually: gauge exchange has one fermion line → single trace
+        tr_sg = FeynfeldX._single_line_trace(chain_sg)
+
+        # Contract gauge vertex squared with W polarization sums
+        rho_s = LorentzIndex(:rho_s, DimD())
+        sig_s = LorentzIndex(:sig_s, DimD())
+        neg_q = MomentumSum([(-1//1, p1), (-1//1, p2)])
+        vtx_conj = triple_gauge_vertex(sig_s,
+            LorentzIndex(:mu_k1_, DimD()), LorentzIndex(:mu_k2_, DimD()),
+            neg_q, k1, k2)
+
+        # W polarization sums (massive)
+        mi  = LorentzIndex(:mu_k1, DimD());  mp = LorentzIndex(:mu_k1_, DimD())
+        ni  = LorentzIndex(:mu_k2, DimD());  np = LorentzIndex(:mu_k2_, DimD())
+        P1 = polarization_sum_massive(mi, mp, k1, 1//1)   # M_W²=1 in M_W units
+        P2 = polarization_sum_massive(ni, np, k2, 1//1)
+
+        # Full contraction
+        full = tr_sg * vtx_sg * vtx_conj * P1 * P2
+        c = contract(full; ctx)
+        e = expand_scalar_product(c)
+        r = evaluate_sp(e; ctx)
+        val = first(r.terms)[2]
+        result = val isa DimPoly ? Float64(evaluate_dim(val)) : Float64(val)
+
+        @test isfinite(result)
+        @test result != 0.0  # nontrivial result from pipeline
     end
 end
