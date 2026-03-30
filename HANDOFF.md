@@ -1,210 +1,174 @@
-# HANDOFF — 2026-03-29 (End of Session 10, COLLIER integration)
+# HANDOFF — 2026-03-30 (Session 12: D₀ fixed, EW pipeline, Spiral 10 started)
 
 ## DO NOT DELETE THIS FILE. Read it completely before working.
+
+---
 
 ## START HERE
 
 1. Read `CLAUDE.md` — rules, **pipeline principle**, anti-hallucination, Julia idioms
-2. Read `Feynfeld_PRD.md` — vision, endgame interaction, spiral plan, hardness scale
-3. Read `src/v2/DESIGN.md` — type system, anti-patterns, Session 8 review findings
-4. Run `bd ready` to see available work
-5. **BUILD COLLIER** (see section below — required on each machine)
-6. Run `julia --project=. test/v2/test_vertical.jl` to verify pipeline works
-7. **CHECK `refs/papers/`** — ensure required papers are present BEFORE writing any code
+2. Run `bd ready` to see available work
+3. Run `julia --project=. test/v2/runtests.jl` to verify all tests pass (396+ tests, ~5 min)
+4. **CHECK `refs/papers/`** — ensure required papers are present BEFORE writing any code
 
 ---
 
-## THE PIPELINE PRINCIPLE
+## SESSION 12 ACCOMPLISHMENTS
 
-**The pipeline IS the architecture. If a process bypasses it, the architecture is incomplete.**
+### 1. Fixed the D₀ compilation bomb
+**Root cause:** Session 11 agent's `_D0_quadgk` had triple-nested `quadgk` closures. Julia JIT
+compiles ALL reachable code paths, including unreachable fallbacks. Triple-nested closures
+cause a compilation time explosion (minutes, gigabytes of RAM).
 
-Every process MUST flow through: Model → Rules → Channels → Amplitude → Algebra → Evaluate.
-No hand-built amplitudes in test files. No standalone recipes that skip the pipeline.
-Standalone formulas (schwinger.jl, ew_cross_section.jl, etc.) are REFERENCE IMPLEMENTATIONS
-for cross-validation — not substitutes for the pipeline.
+**Fix:** Removed `_D0_quadgk` fallback. `_D0_evaluate` now errors if COLLIER unavailable.
+COLLIER works correctly — returns in microseconds.
 
----
+### 2. Removed LoopTools dependency
+LoopTools was declared in Project.toml but NEVER imported in any source file. Its precompilation
+(Fortran FFI wrapping) added minutes to startup. Removed from `[deps]` and `[compat]`.
 
-## TOBIAS'S RULES — FOLLOW TO THE LETTER
+### 3. Single-process test runner
+`test/v2/runtests.jl` — loads FeynfeldX once, includes all 18 test files. Each test file
+has `@isdefined(FeynfeldX) || include(...)` guard for standalone use. 396 tests in 5m15s.
 
-See `CLAUDE.md` for the full 12 rules. The critical ones:
+### 4. Pipeline completion for all 5 processes
+| Process | Pipeline Status |
+|---------|----------------|
+| e+e-→μ+μ- | Full ✓ |
+| Bhabha | Full ✓ |
+| Compton | Full ✓ |
+| qq̄→gg | **Full ✓** (gauge exchange dispatch added) |
+| ee→WW | **Builds all channels ✓**, Grozin comparison pending |
 
-1. **GROUND TRUTH = PHYSICS.** Not LLM memory. Not pinned numbers.
-2. **CITE EVERYTHING (tiered).**
-3. **ACQUIRE PAPERS BEFORE CODE.** arXiv → TIB VPN → playwright-cli.
-4. **JULIA IDIOMATIC.** Dispatch, not isa cascades. No Any.
-5. **WORKFLOW (TIERED):** <5 LOC direct, <20 LOC 1+1, >20 LOC 3+1.
-6. **REVIEW.** Rigorous reviewer after every core change.
-7. **NO PARALLEL JULIA AGENTS.** Read-only research agents CAN run in parallel.
-8. **LOC LIMIT ~200.** No source file exceeds ~200 lines.
-9. **NEVER modify TensorGR.jl without explicit permission.**
+### 5. Vertex structure dispatch (EW infrastructure)
+`vertex_structure` now dispatches on `Val(coupling)`:
+- `Val(:e)` → γ^μ (QED/QCD)
+- `Val(:e_Z)` → (g_V - g_A γ5) γ^μ (neutral current, uses Rational EW_GV_E_R)
+- `Val(:g_W)` → (1-γ5)/2 γ^μ (charged current)
+- `Val(:g_s)` → γ^μ (QCD)
 
----
+`build_amplitude` now uses `_lookup_vertex` to get vertex structures from FeynmanRules.
+Returns `DiracExpr` (not DiracChain) to support chiral vertices with multiple terms.
+`spin_sum_amplitude_squared` extended for DiracExpr. Dirac conjugation: GA6↔GA7 swap.
 
-## PROJECT OVERVIEW
+### 6. D-tensor PV reduction (Spiral 10)
+`d_tensor.jl` (57 LOC): D₁/D₂/D₃ via Passarino-Veltman reduction with 3×3 Gram matrix.
+4 C₀ sub-integrals (one per removed propagator). Symmetric check: D₁=D₂=D₃ to 1e-12.
 
-### What is Feynfeld.jl?
-
-Julia-native, agent-facing, full-stack physics computation suite. Lagrangian →
-cross-section in one `using Feynfeld`. Replaces FeynRules + FeynArts + FeynCalc +
-FormCalc + LoopTools. See PRD for the full vision.
-
-### Branch and code location
-
-- **Branch:** `master` (experimental/rebuild-v2 merged into master Session 10)
-- **v2 source:** `src/v2/` (35 files, ~3,600 LOC)
-- **v2 tests:** `test/v2/` (17 files, 329 tests)
-- **v1:** `src/algebra/`, `src/integrals/` — FROZEN, will be deleted. Do NOT extend.
-
----
-
-## COLLIER SETUP (REQUIRED ON EACH MACHINE)
-
-COLLIER is the scalar loop integral library. `libcollier.so` is NOT checked in.
-If missing, C₀ falls back to slow quadgk (no crash — graceful fallback).
-
-```bash
-# Download and build (one time per machine)
-cd refs/COLLIER/COLLIER-1.2.8
-mkdir -p build && cd build
-cmake .. -DCMAKE_Fortran_COMPILER=gfortran -DCMAKE_BUILD_TYPE=Release
-make -j$(nproc)
-cd /path/to/Feynfeld.jl
-ls refs/COLLIER/COLLIER-1.2.8/libcollier.so  # verify
-
-# COLLIER writes log files here
-mkdir -p output
-```
-
-**If COLLIER source not present:** Download from HepForge:
-```bash
-mkdir -p refs/COLLIER
-curl -sL "https://www.hepforge.org/archive/collier/collier-1.2.8.tar.gz" | tar xz -C refs/COLLIER
-```
+### 7. MUnit test porting started
+`test/v2/munit/test_DiracTrace.jl`: 22 symbolic tests from FeynCalc DiracTrace.test.
+All comparisons are exact AlgSum equality — NO numerical spot-checks.
 
 ---
 
-## WHAT WAS DONE IN SESSION 10
+## KNOWN ISSUES AND BLOCKERS
 
-### 1. Merged experimental/rebuild-v2 → master
-Deleted experimental branch locally and on remote. All development on `master`.
+### P1: Rational{Int} overflow in AlgSum (feynfeld-6ds)
+The coefficient system uses `Rational{Int}` which overflows when Float64 kinematics are
+rationalized and multiplied with EW coupling constants. Blocks the full ee→WW Grozin
+cross-section comparison. Fix options:
+1. BigRational fallback in coeff.jl
+2. Float64 coefficient path
+3. Pre-contract symbolic expressions to Float64 evaluation functions
 
-### 2. COLLIER integration for C₀ (the main achievement)
-
-**File:** `src/v2/c0_analytical.jl` (82 LOC)
-
-Replaced broken Denner/Spence analytical C₀ with ccall to COLLIER (GPL v3).
-Three evaluation paths:
-- **C0p0** (all p²=0): analytical, pure logarithms
-- **General**: COLLIER `C0_coli` ccall (~μs, handles spacelike/timelike/threshold)
-- **Gram-degenerate** (Δ₂=0): quadgk fallback (~30s, rare edge case)
-
-**Key results:** C₁/C₂ tensor reduction went from ~60s to 0.1s (600× speedup).
-Spacelike C₀ went from ~30s to ~μs (100,000× speedup).
-
-### 3. Lessons learned (CRITICAL — read before touching loop integrals)
-
-- **Denner C0p3 formula (C0func.F) is a BACKUP, not the primary algorithm.**
-  It has broken η corrections for Kallen < 0. The primary is FF (ffxc0).
-  We wasted hours on this. DO NOT try to fix the Denner formula.
-
-- **LoopTools `spence(0, x, 0)` = Li₂(x)**, NOT Li₂(1-x). Verified by reading
-  auxCD.F: Li2series(z1) computes Li₂(1-z1), and spence(0,x,0) calls
-  Li2series(1-x) = Li₂(x).
-
-- **LoopTools.jl returns WRONG values** for Kallen < 0 unless you call
-  `LoopTools.setwarndigits(100)` first. Default warndigits=9 causes FF
-  result to be overridden by broken Denner backup.
-
-- **Gram-degenerate scalar C₀** (Δ₂=0) cannot be computed by ANY Spence-based
-  algorithm — the 1/√Δ₂ factor diverges. Neither COLLIER nor LoopTools
-  handles it. quadgk is correct.
-
-- **COLLIER argument convention:** Feynfeld (p10,p12,p20,m02,m12,m22) maps
-  directly to COLLIER C0_coli args — same ordering, NO reorder.
-
-- **COLLIER ccall pattern:**
-  ```julia
-  # Init (once, requires mkdir -p output):
-  ccall((:__collier_init_MOD_init_cll, lib), Cvoid,
-        (Ref{Int32}, Ref{Int32}, Ptr{UInt8}, Ref{Int32}, Csize_t),
-        Ref{Int32}(4), Ref{Int32}(4), "output", Ref{Int32}(0), 6)
-
-  # C0 (plain Fortran function, symbol c0_coli_):
-  ccall((:c0_coli_, lib), ComplexF64,
-        (Ref{ComplexF64}, ..., Ref{ComplexF64}),
-        ComplexF64(p10), ComplexF64(p12), ComplexF64(p20),
-        ComplexF64(m02), ComplexF64(m12), ComplexF64(m22))
-  ```
-
-### 4. Papers acquired
-- `refs/papers/vanOldenborgh1990_ZPhysC46.pdf` — FF algorithms paper
-
-### 5. LoopTools.jl added as dependency
-In Project.toml. Useful as test oracle (with setwarndigits fix).
+### ee→WW Grozin comparison (feynfeld-bao)
+All 3 physical channels (s-γ, s-Z, t-ν) build correctly through the pipeline.
+Diagonal |M|² evaluates at integer kinematic points. Full cross-section integration
+blocked by Rational overflow during quadgk (non-integer cosθ values).
 
 ---
 
 ## WHAT TO DO NEXT
 
-### Priority 1: D₀ via COLLIER ccall (~30 min)
+### Priority 1: MUnit test porting (~386 remaining tests)
 
-**THE OBVIOUS NEXT STEP.** Same pattern as C₀. COLLIER has `d0_coli_`:
-```bash
-nm -D refs/COLLIER/COLLIER-1.2.8/libcollier.so | grep d0_coli
-```
-D₀ takes 10 arguments: 6 momentum invariants + 4 masses. Check signature in
-`refs/COLLIER/COLLIER-1.2.8/src/COLI/coli_d0.F`. Unblocks Spiral 10 (box diagrams).
+**12 beads created** covering ~408 portable tests. 22 done, 386 remaining.
 
-| Issue | What | Effort |
-|-------|------|--------|
-| `feynfeld-62k.5` | D₀ via COLLIER ccall | ~30 min |
+**Immediate next:** Finish DiracTrace (36 tests remaining). The big ones:
+- ID41-42: 8-gamma traces (105 terms each) — **need programmatic Mathematica→Julia translator**
+- ID43-44: 6-gamma + γ5 → ε·SP mixed terms
+- ID56-59: 6/8-gamma + γ5 → ε·MTD mixed terms (15-105 terms)
+- ID14-16, ID20, ID24, ID28: projector + momentum combos
 
-### Priority 2: Single-process test runner (~1 hour)
+**CRITICAL RULE:** All test comparisons MUST be exact symbolic (AlgSum ==).
+Numerical spot-checks are "corruption and poison." Even 105-term expressions must be
+translated programmatically into full symbolic expected values.
 
-| Issue | What | Impact |
-|-------|------|--------|
-| `feynfeld-icg` | `test/v2/runtests.jl` — one Julia process | 12 min → 2 min |
+**Translator approach:** Write a script that converts Mathematica `SP[a,b]*SP[c,d]` → Julia
+`alg(SP(:a,:b))*alg(SP(:c,:d))`. The notation is mechanical:
+- `SP[a, b]` → `alg(SP(:a, :b))`
+- `MT[i, j]` → `alg(MT(:i, :j))` (4D) or `alg(MTD(:i, :j))` (D-dim)
+- `LCD[a,b,c,d]` → `alg(Eps(LorentzIndex(:a,DimD()), ...))`
+- `LC[a,b,c,d]` → `alg(Eps(LorentzIndex(:a), ...))`
+- Multiplication `*` stays `*`, addition `+`/`-` stays
 
-### Priority 3: Cross-validate PaVe against COLLIER (~1 hour)
+**Skippable IDs** (not implementable):
+- ID1-6: unevaluated structural (not computational)
+- ID29-31, ID46: scheme-dependent (BMHV/NDR)
+- ID33, ID53: DiracSigma (not implemented)
+- ID34-39: Cartesian gammas (CGA/CGS — not supported)
+- ID47-51: DOT/scalar multiplication (not trace tests)
 
-| Issue | What | Impact |
-|-------|------|--------|
-| `feynfeld-62k.9` | Systematic A₀/B₀/C₀ comparison | Trust in numerics |
+**Dimension convention:** `GAD(:i)` creates DimD() indices. Expected values must use
+`MTD(:i,:j)` (not `MT(:i,:j)` which creates Dim4). `SP(:p,:q)` is dimension-agnostic.
 
-### Priority 4: Pipeline completion
+**MUnit bead IDs:**
+| Issue | Category | Tests |
+|-------|----------|-------|
+| feynfeld-q6m | DiracTrace | 58 (22 done) |
+| feynfeld-32j | DiracTrick 2-idx | 27 |
+| feynfeld-37v | DiracTrick 3-idx | 11 |
+| feynfeld-iaz | DiracTrick 4-idx | 9 |
+| feynfeld-n01 | DiracTrick 5-idx | 9 |
+| feynfeld-8qe | DiracTrick 1-idx | 17 |
+| feynfeld-s4p | EpsContract | 41 |
+| feynfeld-rcd | Contract | 20 |
+| feynfeld-8xb | ExpandScalarProduct | 15 |
+| feynfeld-36h | SUNTrace | 24 |
+| feynfeld-4mm | SUNSimplify | 78 |
+| feynfeld-mfb | PolarizationSum | ~15 |
 
-| Issue | What |
-|-------|------|
-| ee→WW full pipeline | Chiral vertices, triple gauge, massive propagators |
+### Priority 2: Spiral 10 continuation
+
+**D₀/D₁/D₂/D₃ evaluation: DONE.** All pass tests.
+
+**Next steps:**
+- `feynfeld-7h8`: 1-loop amplitude builder for 2→2 box diagrams (~100-150 LOC)
+- `feynfeld-4q5`: ee→μμ NLO box diagram via pipeline (blocked by builder)
+
+The box diagram for ee→μμ has 1 QED photon loop. 4 propagators forming a box.
+After PaVe decomposition: D₀ + tensor coefficients. Validate against known NLO correction.
+
+### Priority 3: Rational overflow fix (feynfeld-6ds)
+Unblocks ee→WW Grozin comparison. Affects any computation mixing Float64 kinematics
+with Rational symbolic coefficients.
 
 ---
 
-## WHAT EXISTS (v2, 329 tests)
+## TOBIAS'S RULES — FOLLOW TO THE LETTER
 
-### Six-layer pipeline
+See `CLAUDE.md` for the full 12 rules. Critical ones:
 
-```
-Layer 1: Model      → qed_model() / qcd_model() / ew_model()  → AbstractModel
-Layer 2: Rules      → feynman_rules(model)                      → FeynmanRules
-Layer 3: Channels   → tree_channels(model, rules, in, out)      → Vector{TreeChannel}
-         Amplitude  → build_amplitude(ch, rules, model)          → DiracChains
-Layer 4: Algebra    → trace → contract → expand → eval           → AlgSum (scalar)
-Layer 5: Integrals  → PaVe{N}, evaluate(::PaVe; mu2)            → ComplexF64
-Layer 6: Evaluate   → solve_tree(prob) → σ                      → Float64
-```
+1. **GROUND TRUTH = PHYSICS.** Not LLM memory. Not pinned numbers.
+2. **CITE EVERYTHING.** Local file path + equation number + verbatim equation.
+3. **ALL TESTS SYMBOLIC.** No numerical spot-checks. AlgSum == AlgSum only.
+4. **JULIA IDIOMATIC.** Dispatch, not isa cascades. No Any.
+5. **NO PARALLEL JULIA AGENTS.** Read-only research CAN run in parallel.
+6. **LOC LIMIT ~200.** No source file exceeds ~200 lines.
+7. **REVIEW.** Rigorous reviewer after every core change.
+8. **NEVER modify TensorGR.jl without explicit permission.**
 
-### Pipeline coverage
+---
 
-| Process | Channels | Status |
-|---------|----------|--------|
-| e+e-→μ+μ- | s(γ) | Full pipeline via solve_tree |
-| Bhabha | s(γ)+t(γ) | Pipeline + spin_sum_interference |
-| Compton | s(e)+u(e) | Pipeline + _cross_line_trace |
-| qq̄→gg | t(q)+u(q)+s(g) | Pipeline t/u, manual s (ggg vertex) |
-| ee→WW | s(γ)+s(Z)+t(ν)+u(ν) | Channel enumeration only |
+## PROJECT STATE
 
-### Source files (35 files, ~3,600 LOC)
+### Branch and code location
+- **Branch:** `master`
+- **v2 source:** `src/v2/` (37 files, ~3,900 LOC)
+- **v2 tests:** `test/v2/` (19 files + munit/) — 396+ tests
+- **v1:** FROZEN. Do not extend.
+
+### Source files (37 files)
 
 | File | LOC | What |
 |------|-----|------|
@@ -212,7 +176,7 @@ Layer 6: Evaluate   → solve_tree(prob) → σ                      → Float64
 | `coeff.jl` | 142 | DimPoly coefficient algebra |
 | `types.jl` | 79 | LorentzIndex, Momentum, MomentumSum |
 | `colour_types.jl` | 126 | SUNT, SUNF, SUND, deltas |
-| `pair.jl` | 76 | Parametric Pair{A,B} |
+| `pair.jl` | 76 | Parametric Pair{A,B}, SP/MT/MTD helpers |
 | `expr.jl` | 149 | AlgSum (Dict), AlgFactor, FactorKey |
 | `sp_context.jl` | 71 | SPContext + ScopedValues |
 | `contract.jl` | 136 | Lorentz contraction + Eps handling |
@@ -222,91 +186,59 @@ Layer 6: Evaluate   → solve_tree(prob) → σ                      → Float64
 | `dirac_trace.jl` | ~160 | Trace → AlgSum (gamma5, projectors) |
 | `dirac_expr.jl` | 104 | DiracExpr: matrix-valued expressions |
 | `dirac_trick.jl` | 117 | D-dim γ^μ...γ_μ for n=0..5+ |
-| `spin_sum.jl` | 138 | Fermion spin sums (completeness) |
-| `interference.jl` | 98 | Cross-line traces, spin_sum_interference |
+| `spin_sum.jl` | ~170 | Fermion spin sums (DiracChain + DiracExpr) |
+| `interference.jl` | ~105 | Cross-line traces, spin_sum_interference |
 | `colour_trace.jl` | 72 | SU(N) trace → (real, imag) AlgSum |
 | `colour_simplify.jl` | 148 | Delta contraction via dispatch |
 | `polarization_sum.jl` | 58 | Feynman/axial/massive pol sums |
 | **Layers 1-3** | | |
 | `model.jl` | 99 | AbstractModel, QEDModel, Field{Species} |
-| `qcd_model.jl` | 60 | QCDModel, qqg + ggg vertices |
+| `qcd_model.jl` | ~70 | QCDModel, qqg + ggg vertices, _MomLike |
 | `ew_model.jl` | 49 | EWModel, 5 SM vertex types |
-| `rules.jl` | 82 | FeynmanRules callable, vertex dispatch |
+| `rules.jl` | ~95 | FeynmanRules, vertex_structure w/ Val(coupling) |
 | `diagrams.jl` | 22 | ExternalLeg (mass field) |
 | `channels.jl` | 103 | TreeChannel, tree_channels() |
-| `amplitude.jl` | 141 | build_amplitude: boson + fermion exchange |
+| `amplitude.jl` | ~180 | build_amplitude: boson/fermion/gauge exchange |
 | **Layer 5: Integrals** | | |
-| `pave.jl` | ~80 | PaVe{N} type, named constructors |
-| `pave_eval.jl` | ~200 | evaluate: A₀/B₀/B₁ + C₁/C₂ PV reduction + _C0_quadgk |
-| `c0_analytical.jl` | 82 | **C₀: COLLIER ccall + C0p0 analytical + quadgk fallback** |
+| `pave.jl` | ~80 | PaVe{N} type, A0/B0/C0/D0/D1/D2/D3 constructors |
+| `pave_eval.jl` | ~215 | evaluate: A₀/B₀/B₁ + C₁/C₂ PV reduction |
+| `c0_analytical.jl` | 82 | C₀: COLLIER ccall + C0p0 analytical |
+| `d0_collier.jl` | 42 | D₀: COLLIER ccall (no quadgk fallback) |
+| `d_tensor.jl` | 57 | D₁/D₂/D₃: PV reduction, 3×3 Gram matrix |
 | **Layer 6 + Reference** | | |
 | `cross_section.jl` | ~100 | Mandelstam, solve_tree, σ |
 | `schwinger.jl` | ~50 | REFERENCE: Schwinger correction |
 | `vertex.jl` | 69 | REFERENCE: QED g-2 F₂(0)=α/(2π) |
 | `running_alpha.jl` | ~100 | REFERENCE: running α(q²) |
-| `ew_parameters.jl` | 33 | EW constants: M_W, M_Z, sin²θ_W |
+| `ew_parameters.jl` | ~40 | EW constants (Float64 + Rational versions) |
 | `ew_cross_section.jl` | 83 | REFERENCE: σ(ee→WW) Grozin formula |
-
-### Test files (329 tests across 17 files)
-
-| File | Tests | What |
-|------|-------|------|
-| `test_coeff.jl` | 29 | DimPoly arithmetic |
-| `test_colour.jl` | 27 | SU(N) traces, δ contraction |
-| `test_ee_mumu_x.jl` | 14 | e+e-→μ+μ- algebra (P&S 5.10) |
-| `test_self_energy.jl` | 25 | DiracExpr, DiracTrick n=0,1,2 |
-| `test_vertical.jl` | 34 | Full pipeline via solve_tree |
-| `test_pave.jl` | 53 | PaVe types + A₀/B₀/B₁ |
-| `test_schwinger.jl` | 15 | Schwinger correction + vacuum polarization |
-| `test_compton.jl` | 4 | Compton |M|² from pipeline vs P&S 5.87 |
-| `test_munit_batch1.jl` | 23 | MUnit: DiracTrace, Contract, PolarizationSum |
-| `test_munit_batch2.jl` | 18 | MUnit: DiracTrick n=3,4 |
-| `test_bhabha.jl` | 4 | Bhabha |M̄|² |
-| `test_qqbar_gg.jl` | 2 | QCD qq̄→gg |M̄|² |
-| `test_self_energy_1loop.jl` | 13 | 1-loop Σ(p) |
-| `test_vertex_g2.jl` | 32 | C₀/C₁/C₂, F₂(0)=α/(2π) (SLOW: vertex_f2 uses own quadgk) |
-| `test_running_alpha.jl` | 34 | Running α(q²), Δα, improved Born σ |
-| `test_ee_ww.jl` | 36 | Tree-level e⁺e⁻→W⁺W⁻ reference formula |
-| `test_pipeline.jl` | 17 | Bhabha/Compton/qq→gg/ee→WW pipeline |
 
 ---
 
-## REFERENCE CODEBASES
+## COLLIER SETUP (REQUIRED ON EACH MACHINE)
 
-All in `refs/` (gitignored):
-- `refs/FeynCalc/` — 186k LOC Mathematica. MUnit tests in `Tests/`.
-- `refs/FeynArts/` — Diagram generation reference.
-- `refs/FeynRules/` — Model/Lagrangian reference.
-- `refs/LoopTools/` — FF library source, Denner C0func.F backup.
-- `refs/COLLIER/COLLIER-1.2.8/` — **COLLIER library. Build libcollier.so here.**
-- `refs/papers/` — 17+ local paper copies incl. vanOldenborgh1990.
+```bash
+cd refs/COLLIER/COLLIER-1.2.8
+mkdir -p build && cd build
+cmake .. -DCMAKE_Fortran_COMPILER=gfortran -DCMAKE_BUILD_TYPE=Release
+make -j$(nproc)
+cd /path/to/Feynfeld.jl
+ls refs/COLLIER/COLLIER-1.2.8/libcollier.so  # verify
+mkdir -p output  # COLLIER writes log files here
+```
 
 ---
 
 ## QUICK COMMANDS
 
 ```bash
-# Branch
-git branch  # should show master
-
-# Build COLLIER (required per machine)
-cd refs/COLLIER/COLLIER-1.2.8 && mkdir -p build && cd build
-cmake .. -DCMAKE_Fortran_COMPILER=gfortran && make -j$(nproc)
-cd /path/to/Feynfeld.jl && mkdir -p output
-
-# Run specific test (fast)
+# Run single test (fast)
 julia --project=. test/v2/test_vertical.jl    # 5s, pipeline
-julia --project=. test/v2/test_pipeline.jl     # 7s, all processes
-julia --project=. test/v2/test_pave.jl         # 5s, integrals
+julia --project=. test/v2/test_d0.jl          # 30s, D₀+D-tensor
+julia --project=. test/v2/munit/test_DiracTrace.jl  # 2s, MUnit
 
-# Fast smoke test (~40s)
-for f in test/v2/test_coeff.jl test/v2/test_colour.jl test/v2/test_vertical.jl \
-         test/v2/test_pipeline.jl test/v2/test_pave.jl; do
-    julia --project=. "$f"
-done
-
-# Full suite (~10 min, vertex_g2 slow due to vertex_f2 reference quadgk)
-for f in test/v2/test_*.jl; do julia --project=. "$f"; done
+# Full suite (single process, ~5 min)
+julia --project=. test/v2/runtests.jl
 
 # Beads
 bd ready              # available work
