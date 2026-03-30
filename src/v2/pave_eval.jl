@@ -14,6 +14,7 @@ using QuadGK: quadgk
 evaluate(pv::PaVe{1}; mu2::Float64 = 1.0) = _eval_A(pv; mu2)
 evaluate(pv::PaVe{2}; mu2::Float64 = 1.0) = _eval_B(pv; mu2)
 evaluate(pv::PaVe{3}; mu2::Float64 = 1.0) = _eval_C(pv; mu2)
+evaluate(pv::PaVe{4}; mu2::Float64 = 1.0) = _eval_D(pv; mu2)
 evaluate(pv::PaVe{N}; mu2::Float64 = 1.0) where {N} =
     error("evaluate not yet implemented for PaVe{$N}")
 
@@ -199,4 +200,16 @@ function _eval_C_tensor(pv::PaVe{3}; mu2::Float64)::ComplexF64
     pv.indices == [1] && return C1_val
     pv.indices == [2] && return C2_val
     error("PaVe{3} tensor indices $(pv.indices) not yet implemented")
+end
+
+# ---- D0: scalar 4-point function ----
+# UV-finite. No μ² dependence. Dispatches to d0_collier.jl.
+# Ref: refs/papers/tHooftVeltman1979_NuclPhysB153.pdf, Eq. (5.2)
+
+function _eval_D(pv::PaVe{4}; mu2::Float64)::ComplexF64
+    isempty(pv.indices) ||
+        error("PaVe{4} tensor indices $(pv.indices) not yet implemented")
+    _D0_evaluate(pv.invariants[1], pv.invariants[2], pv.invariants[3],
+                 pv.invariants[4], pv.invariants[5], pv.invariants[6],
+                 pv.masses[1], pv.masses[2], pv.masses[3], pv.masses[4])
 end
