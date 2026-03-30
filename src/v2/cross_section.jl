@@ -49,16 +49,16 @@ function solve_tree(prob::CrossSectionProblem)
     isempty(channels) && error("No valid tree-level channels for this process")
 
     # Build amplitude for each channel
-    all_chains = Tuple{DiracChain, DiracChain}[]
+    all_amps = []
     for ch in channels
-        chains = build_amplitude(ch, rules, prob.model)
-        push!(all_chains, chains)
+        amp = build_amplitude(ch, rules, prob.model)
+        push!(all_amps, amp)
     end
 
     # Single channel: spin sum -> trace -> contract -> expand
     # TODO: multi-channel interference (Phase B)
-    chain_L, chain_R = all_chains[1]
-    m_squared = spin_sum_amplitude_squared(chain_L, chain_R)
+    amp_L, amp_R = all_amps[1]
+    m_squared = spin_sum_amplitude_squared(amp_L, amp_R)
     contracted = contract(m_squared)
     expanded = expand_scalar_product(contracted)
 

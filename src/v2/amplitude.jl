@@ -20,14 +20,14 @@ function build_amplitude(ch::TreeChannel, rules::FeynmanRules, model::AbstractMo
         ferm_L = _both_fermion_legs(model, legL1, legL2)
         ferm_R = _both_fermion_legs(model, legR1, legR2)
         if ferm_L && ferm_R
-            _build_boson_exchange(ch)
+            _build_boson_exchange(ch, rules)
         elseif ferm_L || ferm_R
-            _build_gauge_exchange(ch, model)
+            _build_gauge_exchange(ch, rules, model)
         else
             error("Pure boson scattering not yet implemented")
         end
     elseif exch isa Field{Fermion}
-        _build_fermion_exchange(ch, model)
+        _build_fermion_exchange(ch, rules, model)
     else
         error("Scalar exchange not yet implemented")
     end
@@ -36,24 +36,34 @@ end
 # ---- Boson exchange ----
 # Two fermion lines connected by a virtual boson.
 # Channel-specific index prevents collisions in multi-channel interference.
-function _build_boson_exchange(ch::TreeChannel)
+function _build_boson_exchange(ch::TreeChannel, rules::FeynmanRules)
     (legL1, legL2), (legR1, legR2) = vertex_legs(ch)
     mu = LorentzIndex(Symbol(:mu_, ch.channel), DimD())
-    chain_L = _fermion_line_chain(legL1, legL2, mu)
-    chain_R = _fermion_line_chain(legR1, legR2, mu)
+    vtx_L = _lookup_vertex(rules, legL1, legL2, ch.exchanged, mu)
+    vtx_R = _lookup_vertex(rules, legR1, legR2, ch.exchanged, mu)
+    chain_L = _fermion_line_chain(legL1, legL2, vtx_L)
+    chain_R = _fermion_line_chain(legR1, legR2, vtx_R)
     (chain_L, chain_R)
 end
 
 # Build a DiracChain for a single fermion line at a vertex with Lorentz index mu.
-function _fermion_line_chain(leg_a::ExternalLeg, leg_b::ExternalLeg, mu::LorentzIndex)
+_fermion_line_chain(a::ExternalLeg, b::ExternalLeg, mu::LorentzIndex) =
+    _fermion_line_chain(a, b, DiracExpr(DiracChain([DiracGamma(LISlot(mu))])))
+
+# Build a DiracExpr for a fermion line with a general vertex structure.
+# vertex_de is a DiracExpr (may be sum of chains for chiral vertices).
+# Note: construct DiracExpr directly (not via +) to preserve spinors in chains.
+function _fermion_line_chain(leg_a::ExternalLeg, leg_b::ExternalLeg, vertex_de::DiracExpr)
     sp_a, pos_a = _spinor_and_position(leg_a)
     sp_b, pos_b = _spinor_and_position(leg_b)
-    gamma = DiracGamma(LISlot(mu))  # preserves DimD from mu
-    if pos_a == :left
-        dot(sp_a, gamma, sp_b)
-    else
-        dot(sp_b, gamma, sp_a)
+    bar_sp = pos_a == :left ? sp_a : sp_b
+    plain_sp = pos_a == :left ? sp_b : sp_a
+    terms = Tuple{AlgSum, DiracChain}[]
+    for (coeff, chain) in vertex_de.terms
+        full = dot(bar_sp, chain.elements..., plain_sp)
+        push!(terms, (coeff, full))
     end
+    DiracExpr(terms)
 end
 
 # ---- Fermion exchange ----
@@ -63,7 +73,7 @@ end
 #     + m * bar_sp * gamma^nu * gamma^mu * sp         (mass)
 #
 # Returns (chain_mom, chain_mass, mass_val) where A = chain_mom + mass * chain_mass.
-function _build_fermion_exchange(ch::TreeChannel, model::AbstractModel)
+function _build_fermion_exchange(ch::TreeChannel, rules::FeynmanRules, model::AbstractModel)
     (legL1, legL2), (legR1, legR2) = vertex_legs(ch)
 
     # Separate fermion vs boson legs at each vertex
@@ -139,7 +149,7 @@ end
 #   vertex = V_{ρ,μ₁,μ₂}(k₁, k₂, -q)  (triple gauge, all-outgoing convention)
 #
 # Ref: Peskin & Schroeder, Eq. (16.10) for triple gauge vertex
-function _build_gauge_exchange(ch::TreeChannel, model::AbstractModel)
+function _build_gauge_exchange(ch::TreeChannel, rules::FeynmanRules, model::AbstractModel)
     (legL1, legL2), (legR1, legR2) = vertex_legs(ch)
 
     # Identify fermion pair vs boson pair
@@ -154,8 +164,9 @@ function _build_gauge_exchange(ch::TreeChannel, model::AbstractModel)
     # Propagator Lorentz index (shared between fermion vertex and gauge vertex)
     rho = LorentzIndex(Symbol(:rho_, ch.channel), DimD())
 
-    # Fermion chain: ū γ^ρ v
-    chain = _fermion_line_chain(ferm1, ferm2, rho)
+    # Fermion chain with vertex structure from rules
+    vtx = _lookup_vertex(rules, ferm1, ferm2, ch.exchanged, rho)
+    chain = _fermion_line_chain(ferm1, ferm2, vtx)
 
     # Triple gauge vertex in all-outgoing convention:
     # propagator carries q into the vertex → outgoing momentum is -q
@@ -169,6 +180,20 @@ function _build_gauge_exchange(ch::TreeChannel, model::AbstractModel)
 end
 
 # ---- Shared utilities ----
+
+# Look up vertex Lorentz structure for (leg_a, leg_b, exchanged) at index mu.
+function _lookup_vertex(rules::FeynmanRules, leg_a::ExternalLeg, leg_b::ExternalLeg,
+                        exchanged::Symbol, mu::LorentzIndex)
+    for perm in ((leg_a.field_name, leg_b.field_name, exchanged),
+                 (leg_b.field_name, leg_a.field_name, exchanged),
+                 (leg_a.field_name, exchanged, leg_b.field_name),
+                 (exchanged, leg_a.field_name, leg_b.field_name),
+                 (leg_b.field_name, exchanged, leg_a.field_name),
+                 (exchanged, leg_b.field_name, leg_a.field_name))
+        haskey(rules.vertices, perm) && return vertex_factor(rules, perm, mu)
+    end
+    error("No vertex for ($(leg_a.field_name), $(leg_b.field_name), $exchanged)")
+end
 
 # Ref: Peskin & Schroeder, Section 4.6 (Feynman rules for fermions)
 function _spinor_and_position(leg::ExternalLeg)

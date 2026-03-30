@@ -39,6 +39,14 @@ with reconnected fermion lines (e.g. Bhabha s×t).
 Returns a single long trace (AlgSum). For the interference term in
 |M|² = ... - 2·Re(M_i* M_j)/(d_i·d_j), use this as T_int.
 """
+# DiracExpr wrapper: extract chains for single-term case (QED).
+function spin_sum_interference(amp_i::NTuple{2,DiracExpr}, amp_j::NTuple{2,DiracExpr})
+    _extract(de) = (length(de.terms) == 1 ? de.terms[1][2] :
+        error("spin_sum_interference not yet implemented for multi-term DiracExpr"))
+    spin_sum_interference((_extract(amp_i[1]), _extract(amp_i[2])),
+                          (_extract(amp_j[1]), _extract(amp_j[2])))
+end
+
 function spin_sum_interference(
     amp_i::NTuple{2,DiracChain},
     amp_j::NTuple{2,DiracChain},

@@ -93,10 +93,10 @@ using .FeynfeldX
 
         # Build amplitude
         chain_L, chain_R = build_amplitude(channels[1], rules, model)
-        @test chain_L isa DiracChain
-        @test chain_R isa DiracChain
-        @test length(chain_L.elements) == 3  # vbar, gamma, u
-        @test length(chain_R.elements) == 3  # ubar, gamma, v
+        @test chain_L isa DiracExpr
+        @test chain_R isa DiracExpr
+        @test length(chain_L.terms) == 1  # single vertex term (QED)
+        @test length(chain_L.terms[1][2].elements) == 3  # vbar, gamma, u
     end
 
     # ======== Layer 4: Algebra (validated before, run again) ========
