@@ -24,7 +24,7 @@ vertex_structure(::GaugeGroup, ::Fermion, ::Boson, ::Val{:e}, mu::LorentzIndex) 
 function vertex_structure(::GaugeGroup, ::Fermion, ::Boson, ::Val{:e_Z}, mu::LorentzIndex)
     gamma_mu = DiracExpr(DiracChain([DiracGamma(LISlot(mu))]))
     g5_gamma_mu = DiracExpr(DiracChain([GA5(), DiracGamma(LISlot(mu))]))
-    EW_GV_E * gamma_mu - EW_GA_E * g5_gamma_mu
+    EW_GV_E_R * gamma_mu - EW_GA_E_R * g5_gamma_mu
 end
 
 # eνW: charged current → (1-γ5)/2 γ^μ
