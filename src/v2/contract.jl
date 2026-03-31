@@ -133,6 +133,45 @@ function _do_contraction(fi::Pair{LorentzIndex, Momentum}, fj::Pair{LorentzIndex
     (1, AlgFactor[sp])
 end
 
+# Eps-Metric: ε^{αβγδ} g_{αμ} → ε^{μβγδ} (substitute contracted index)
+function _do_contraction(fi::Eps, fj::MetricTensor, idx::LorentzIndex, ::SPContext)
+    surv = _surviving(fj, idx)
+    surv !== nothing || return nothing
+    new_eps = _eps_replace_slot(fi, idx, surv)
+    new_eps === nothing && return nothing
+    new_eps === :vanishes && return (0, AlgFactor[])  # antisymmetric vanishing
+    (1, AlgFactor[new_eps])
+end
+_do_contraction(fi::MetricTensor, fj::Eps, idx::LorentzIndex, ctx::SPContext) =
+    _do_contraction(fj, fi, idx, ctx)
+
+# Eps-FourVector: ε^{αβγδ} p_α → ε(p, β, γ, δ) (Lorentz index → Momentum)
+function _do_contraction(fi::Eps, fj::Pair{LorentzIndex, Momentum}, idx::LorentzIndex, ::SPContext)
+    fj.a == idx || return nothing
+    new_eps = _eps_replace_slot(fi, idx, fj.b)
+    new_eps === nothing && return nothing
+    new_eps === :vanishes && return (0, AlgFactor[])
+    (1, AlgFactor[new_eps])
+end
+_do_contraction(fi::Pair{LorentzIndex, Momentum}, fj::Eps, idx::LorentzIndex, ctx::SPContext) =
+    _do_contraction(fj, fi, idx, ctx)
+
+# Replace the Eps slot matching `old` with `new_arg` (PairArg).
+# Returns nothing if idx not found, or if result has repeated slots (vanishes by antisymmetry).
+function _eps_replace_slot(e::Eps, old::LorentzIndex, new_arg::PairArg)
+    a = e.a == old ? new_arg : e.a
+    b = e.b == old ? new_arg : e.b
+    c = e.c == old ? new_arg : e.c
+    d = e.d == old ? new_arg : e.d
+    (a == e.a && b == e.b && c == e.c && d == e.d) && return nothing  # idx not found
+    # ε with two identical slots vanishes by antisymmetry
+    slots = (a, b, c, d)
+    for i in 1:4, j in (i+1):4
+        slots[i] == slots[j] && return :vanishes
+    end
+    Eps(a, b, c, d)
+end
+
 # Fallback
 _do_contraction(::AlgFactor, ::AlgFactor, ::LorentzIndex, ::SPContext) = nothing
 

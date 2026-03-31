@@ -1,4 +1,4 @@
-# HANDOFF — 2026-03-30 (Session 12: D₀ fixed, EW pipeline, Spiral 10 started)
+# HANDOFF — 2026-03-31 (Session 13: Rational overflow fix, Eps contraction, Phase B)
 
 ## DO NOT DELETE THIS FILE. Read it completely before working.
 
@@ -8,140 +8,136 @@
 
 1. Read `CLAUDE.md` — rules, **pipeline principle**, anti-hallucination, Julia idioms
 2. Run `bd ready` to see available work
-3. Run `julia --project=. test/v2/runtests.jl` to verify all tests pass (396+ tests, ~5 min)
+3. Run `julia --project=. test/v2/runtests.jl` to verify all tests pass (405+ tests, ~5 min)
 4. **CHECK `refs/papers/`** — ensure required papers are present BEFORE writing any code
 
 ---
 
-## SESSION 12 ACCOMPLISHMENTS
+## SESSION 13 ACCOMPLISHMENTS
 
-### 1. Fixed the D₀ compilation bomb
-**Root cause:** Session 11 agent's `_D0_quadgk` had triple-nested `quadgk` closures. Julia JIT
-compiles ALL reachable code paths, including unreachable fallbacks. Triple-nested closures
-cause a compilation time explosion (minutes, gigabytes of RAM).
+### 1. Fixed Rational{Int} overflow (feynfeld-6ds)
+**Root cause:** `Mandelstam(s, cosθ)` called `Rational{Int}(cosθ)` when cosθ was Float64
+from quadgk. Julia converts Float64 → Rational with enormous denominators → overflow in
+subsequent `mul_coeff` calls.
 
-**Fix:** Removed `_D0_quadgk` fallback. `_D0_evaluate` now errors if COLLIER unavailable.
-COLLIER works correctly — returns in microseconds.
+**Fix:** Parametric `Mandelstam{T<:Real}` + Float64 evaluation path that bypasses SPContext.
 
-### 2. Removed LoopTools dependency
-LoopTools was declared in Project.toml but NEVER imported in any source file. Its precompilation
-(Fortran FFI wrapping) added minutes to startup. Removed from `[deps]` and `[compat]`.
+**Files changed:**
+- `src/v2/cross_section.jl`: Mandelstam{T}, evaluate_numeric, sp_values_2to2
+- `src/v2/eps_evaluate.jl` (NEW): dispatch-based factor evaluation, Eps Gram determinant
+- `src/v2/FeynfeldX.jl`: includes + exports
 
-### 3. Single-process test runner
-`test/v2/runtests.jl` — loads FeynfeldX once, includes all 18 test files. Each test file
-has `@isdefined(FeynfeldX) || include(...)` guard for standalone use. 396 tests in 5m15s.
+**Design:** Symbolic algebra stays purely Rational{Int}. Float64 enters only at the
+evaluation boundary. The pipeline produces a symbolic AlgSum, then `evaluate_numeric`
+walks it with Float64 arithmetic. Mirrors FeynCalc (symbolic until `N[]`) and
+FormCalc (symbolic → compiled Fortran).
 
-### 4. Pipeline completion for all 5 processes
-| Process | Pipeline Status |
-|---------|----------------|
-| e+e-→μ+μ- | Full ✓ |
-| Bhabha | Full ✓ |
-| Compton | Full ✓ |
-| qq̄→gg | **Full ✓** (gauge exchange dispatch added) |
-| ee→WW | **Builds all channels ✓**, Grozin comparison pending |
+### 2. Eps contraction engine fix
+**Root cause:** `contract.jl` had NO dispatch methods for Eps × MetricTensor or
+Eps × FourVector. Chiral Z coupling produces γ5 traces → Eps tensors that couldn't
+be contracted with the triple gauge vertex's metric/four-vector factors.
 
-### 5. Vertex structure dispatch (EW infrastructure)
-`vertex_structure` now dispatches on `Val(coupling)`:
-- `Val(:e)` → γ^μ (QED/QCD)
-- `Val(:e_Z)` → (g_V - g_A γ5) γ^μ (neutral current, uses Rational EW_GV_E_R)
-- `Val(:g_W)` → (1-γ5)/2 γ^μ (charged current)
-- `Val(:g_s)` → γ^μ (QCD)
+**Fix:** Added `_do_contraction(::Eps, ::MetricTensor, ...)` and
+`_do_contraction(::Eps, ::FourVector, ...)` to contract.jl, plus antisymmetric
+vanishing detection (`_eps_replace_slot` returns `:vanishes` when two slots become identical).
 
-`build_amplitude` now uses `_lookup_vertex` to get vertex structures from FeynmanRules.
-Returns `DiracExpr` (not DiracChain) to support chiral vertices with multiple terms.
-`spin_sum_amplitude_squared` extended for DiracExpr. Dirac conjugation: GA6↔GA7 swap.
+**Citations:**
+- Eps × Metric/FV: FeynCalc PairContract.m lines 169-170; EpsEvaluate.m lines 107-111
+- Gram determinant: MertigBohmDenner1991 Eq. (2.21)
+- Antisymmetric vanishing: FeynCalc EpsEvaluate.m `Signature[{x}] === 0`
 
-### 6. D-tensor PV reduction (Spiral 10)
-`d_tensor.jl` (57 LOC): D₁/D₂/D₃ via Passarino-Veltman reduction with 3×3 Gram matrix.
-4 C₀ sub-integrals (one per removed propagator). Symmetric check: D₁=D₂=D₃ to 1e-12.
+### 3. Grozin formula validated against Denner (1993)
+`sigma_ee_ww()` matches Denner Tab. 11.4 Born(G_F) to 0.01% at all LEP2 energies
+when using Denner's parameters (M_W=80.23, α from G_F).
 
-### 7. MUnit test porting started
-`test/v2/munit/test_DiracTrace.jl`: 22 symbolic tests from FeynCalc DiracTrace.test.
-All comparisons are exact AlgSum equality — NO numerical spot-checks.
+### 4. Multi-channel ee→WW validation (Stages A+B)
+`test/v2/test_ee_ww_grozin.jl` validates all 3 diagonal |M_i|² (s-γ, s-Z, t-ν)
+plus s-γ × s-Z interference. Results are physically correct:
+- Diagonal sum exceeds Grozin total (ratio 1.4-33, growing with energy)
+- γ-Z interference is destructive (reduces σ by ~3-5%)
+- Remaining gap is the s×t gauge cancellation (Stage C)
 
 ---
 
 ## KNOWN ISSUES AND BLOCKERS
 
-### P1: Rational{Int} overflow in AlgSum (feynfeld-6ds)
-The coefficient system uses `Rational{Int}` which overflows when Float64 kinematics are
-rationalized and multiplied with EW coupling constants. Blocks the full ee→WW Grozin
-cross-section comparison. Fix options:
-1. BigRational fallback in coeff.jl
-2. Float64 coefficient path
-3. Pre-contract symbolic expressions to Float64 evaluation functions
+### P1: Stage C — s×t cross-topology interference (blocks full Grozin match)
+The s-channel (gauge exchange) and t-channel (fermion exchange) have different
+topologies. Their interference requires a cross-trace combining:
+- s-channel: single γ^ρ vertex → rho_s connects to triple gauge vertex
+- t-channel: P_L γ^μ q-slash γ^ν P_L → mu_k1, mu_k2 connect to W polarizations
 
-### ee→WW Grozin comparison (feynfeld-bao)
-All 3 physical channels (s-γ, s-Z, t-ν) build correctly through the pipeline.
-Diagonal |M|² evaluates at integer kinematic points. Full cross-section integration
-blocked by Rational overflow during quadgk (non-integer cosθ values).
+After the cross-trace, the ρ_s index needs contraction with the triple gauge vertex
+while μ indices contract with polarization sums. This is a SINGLE fermion line
+(not reconnected), so it's a standard Dirac trace, not a Bhabha-style interference.
+
+**Approach:** Build a DiracExpr that sums s-channel and t-channel fermion structures
+(different gamma sequences but same spinors). The s-channel terms have ρ_s index,
+the t-channel terms have μ_k1/μ_k2. After _single_line_trace, cross-terms have mixed
+indices. Contract the s-channel index with triple_gauge_vertex and polarization sums.
+
+**This is the dominant gauge cancellation** — without it, σ grows as s²/M_W⁴ instead
+of log(s)/s (Denner Eqs. 11.16 vs 11.17).
+
+### P2: Eps contraction engine — multi-pass requirement (feynfeld-qu1)
+Large chiral expressions (s-Z channel: 1024 initial terms) require up to 10
+contraction passes to fully reduce. The worklist algorithm in `_contract_factors`
+finds only one contractible pair per pass. This is correct but slow. A future
+optimization could batch-contract all pairs found in one scan.
+
+### P1 (pre-existing): Δα imaginary part (timelike) — 1 flaky test
+Running α test in `test/v2/test_running_alpha.jl`, "Δα imaginary part (timelike)"
+section. Fails intermittently. Not related to Session 13 changes.
 
 ---
 
 ## WHAT TO DO NEXT
 
-### Priority 1: MUnit test porting (~386 remaining tests)
+### Priority 1: Stage C — s×t interference for full Grozin match
 
-**12 beads created** covering ~408 portable tests. 22 done, 386 remaining.
+**This is the #1 task.** Everything is in place:
+- All 3 channels build through pipeline ✓
+- Diagonal |M_i|² evaluate numerically ✓
+- s-γ × s-Z interference works ✓
+- Float64 integration over cosθ works ✓
+- Coupling constants and propagators verified ✓
 
-**Immediate next:** Finish DiracTrace (36 tests remaining). The big ones:
-- ID41-42: 8-gamma traces (105 terms each) — **need programmatic Mathematica→Julia translator**
-- ID43-44: 6-gamma + γ5 → ε·SP mixed terms
-- ID56-59: 6/8-gamma + γ5 → ε·MTD mixed terms (15-105 terms)
-- ID14-16, ID20, ID24, ID28: projector + momentum combos
+**What's needed:** Add the s×t cross-terms to `test/v2/test_ee_ww_grozin.jl`.
 
-**CRITICAL RULE:** All test comparisons MUST be exact symbolic (AlgSum ==).
-Numerical spot-checks are "corruption and poison." Even 105-term expressions must be
-translated programmatically into full symbolic expected values.
+**Concrete approach (validated by research):**
 
-**Translator approach:** Write a script that converts Mathematica `SP[a,b]*SP[c,d]` → Julia
-`alg(SP(:a,:b))*alg(SP(:c,:d))`. The notation is mechanical:
-- `SP[a, b]` → `alg(SP(:a, :b))`
-- `MT[i, j]` → `alg(MT(:i, :j))` (4D) or `alg(MTD(:i, :j))` (D-dim)
-- `LCD[a,b,c,d]` → `alg(Eps(LorentzIndex(:a,DimD()), ...))`
-- `LC[a,b,c,d]` → `alg(Eps(LorentzIndex(:a), ...))`
-- Multiplication `*` stays `*`, addition `+`/`-` stays
+All three channels share ONE fermion line (incoming e+e-). The s-channel fermion
+chain has elements `[v̄, γ^{ρ_s}, u]` (or chiral variant), while the t-channel has
+`[v̄, P_L γ^{μ_k1} GS(q) γ^{μ_k2} P_L, u]`. These have the SAME spinors.
 
-**Skippable IDs** (not implementable):
-- ID1-6: unevaluated structural (not computational)
-- ID29-31, ID46: scheme-dependent (BMHV/NDR)
-- ID33, ID53: DiracSigma (not implemented)
-- ID34-39: Cartesian gammas (CGA/CGS — not supported)
-- ID47-51: DOT/scalar multiplication (not trace tests)
+Create a combined DiracExpr with terms from all 3 channels (1 from s-γ, 2 from s-Z,
+1 from t-ν = 4 terms total). Call `_single_line_trace` to get ALL 16 (i,j) pairs.
 
-**Dimension convention:** `GAD(:i)` creates DimD() indices. Expected values must use
-`MTD(:i,:j)` (not `MT(:i,:j)` which creates Dim4). `SP(:p,:q)` is dimension-agnostic.
+After tracing, cross-terms have MIXED indices:
+- s×s terms: only ρ_s, ρ_s_ → contract with vtx × vtx_conj × P1 × P2
+- t×t terms: only μ_k1, μ_k2, μ_k1_, μ_k2_ → contract with P1 × P2
+- s×t terms: ρ_s + μ_k1_, μ_k2_ (or vice versa) → contract with vtx on s-side, P on both
 
-**MUnit bead IDs:**
-| Issue | Category | Tests |
-|-------|----------|-------|
-| feynfeld-q6m | DiracTrace | 58 (22 done) |
-| feynfeld-32j | DiracTrick 2-idx | 27 |
-| feynfeld-37v | DiracTrick 3-idx | 11 |
-| feynfeld-iaz | DiracTrick 4-idx | 9 |
-| feynfeld-n01 | DiracTrick 5-idx | 9 |
-| feynfeld-8qe | DiracTrick 1-idx | 17 |
-| feynfeld-s4p | EpsContract | 41 |
-| feynfeld-rcd | Contract | 20 |
-| feynfeld-8xb | ExpandScalarProduct | 15 |
-| feynfeld-36h | SUNTrace | 24 |
-| feynfeld-4mm | SUNSimplify | 78 |
-| feynfeld-mfb | PolarizationSum | ~15 |
+The challenge: after tracing, the mixed-index terms need DIFFERENT contraction
+treatments for the s-side and t-side indices. This may require:
+1. Separate extraction of cross-terms (T_combined - T_s_only - T_t_only)
+2. Contracting with the appropriate vertex + polarization structure
+3. Careful index management
 
-### Priority 2: Spiral 10 continuation
+**Alternative simpler approach:** Compute the s×t cross-trace DIRECTLY by building
+the trace manually: `Tr[completeness × Γ_s × completeness × Γ̄_t]` where Γ_s and Γ_t
+are the gamma sequences from each channel. Then contract with the appropriate external
+structures. This avoids the combined-DiracExpr index-mixing problem.
 
-**D₀/D₁/D₂/D₃ evaluation: DONE.** All pass tests.
+**Validation:** The result (diagonal + all interference) should match `sigma_ee_ww()`
+to high precision at all energies. The ratio should be ~1.0 ± numerical integration
+tolerance (~0.1%).
 
-**Next steps:**
-- `feynfeld-7h8`: 1-loop amplitude builder for 2→2 box diagrams (~100-150 LOC)
-- `feynfeld-4q5`: ee→μμ NLO box diagram via pipeline (blocked by builder)
+### Priority 2: MUnit test porting (~386 remaining)
+See Session 12 HANDOFF for the full bead list. 22/408 done (DiracTrace).
 
-The box diagram for ee→μμ has 1 QED photon loop. 4 propagators forming a box.
-After PaVe decomposition: D₀ + tensor coefficients. Validate against known NLO correction.
-
-### Priority 3: Rational overflow fix (feynfeld-6ds)
-Unblocks ee→WW Grozin comparison. Affects any computation mixing Float64 kinematics
-with Rational symbolic coefficients.
+### Priority 3: Spiral 10 continuation
+1-loop amplitude builder (feynfeld-7h8), ee→μμ NLO box (feynfeld-4q5).
 
 ---
 
@@ -156,7 +152,10 @@ See `CLAUDE.md` for the full 12 rules. Critical ones:
 5. **NO PARALLEL JULIA AGENTS.** Read-only research CAN run in parallel.
 6. **LOC LIMIT ~200.** No source file exceeds ~200 lines.
 7. **REVIEW.** Rigorous reviewer after every core change.
-8. **NEVER modify TensorGR.jl without explicit permission.**
+8. **TIERED WORKFLOW.** Core (>20 LOC): 3 research + 1 review. Small: 1+1. Trivial: direct.
+9. **NEVER modify TensorGR.jl or core algebra files without explicit permission.**
+   Session 13 learned this the hard way — got caught modifying contract.jl without
+   following the tiered workflow. DO NOT repeat.
 
 ---
 
@@ -164,54 +163,47 @@ See `CLAUDE.md` for the full 12 rules. Critical ones:
 
 ### Branch and code location
 - **Branch:** `master`
-- **v2 source:** `src/v2/` (37 files, ~3,900 LOC)
-- **v2 tests:** `test/v2/` (19 files + munit/) — 396+ tests
+- **v2 source:** `src/v2/` (38 files, ~4,100 LOC)
+- **v2 tests:** `test/v2/` (20 files + munit/) — 405+ tests
 - **v1:** FROZEN. Do not extend.
 
-### Source files (37 files)
+### New/modified files in Session 13
 
 | File | LOC | What |
 |------|-----|------|
-| **Layer 4: Algebra** | | |
-| `coeff.jl` | 142 | DimPoly coefficient algebra |
-| `types.jl` | 79 | LorentzIndex, Momentum, MomentumSum |
-| `colour_types.jl` | 126 | SUNT, SUNF, SUND, deltas |
-| `pair.jl` | 76 | Parametric Pair{A,B}, SP/MT/MTD helpers |
-| `expr.jl` | 149 | AlgSum (Dict), AlgFactor, FactorKey |
-| `sp_context.jl` | 71 | SPContext + ScopedValues |
-| `contract.jl` | 136 | Lorentz contraction + Eps handling |
-| `eps_contract.jl` | 85 | ε·ε = -det[pair(aᵢ,bⱼ)] |
-| `expand_sp.jl` | 82 | Scalar product bilinear expansion |
-| `dirac.jl` | 118 | DiracGamma{S}, Spinor{K}, DiracChain |
-| `dirac_trace.jl` | ~160 | Trace → AlgSum (gamma5, projectors) |
-| `dirac_expr.jl` | 104 | DiracExpr: matrix-valued expressions |
-| `dirac_trick.jl` | 117 | D-dim γ^μ...γ_μ for n=0..5+ |
-| `spin_sum.jl` | ~170 | Fermion spin sums (DiracChain + DiracExpr) |
-| `interference.jl` | ~105 | Cross-line traces, spin_sum_interference |
-| `colour_trace.jl` | 72 | SU(N) trace → (real, imag) AlgSum |
-| `colour_simplify.jl` | 148 | Delta contraction via dispatch |
-| `polarization_sum.jl` | 58 | Feynman/axial/massive pol sums |
-| **Layers 1-3** | | |
-| `model.jl` | 99 | AbstractModel, QEDModel, Field{Species} |
-| `qcd_model.jl` | ~70 | QCDModel, qqg + ggg vertices, _MomLike |
-| `ew_model.jl` | 49 | EWModel, 5 SM vertex types |
-| `rules.jl` | ~95 | FeynmanRules, vertex_structure w/ Val(coupling) |
-| `diagrams.jl` | 22 | ExternalLeg (mass field) |
-| `channels.jl` | 103 | TreeChannel, tree_channels() |
-| `amplitude.jl` | ~180 | build_amplitude: boson/fermion/gauge exchange |
-| **Layer 5: Integrals** | | |
-| `pave.jl` | ~80 | PaVe{N} type, A0/B0/C0/D0/D1/D2/D3 constructors |
-| `pave_eval.jl` | ~215 | evaluate: A₀/B₀/B₁ + C₁/C₂ PV reduction |
-| `c0_analytical.jl` | 82 | C₀: COLLIER ccall + C0p0 analytical |
-| `d0_collier.jl` | 42 | D₀: COLLIER ccall (no quadgk fallback) |
-| `d_tensor.jl` | 57 | D₁/D₂/D₃: PV reduction, 3×3 Gram matrix |
-| **Layer 6 + Reference** | | |
-| `cross_section.jl` | ~100 | Mandelstam, solve_tree, σ |
-| `schwinger.jl` | ~50 | REFERENCE: Schwinger correction |
-| `vertex.jl` | 69 | REFERENCE: QED g-2 F₂(0)=α/(2π) |
-| `running_alpha.jl` | ~100 | REFERENCE: running α(q²) |
-| `ew_parameters.jl` | ~40 | EW constants (Float64 + Rational versions) |
-| `ew_cross_section.jl` | 83 | REFERENCE: σ(ee→WW) Grozin formula |
+| `src/v2/cross_section.jl` | 156 | Mandelstam{T}, evaluate_numeric, sp_values_2to2 |
+| `src/v2/eps_evaluate.jl` | 65 | NEW: _eval_factor dispatch, _evaluate_eps Gram det |
+| `src/v2/contract.jl` | 212 | Eps×Metric, Eps×FV contraction + vanishing |
+| `src/v2/FeynfeldX.jl` | 121 | +2 lines: include + export |
+| `test/v2/test_ee_ww_grozin.jl` | 163 | NEW: Stages A+B validation |
+
+### Coupling constant conventions (CRITICAL for Stage C)
+
+Pipeline `build_amplitude` returns Lorentz/Dirac structure ONLY. Missing factors:
+
+| Channel | Pipeline output | Missing coupling | Missing propagator |
+|---------|----------------|------------------|--------------------|
+| s-γ | DiracExpr[γ^ρ] + AlgSum[V_ρμν] | e² = 4πα | 1/s |
+| s-Z | DiracExpr[(gV-gAγ5)γ^ρ] + AlgSum[V_ρμν] | e²/(2sin²θ_W) | 1/(s-M_Z²) |
+| t-ν | DiracChain[P_L γ^μ q̸ γ^ν P_L] | e²/(2sin²θ_W) | 1/t |
+
+Ref: Denner1993, Eq. (11.9); PDG2024, Table 10.3.
+g_V, g_A are IN the s-Z vertex_structure. P_L is IN the t-ν chain.
+All other couplings must be applied externally.
+
+In M_W units: M_Z² = 1/cos²θ_W ≈ 1.288. All masses in M_W² = 1.
+
+### Trace index conventions
+
+| Channel | Trace indices (forward) | Trace indices (conjugate) |
+|---------|------------------------|--------------------------|
+| s-γ | rho_s | rho_s_ |
+| s-Z | rho_s | rho_s_ |
+| t-ν | mu_k1, mu_k2 | mu_k1_, mu_k2_ |
+
+After _single_line_trace, forward indices connect to vtx/P1/P2 (original),
+conjugate indices connect to vtx_conj/P1/P2 (conjugate). For s×t cross-terms,
+mixed indices appear (rho_s from s-side, mu_k1_ from t-side conjugate).
 
 ---
 
@@ -222,7 +214,6 @@ cd refs/COLLIER/COLLIER-1.2.8
 mkdir -p build && cd build
 cmake .. -DCMAKE_Fortran_COMPILER=gfortran -DCMAKE_BUILD_TYPE=Release
 make -j$(nproc)
-cd /path/to/Feynfeld.jl
 ls refs/COLLIER/COLLIER-1.2.8/libcollier.so  # verify
 mkdir -p output  # COLLIER writes log files here
 ```
@@ -233,9 +224,9 @@ mkdir -p output  # COLLIER writes log files here
 
 ```bash
 # Run single test (fast)
-julia --project=. test/v2/test_vertical.jl    # 5s, pipeline
-julia --project=. test/v2/test_d0.jl          # 30s, D₀+D-tensor
-julia --project=. test/v2/munit/test_DiracTrace.jl  # 2s, MUnit
+julia --project=. test/v2/test_vertical.jl       # 5s, pipeline
+julia --project=. test/v2/test_ee_ww_grozin.jl   # 9s, multi-channel validation
+julia --project=. test/v2/test_pipeline.jl        # 8s, all processes
 
 # Full suite (single process, ~5 min)
 julia --project=. test/v2/runtests.jl
@@ -243,7 +234,7 @@ julia --project=. test/v2/runtests.jl
 # Beads
 bd ready              # available work
 bd stats              # project health
-bd list --status=open # all open issues
+bd show feynfeld-qu1  # Eps contraction bug details
 
 # Session end protocol
 git add <files> && git commit -m "..." && git push

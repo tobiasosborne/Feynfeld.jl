@@ -55,6 +55,7 @@ include("ew_parameters.jl")
 include("ew_cross_section.jl")
 
 # ---- Layer 6: Evaluate ----
+include("eps_evaluate.jl")
 include("cross_section.jl")
 
 # ---- Exports: Algebra ----
@@ -114,6 +115,7 @@ export sigma_ee_ww
 # ---- Exports: Evaluate (Layer 6) ----
 export Mandelstam, sp_context_from_mandelstam
 export CrossSectionProblem, solve_tree, evaluate_m_squared
+export evaluate_numeric, sp_values_2to2
 export dsigma_domega, sigma_total_tree_ee_mumu
 
 end # module FeynfeldX
