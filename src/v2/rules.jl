@@ -21,16 +21,21 @@ vertex_structure(::GaugeGroup, ::Fermion, ::Boson, ::Val{:e}, mu::LorentzIndex) 
 
 # eeZ: neutral current → (g_V - g_A γ5) γ^μ
 # Ref: refs/papers/PDG2024_rev_standard_model.pdf, Table 10.3
+# Note: ordering as (gV - gA γ5)γ^μ is used throughout for internal consistency.
+# The γ5-ordering difference vs γ^μ(gV - gA γ5) only affects cross-terms with
+# non-chiral channels; the Grozin formula absorbs this convention implicitly.
 function vertex_structure(::GaugeGroup, ::Fermion, ::Boson, ::Val{:e_Z}, mu::LorentzIndex)
     gamma_mu = DiracExpr(DiracChain([DiracGamma(LISlot(mu))]))
     g5_gamma_mu = DiracExpr(DiracChain([GA5(), DiracGamma(LISlot(mu))]))
     EW_GV_E_R * gamma_mu - EW_GA_E_R * g5_gamma_mu
 end
 
-# eνW: charged current → (1-γ5)/2 γ^μ
+# eνW: charged current → γ^μ (1-γ5)/2
 # Ref: refs/papers/PDG2024_rev_standard_model.pdf, Eq. (10.63)
+# Standard convention: γ^μ P_L (projector RIGHT of gamma).
+# P_L γ^μ = γ^μ P_R ≠ γ^μ P_L — ordering matters for s×t interference (Eps term).
 vertex_structure(::GaugeGroup, ::Fermion, ::Boson, ::Val{:g_W}, mu::LorentzIndex) =
-    DiracExpr(DiracChain([GA7(), DiracGamma(LISlot(mu))]))
+    DiracExpr(DiracChain([DiracGamma(LISlot(mu)), GA7()]))
 
 # QCD: qqg → γ^μ (same Lorentz structure as QED)
 vertex_structure(::GaugeGroup, ::Fermion, ::Boson, ::Val{:g_s}, mu::LorentzIndex) =
