@@ -93,7 +93,7 @@ export mass_trait, charge_trait, species, Massive, Massless, Charged, Neutral
 
 # ---- Exports: Rules (Layer 2) ----
 export VertexRule, PropagatorRule, FeynmanRules, feynman_rules
-export vertex_factor, vertex_structure, propagator_num
+export vertex_factor, vertex_structure, propagator_num, gauge_coupling_phase
 
 # ---- Exports: Diagrams / Channels (Layer 3) ----
 export ExternalLeg

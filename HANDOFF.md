@@ -1,4 +1,4 @@
-# HANDOFF — 2026-04-01 (Session 14: Stage C gauge cancellation, MUnit porting, eνW vertex fix)
+# HANDOFF — 2026-04-02 (Session 15: eeZ γ5 fix, WWZ coupling sign, exact Grozin match)
 
 ## DO NOT DELETE THIS FILE. Read it completely before working.
 
@@ -13,111 +13,94 @@
 
 ---
 
-## SESSION 14 ACCOMPLISHMENTS
+## SESSION 15 ACCOMPLISHMENTS
 
-### 1. Stage C: s×t gauge cancellation for ee→WW (feynfeld-bao CLOSED)
+### 1. EXACT Grozin match: ee→WW at ALL energies (feynfeld-pyi + feynfeld-r3u CLOSED)
 
-**The #1 priority from Session 13 is DONE.** Full e+e-→W+W- cross-section now
-includes all 9 terms of |M|² (3 diagonal + 3 same-topology + 3 cross-topology).
-
-**Bug found:** eνW vertex in `rules.jl` had `P_L γ^μ` (GA7 before gamma) instead
-of the standard `γ^μ P_L` (gamma before GA7). Since `P_L γ^μ = γ^μ P_R`, this
-flipped chirality in cross-terms, producing wrong-sign Eps contributions that
-prevented gauge cancellation.
-
-**Fix:** `rules.jl:33` changed from `DiracChain([GA7(), γ^μ])` to
-`DiracChain([γ^μ, GA7()])`. One-line change, verified: 405/406 tests pass
-(1 pre-existing flaky Δα imaginary test).
-
-**Results at LEP2 energies:**
+**The #1 priority from Session 14 is DONE.** Full e+e-→W+W- cross-section now
+matches the Grozin/Denner analytical formula to ratio = 1.0000 at all LEP2 energies.
 
 | √s (GeV) | σ_pipeline (pb) | σ_Grozin (pb) | Ratio |
 |-----------|-----------------|---------------|-------|
-| 170 | 14.53 | 14.25 | 1.020 |
-| 200 | 19.32 | 18.01 | 1.073 |
-| 300 | 15.10 | 12.56 | 1.203 |
-| 500 | 10.34 | 6.66 | 1.553 |
+| 170 | 14.252 | 14.252 | 1.0 |
+| 200 | 18.01 | 18.01 | 1.0 |
+| 300 | 12.556 | 12.556 | 1.0 |
+| 500 | 6.658 | 6.658 | 1.0 |
 
-Near threshold: **2% accuracy**. The gauge cancellation reduces σ from 222 pb
-(diagonal only) to 10 pb at 500 GeV — a 22× reduction, demonstrating the
-delicate SU(2) gauge cancellation is working.
+**Two bugs found and fixed simultaneously:**
 
-**Residual at high energy:** grows to 55% at 500 GeV. Cause: eeZ vertex γ5
-ordering (feynfeld-pyi, P1). The eeZ vertex computes `(gV - gA γ5)γ^μ` which
-equals `γ^μ(gV + gA γ5)` due to anticommutation, instead of the standard
-`γ^μ(gV - gA γ5)`. This flips the sign of the gA Eps contribution in the
-s-Z × t-ν cross-term. Fix requires careful investigation (see KNOWN ISSUES).
+**Bug 1: eeZ vertex γ5 ordering** (`rules.jl:27-31`)
+The vertex had `(gV - gA γ5)γ^μ` (γ5 BEFORE γ^μ) instead of the standard
+`γ^μ(gV - gA γ5)` (γ5 AFTER γ^μ). Since `γ5 γ^μ = -γ^μ γ5`, the wrong
+ordering gave `γ^μ(gV + gA γ5)`, effectively swapping L↔R chirality.
+This flipped the sign of gA in the sZ×tν cross-term.
 
-### 2. MUnit test porting (38 new tests, 90 assertions)
+Fix: `DiracChain([GA5(), γ^μ])` → `DiracChain([γ^μ, GA5()])`.
+Ref: Denner1993 Eq. (A.13), PDG2024 Table 10.3.
 
-Created 4 new function-specific MUnit test files in `test/v2/munit/`:
+**Bug 2: WWZ coupling phase** (`rules.jl:48-53`, `test_ee_ww_grozin.jl:39`)
+The VVV coupling C (Denner Eq. A.7) is C=+1 for γWW but C=-cW/sW for ZWW.
+The SIGN of C creates a relative phase between M_sγ and M_sZ amplitudes.
+The coupling weight `const_c_sZ` was positive (magnitude only), missing the
+negative sign from C_ZWW. This caused the sZ×tν cross-term to have the
+wrong sign relative to the sγ×tν cross-term.
 
-| File | Function | Tests | Assertions |
-|------|----------|-------|------------|
-| `test_DiracTrick.jl` | DiracTrick n=1-5 | 13 | 65 |
-| `test_PolarizationSum.jl` | PolarizationSum | 6 | 6 |
-| `test_ExpandScalarProduct.jl` | ExpandScalarProduct | 10 | 10 |
-| `test_Contract.jl` | Contract + D-dim eps | 9 | 9 |
+Fix: Added `gauge_coupling_phase(Val(:g_WWZ)) = -1//1` dispatch function.
+Applied in test: `const_c_sZ = gauge_coupling_phase(Val(:g_WWZ)) * e²/(2sin²θ_W)`.
+Ref: Denner1993 Eq. (A.7): "ZW⁺W⁻: C = -c/s".
 
-Key tests: FiveFreeIndices-ID1 (11-term general formula), D-dim Levi-Civita
-eps×eps = D(1-D)(2-D)(3-D), bilinear SP expansion with Mandelstam-like terms.
+**Why these bugs compensated each other:** With the old vertex (Bug 1, gA→-gA
+in cross-terms) AND the positive coupling weight (Bug 2, missing -1 on sZ),
+the product of two wrong signs gave a partially correct cross-term. Near
+threshold (170 GeV) the error was 2%; at 500 GeV it grew to 55%.
 
-### 3. Beads housekeeping
+### 2. Three additional bug fixes
 
-- **Closed:** feynfeld-6ds (Rational overflow, was fixed in Session 13 but left open)
-- **Closed:** feynfeld-bao (ee→WW full pipeline vs Grozin)
-- **Created:** feynfeld-pyi (eeZ γ5 ordering bug, P1)
-- **Updated:** 8 MUnit beads with progress notes
+**`_scalar` helper** (test file): `first(r.terms)` picked an arbitrary Dict
+entry, giving phantom values when Eps terms were present. Fixed to use
+`FactorKey()` lookup for the true scalar coefficient.
+
+**`fermion_contract` break condition** (test file): Missing Eps acceptance
+in the convergence check (ran all 10 iterations instead of breaking early).
+Fixed to match `gauge_contract`'s condition.
+
+**`propagator_num(::Boson)`**: Identified as dead code — defined but never
+called. Not fixed (no functional impact), but documented for future cleanup.
+
+### 3. Beads
+
+- **Closed:** feynfeld-pyi (eeZ γ5 ordering bug)
+- **Closed:** feynfeld-r3u (deep investigation of cross-term sign)
 
 ---
 
 ## KNOWN ISSUES AND BLOCKERS
 
-### P1: eeZ vertex γ5 ordering (feynfeld-pyi) — blocks full Grozin match at high energy
-
-**Root cause:** `rules.jl` line 26 uses `DiracChain([GA5(), γ^μ])` (γ5 before γ^μ).
-Since γ5 γ^μ = -γ^μ γ5, the vertex `gV γ^μ - gA γ5 γ^μ` actually equals
-`gV γ^μ + gA γ^μ γ5 = γ^μ(gV + gA γ5)` instead of `γ^μ(gV - gA γ5)`.
-
-**Impact:** The diagonal |M_sZ|² is unaffected (gA² is sign-invariant). The
-s-γ × s-Z interference is a small correction (<2%), so Stage B passes. But the
-s-Z × t-ν cross-term has a wrong-sign Eps contribution that grows with energy.
-
-**Why the obvious fix didn't work:** Naively changing `GA5() γ^μ` → `γ^μ GA5()`
-unexpectedly changed T_tν (the t-channel diagonal). This might be a Julia
-module recompilation artifact or a subtle dispatch interaction. Needs
-investigation with a fresh Julia session and careful unit testing of just
-the eeZ vertex structure.
-
-**Approach:** Write a standalone eeZ vertex test that verifies:
-1. `gV γ^μ - gA γ^μ γ5` trace against known P&S result
-2. Cross-term with non-chiral γ^ρ has correct Eps sign
-3. All 405 existing tests still pass
-Then apply the fix.
-
 ### P1 (pre-existing): Δα imaginary part — 1 flaky test
-Intermittent. Not related to Session 14 changes.
+Intermittent. Not related to Session 15 changes.
+
+### P3: `propagator_num(::Boson)` is dead code
+Defined in rules.jl but never called. The boson propagator numerator -g_{μν}
+is not applied in `_build_gauge_exchange` or `_build_boson_exchange`. For
+now this is harmless because the (-1)² cancels in diagonals and the relative
+sign is handled by `gauge_coupling_phase`. Future: consider activating it.
+
+### P3: `PropagatorRule` exported but undefined
+Pre-existing: FeynfeldX.jl exports `PropagatorRule` but the struct doesn't exist.
 
 ---
 
 ## WHAT TO DO NEXT
 
-### Priority 1: Fix eeZ vertex γ5 ordering (feynfeld-pyi)
-
-This is the **one remaining blocker** for full Grozin match at all energies.
-Once fixed, Stage C should achieve <1% accuracy across the full LEP2 energy range.
-See the approach described in KNOWN ISSUES above.
-
-### Priority 2: MUnit test porting (~370 remaining)
+### Priority 1: MUnit test porting (~370 remaining)
 
 MUnit progress: 60/~430 done across 5 function files + 2 batch files.
-Most remaining tests require GAE/GSD/GSE constructors (BMHV dimensional splitting)
-or CartesianIndex support. High-value next targets:
+High-value next targets:
 - feynfeld-rcd: Contract D-dim section (20 tests, all portable)
 - feynfeld-4mm: SUNSimplify (78 tests)
 - feynfeld-36h: SUNTrace (24 tests)
 
-### Priority 3: Spiral 10 continuation
+### Priority 2: Spiral 10 continuation
 1-loop amplitude builder (feynfeld-7h8), ee→μμ NLO box (feynfeld-4q5).
 
 ---
@@ -142,43 +125,29 @@ See `CLAUDE.md` for the full 12 rules. Critical ones:
 
 ### Branch and code location
 - **Branch:** `master`
-- **v2 source:** `src/v2/` (39 files, ~4,100 LOC)
+- **v2 source:** `src/v2/` (39 files, ~4,200 LOC)
 - **v2 tests:** `test/v2/` (20 files + munit/) — 405+ tests
 - **v1:** FROZEN. Do not extend.
 
-### New/modified files in Session 14
+### New/modified files in Session 15
 
 | File | LOC | What |
 |------|-----|------|
-| `src/v2/rules.jl` | 104 | eνW vertex fix: γ^μ P_L ordering |
-| `test/v2/test_ee_ww_grozin.jl` | 278 | Stage C: cross_trace_one_way, cross_contract_st, full integration |
-| `test/v2/munit/test_DiracTrick.jl` | 198 | NEW: 13 tests (n=1-5, pure + mixed-dim) |
-| `test/v2/munit/test_PolarizationSum.jl` | 72 | NEW: 6 tests (Feynman, massive, axial) |
-| `test/v2/munit/test_ExpandScalarProduct.jl` | 96 | NEW: 10 tests (FV, SP bilinear, Mandelstam) |
-| `test/v2/munit/test_Contract.jl` | 115 | NEW: 9 tests (eps×eps 4D+DD, metric chain) |
+| `src/v2/rules.jl` | 116 | eeZ vertex fix + gauge_coupling_phase dispatch |
+| `src/v2/FeynfeldX.jl` | ~140 | Export gauge_coupling_phase |
+| `test/v2/test_ee_ww_grozin.jl` | 289 | Coupling sign fix, _scalar fix, tolerance tightened |
 
-### Coupling constant conventions (unchanged from Session 13)
+### Coupling constant conventions (UPDATED from Session 14)
 
-| Channel | Pipeline output | Missing coupling | Missing propagator |
-|---------|----------------|------------------|--------------------|
-| s-γ | DiracExpr[γ^ρ] + AlgSum[V_ρμν] | e² = 4πα | 1/s |
-| s-Z | DiracExpr[(gV-gAγ5)γ^ρ] + AlgSum[V_ρμν] | e²/(2sin²θ_W) | 1/(s-M_Z²) |
-| t-ν | DiracChain[γ^μ P_L q̸ γ^ν P_L] | e²/(2sin²θ_W) | 1/t |
+| Channel | Pipeline output | Coupling weight | Propagator |
+|---------|----------------|-----------------|------------|
+| s-γ | DiracExpr[γ^ρ] + AlgSum[V_ρμν] | +e² = +4πα | 1/s |
+| s-Z | DiracExpr[(gV−gAγ5)γ^ρ] + AlgSum[V_ρμν] | **−e²/(2sin²θ_W)** | 1/(s−M_Z²) |
+| t-ν | DiracChain[γ^μ P_L q̸ γ^ν P_L] | +e²/(2sin²θ_W) | 1/t |
 
-Note: t-channel chain now has `γ^μ P_L` (standard convention, fixed in Session 14).
-
----
-
-## COLLIER SETUP (REQUIRED ON EACH MACHINE)
-
-```bash
-cd refs/COLLIER/COLLIER-1.2.8
-mkdir -p build && cd build
-cmake .. -DCMAKE_Fortran_COMPILER=gfortran -DCMAKE_BUILD_TYPE=Release
-make -j$(nproc)
-ls refs/COLLIER/COLLIER-1.2.8/libcollier.so  # verify
-mkdir -p output  # COLLIER writes log files here
-```
+Note: **c_sZ is NEGATIVE** (from gauge_coupling_phase). This encodes the relative
+phase between γWW (C=+1) and ZWW (C=−cW/sW) triple gauge couplings (Denner A.7).
+The sign cancels in diagonals (w_Z² > 0) but matters for interference terms.
 
 ---
 
@@ -187,7 +156,7 @@ mkdir -p output  # COLLIER writes log files here
 ```bash
 # Run single test (fast)
 julia --project=. test/v2/test_vertical.jl       # 5s, pipeline
-julia --project=. test/v2/test_ee_ww_grozin.jl   # 10s, Stage C validation
+julia --project=. test/v2/test_ee_ww_grozin.jl   # 12s, Stage C validation (ratio = 1.0)
 julia --project=. test/v2/test_pipeline.jl        # 8s, all processes
 
 # Run MUnit tests
@@ -199,7 +168,6 @@ julia --project=. test/v2/runtests.jl
 # Beads
 bd ready              # available work
 bd stats              # project health
-bd show feynfeld-pyi  # eeZ vertex bug details
 
 # Session end protocol
 git add <files> && git commit -m "..." && git push

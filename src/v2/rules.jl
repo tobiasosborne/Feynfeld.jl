@@ -19,15 +19,14 @@ Base.show(io::IO, v::VertexRule) = print(io, join(v.fields, "-"), " [g=$(v.coupl
 vertex_structure(::GaugeGroup, ::Fermion, ::Boson, ::Val{:e}, mu::LorentzIndex) =
     DiracExpr(DiracChain([DiracGamma(LISlot(mu))]))
 
-# eeZ: neutral current → (g_V - g_A γ5) γ^μ
+# eeZ: neutral current → γ^μ (g_V - g_A γ5)
 # Ref: refs/papers/PDG2024_rev_standard_model.pdf, Table 10.3
-# Note: ordering as (gV - gA γ5)γ^μ is used throughout for internal consistency.
-# The γ5-ordering difference vs γ^μ(gV - gA γ5) only affects cross-terms with
-# non-chiral channels; the Grozin formula absorbs this convention implicitly.
+# Ref: refs/papers/Denner1993_FortschrPhys41.pdf, Eq. (A.13)
+# Standard convention: γ^μ(gV - gA γ5) = gV γ^μ - gA γ^μ γ5.
 function vertex_structure(::GaugeGroup, ::Fermion, ::Boson, ::Val{:e_Z}, mu::LorentzIndex)
     gamma_mu = DiracExpr(DiracChain([DiracGamma(LISlot(mu))]))
-    g5_gamma_mu = DiracExpr(DiracChain([GA5(), DiracGamma(LISlot(mu))]))
-    EW_GV_E_R * gamma_mu - EW_GA_E_R * g5_gamma_mu
+    gamma_mu_g5 = DiracExpr(DiracChain([DiracGamma(LISlot(mu)), GA5()]))
+    EW_GV_E_R * gamma_mu - EW_GA_E_R * gamma_mu_g5
 end
 
 # eνW: charged current → γ^μ (1-γ5)/2
@@ -44,6 +43,15 @@ vertex_structure(::GaugeGroup, ::Fermion, ::Boson, ::Val{:g_s}, mu::LorentzIndex
 # Fallback for unknown couplings
 vertex_structure(g::GaugeGroup, s1::FieldSpecies, s2::FieldSpecies, ::Val, mu::LorentzIndex) =
     error("No vertex_structure for ($g, $s1, $s2) — implement dispatch")
+
+# ---- VVV coupling phase: Denner Eq. (A.7) ----
+# The triple gauge vertex -ieC has C = +1 for γWW and C = -cW/sW for ZWW.
+# The SIGN of C creates a relative phase between s-γ and s-Z amplitudes
+# that matters in cross-channel interference terms.
+# Ref: refs/papers/Denner1993_FortschrPhys41.pdf, Eq. (A.7)
+# "AW⁺W⁻: C = 1, ZW⁺W⁻: C = -c/s"
+gauge_coupling_phase(::Val{:e}) = 1//1       # γWW: C = +1
+gauge_coupling_phase(::Val{:g_WWZ}) = -1//1  # ZWW: C = -cW/sW (sign only; |cW/sW| in coupling product)
 
 # ---- Propagator numerators — dispatch on field species ----
 # Fermion: i(p-slash + m) / (p² - m²). We return numerator only.

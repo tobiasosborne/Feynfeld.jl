@@ -7,9 +7,12 @@
 #
 # Coupling constants NOT in pipeline output (must multiply explicitly):
 #   Ref: Denner1993, Eq. (11.9); PDG2024, Table 10.3
-#   c_sγ = e² = 4πα              (eeγ × WWγ)
-#   c_sZ = e²/(2sin²θ_W)         (eeZ × WWZ, g_V/g_A already in vertex_structure)
-#   c_tν = e²/(2sin²θ_W)         (eνW × eνW, P_L already in vertex_structure)
+#   c_sγ = +e² = +4πα                (eeγ × WWγ, C_γWW = +1)
+#   c_sZ = -e²/(2sin²θ_W)           (eeZ × WWZ, C_ZWW = -cW/sW → sign from Denner A.7)
+#   c_tν = +e²/(2sin²θ_W)           (eνW × eνW, P_L already in vertex_structure)
+# The SIGN of c_sZ comes from the VVV coupling C: γWW has C=+1, ZWW has C=-cW/sW.
+# The magnitude |cW/sW| is absorbed into the coupling product e²/(2sin²θ_W).
+# The relative phase matters for s×t and γ×Z interference terms.
 
 using Test
 @isdefined(FeynfeldX) || include("../../src/v2/FeynfeldX.jl")
@@ -30,11 +33,11 @@ amp_sg = build_amplitude(first(c for c in channels if c.channel==:s && c.exchang
 amp_sZ = build_amplitude(first(c for c in channels if c.channel==:s && c.exchanged==:Z), rules, model)
 amp_t  = build_amplitude(first(c for c in channels if c.channel==:t), rules, model)
 
-# Coupling constants — Ref: Denner1993, Eq. (11.9)
+# Coupling constants — Ref: Denner1993, Eqs. (11.9), (A.7)
 const_e2   = 4π * EW_ALPHA
-const_c_sg = const_e2
-const_c_sZ = const_e2 / (2 * EW_SIN2_W)
-const_c_t  = const_e2 / (2 * EW_SIN2_W)
+const_c_sg = const_e2                                             # γWW: C = +1
+const_c_sZ = gauge_coupling_phase(Val(:g_WWZ)) * const_e2 / (2 * EW_SIN2_W)  # ZWW: C = -cW/sW
+const_c_t  = const_e2 / (2 * EW_SIN2_W)                          # eνW × eνW
 const_MZ2  = 1.0 / (1.0 - EW_SIN2_W)  # M_Z² in M_W units
 const_MW   = EW_M_W
 const_PB   = 3.894e8  # GeV⁻² → pb
@@ -46,8 +49,14 @@ ctx_int = sp_context(
     (:p1,:p2)=>s_val//2, (:p1,:k1)=>-t_val//2, (:p1,:k2)=>-u_val//2,
     (:p2,:k1)=>-u_val//2, (:p2,:k2)=>-t_val//2, (:k1,:k2)=>(s_val-2)//2)
 
-# Helper: extract scalar from evaluated AlgSum
-_scalar(r) = let c = first(r.terms)[2]; c isa DimPoly ? evaluate_dim(c) : c end
+# Helper: extract scalar coefficient from evaluated AlgSum.
+# Only the empty-FactorKey term is the true scalar; Eps terms are parity-odd artifacts.
+function _scalar(r)
+    scalar_key = FactorKey()
+    haskey(r.terms, scalar_key) || return 0//1
+    c = r.terms[scalar_key]
+    c isa DimPoly ? evaluate_dim(c) : c
+end
 
 # ── Helper: fully contract gauge exchange expression ──
 function gauge_contract(chain_de::DiracExpr, vtx::AlgSum)
@@ -78,8 +87,8 @@ function fermion_contract(chain_mom::DiracChain)
     e = tr * P1 * P2
     for _ in 1:10
         e = expand_scalar_product(contract(e))
-        all(all(f isa FeynfeldX.Pair{Momentum,Momentum} for f in fk.factors)
-            for (fk,_) in e.terms) && break
+        all(all(f isa FeynfeldX.Pair{Momentum,Momentum} || (f isa Eps && FeynfeldX._eps_all_momentum(f))
+                for f in fk.factors) for (fk,_) in e.terms) && break
     end
     e
 end
@@ -270,11 +279,9 @@ end
         σ_pb = σ/const_MW^2*const_PB; σ_G = sigma_ee_ww(sqrts^2)
         ratio = σ_pb / σ_G
         println("  $(lpad(Int(sqrts),4))    $(lpad(round(σ_pb,digits=3),9))    $(lpad(round(σ_G,digits=3),9))     $(round(ratio,digits=4))")
-        # Near threshold (170 GeV): gauge cancellation works to ~2%.
-        # At high energy: residual from eeZ vertex γ5-ordering convention
-        # (gV - gA γ5)γ^μ vs γ^μ(gV - gA γ5) produces growing Eps mismatch.
-        # TODO: fix eeZ convention to achieve <1% at all energies.
-        tol = sqrts <= 180 ? 0.03 : 0.6
+        # Full gauge cancellation: exact match at all energies.
+        # Ref: Denner1993 Eq. (11.17): σ ~ log(s)/s at high energy.
+        tol = 1e-4
         @test abs(ratio - 1.0) < tol
     end
 end
