@@ -65,9 +65,24 @@ end
 # "B₀(p², m₀, m₁) = Δ - ∫₀¹ dx log[(p²x²-x(p²-m₀²+m₁²)+m₀²-iε)/μ²]"
 # Setting m₀=m₁=0, MS-bar (Δ=0): B₀(p²,0,0) = 2 - ln(-p²/μ²)
 function _B0_both_massless(p2::Float64; mu2::Float64)::ComplexF64
-    p2 == 0.0 && error("B0(0, 0, 0) is IR divergent")
+    if p2 == 0.0
+        # B₀(0,0,0) is IR divergent in D=4. In dim-reg (D=4-2ε), the
+        # 1/ε pole is absorbed into the UV subtraction; COLLIER returns
+        # the finite remainder (= 0 in MS-bar for this degenerate case).
+        # Ref: Denner1993, Eq. (4.23) with all arguments zero
+        return _B0_collier(0.0, 0.0, 0.0)
+    end
     # For p² > 0 (timelike): ln(-p²-iε) = ln(p²) - iπ
     2.0 - log(complex(-p2 / mu2, -1e-30))
+end
+
+# COLLIER B₀ via b0_coli_: handles IR-divergent cases in dimensional regularization.
+# Returns the finite part in MS-bar (UV poles subtracted).
+function _B0_collier(p2::Float64, m02::Float64, m12::Float64)::ComplexF64
+    _ensure_collier_init()
+    ccall((:b0_coli_, _COLLIER_LIB), ComplexF64,
+          (Ref{ComplexF64}, Ref{ComplexF64}, Ref{ComplexF64}),
+          ComplexF64(p2), ComplexF64(m02), ComplexF64(m12))
 end
 
 # One mass zero: B0(p², 0, m²). The integrand has a log(x) singularity at x=0.
