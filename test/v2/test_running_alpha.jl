@@ -71,10 +71,11 @@ const M_Z = 91.1876  # Z boson mass in GeV (PDG)
     end
 
     @testset "Δα imaginary part (timelike)" begin
-        # Above threshold 4m_e², Π̂ has an imaginary part from pair production
+        # Above threshold 4m_e², Π̂ has a positive imaginary part (absorptive).
+        # Since Δα = -Π̂ (Denner Eq. 3.10), Im(Δα) is NEGATIVE.
         da_mz = delta_alpha(M_Z^2; alpha=α)
         @test imag(da_mz) != 0.0  # timelike → complex
-        @test imag(da_mz) > 0.0   # positive imaginary part (absorptive)
+        @test imag(da_mz) < 0.0   # negative: Δα = -Π̂, absorptive Im(Π̂) > 0
 
         # Below all thresholds: purely real
         da_below = delta_alpha(1e-8; alpha=α)  # s << 4m_e²
