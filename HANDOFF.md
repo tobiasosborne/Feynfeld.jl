@@ -1,4 +1,4 @@
-# HANDOFF — 2026-04-02 (Session 15: eeZ γ5 fix, WWZ coupling sign, exact Grozin match)
+# HANDOFF — 2026-04-03 (Session 16: Spiral 10 Phases A-D, 1-loop box infrastructure)
 
 ## DO NOT DELETE THIS FILE. Read it completely before working.
 
@@ -8,100 +8,96 @@
 
 1. Read `CLAUDE.md` — rules, **pipeline principle**, anti-hallucination, Julia idioms
 2. Run `bd ready` to see available work
-3. Run `julia --project=. test/v2/runtests.jl` to verify all tests pass (405+ tests, ~5 min)
+3. Run `julia --project=. test/v2/runtests.jl` to verify all tests pass (~5 min)
 4. **CHECK `refs/papers/`** — ensure required papers are present BEFORE writing any code
 
 ---
 
-## SESSION 15 ACCOMPLISHMENTS
+## SESSION 16 ACCOMPLISHMENTS
 
-### 1. EXACT Grozin match: ee→WW at ALL energies (feynfeld-pyi + feynfeld-r3u CLOSED)
+### 1. Spiral 10 Phases A-D: 1-loop box diagram infrastructure
 
-**The #1 priority from Session 14 is DONE.** Full e+e-→W+W- cross-section now
-matches the Grozin/Denner analytical formula to ratio = 1.0000 at all LEP2 energies.
+Extended the 6-layer pipeline to support 1-loop box diagrams. Four new source
+files + one test file, 551 LOC total. All files under 200 LOC limit.
 
-| √s (GeV) | σ_pipeline (pb) | σ_Grozin (pb) | Ratio |
-|-----------|-----------------|---------------|-------|
-| 170 | 14.252 | 14.252 | 1.0 |
-| 200 | 18.01 | 18.01 | 1.0 |
-| 300 | 12.556 | 12.556 | 1.0 |
-| 500 | 6.658 | 6.658 | 1.0 |
+**Phase A: LoopChannel types + box_channels()** (`loop_channels.jl`, 79 LOC)
+- `LoopChannel` struct: topology, internal_fields, legs, loop_momentum
+- `box_channels()`: enumerates direct + crossed box topologies for 2→2
+- For ee→μμ QED: returns exactly 2 channels
 
-**Two bugs found and fixed simultaneously:**
+**Phase B: Loop amplitude builder** (`loop_amplitude.jl`, 115 LOC)
+- `build_loop_box_amplitude()`: constructs numerator DiracExpr chains
+- `BoxDenominators`: stores accumulated momenta and PaVe invariant labels
+- Momentum routing: D₀=q², D₁=(q+p₁)², D₂=(q+p₁+p₂)², D₃=(q+k₁_or_k₂)²
+- Direct box: D₀(0,0,0,0,s,t,0,0,0,0), Crossed: D₀(0,0,0,0,s,u,0,0,0,0)
 
-**Bug 1: eeZ vertex γ5 ordering** (`rules.jl:27-31`)
-The vertex had `(gV - gA γ5)γ^μ` (γ5 BEFORE γ^μ) instead of the standard
-`γ^μ(gV - gA γ5)` (γ5 AFTER γ^μ). Since `γ5 γ^μ = -γ^μ γ5`, the wrong
-ordering gave `γ^μ(gV + gA γ5)`, effectively swapping L↔R chirality.
-This flipped the sign of gA in the sZ×tν cross-term.
+**Phase C: Tree × loop interference** (`loop_interference.jl`, 63 LOC)
+- `spin_sum_tree_loop_interference()`: Σ_spins M_tree* × M_box
+- Uses existing `_cross_line_trace()` from interference.jl
+- Produces AlgSum with 33 terms containing SP(q,p_i), SP(q,q), external SPs
+- After trace + contract + expand_sp: 6 rank-0, 21 rank-1, 6 rank-2 terms
 
-Fix: `DiracChain([GA5(), γ^μ])` → `DiracChain([γ^μ, GA5()])`.
-Ref: Denner1993 Eq. (A.13), PDG2024 Table 10.3.
+**Phase D: Tensor Integral Decomposition (TID)** (`tid.jl`, 141 LOC)
+- `evaluate_box_integral()`: evaluates ∫ d^D q N(q)/[D₀D₁D₂D₃]
+- Rank 0: coefficient × D₀ (6 terms) ✓
+- Rank 1: Σ_i (K_i·p_a) D_i using PV decomposition (21 terms) ✓
+- Rank 2, SP(q,q): C₀⁽⁰⁾ (1 term) ✓
+- Rank 2, SP(q,pa)×SP(q,pb): DEFERRED (5 terms, needs IR-regulated C-tensors)
+- At √s=100 GeV, cosθ=0.5: finite ComplexF64 result (28/33 terms evaluated)
 
-**Bug 2: WWZ coupling phase** (`rules.jl:48-53`, `test_ee_ww_grozin.jl:39`)
-The VVV coupling C (Denner Eq. A.7) is C=+1 for γWW but C=-cW/sW for ZWW.
-The SIGN of C creates a relative phase between M_sγ and M_sZ amplitudes.
-The coupling weight `const_c_sZ` was positive (magnitude only), missing the
-negative sign from C_ZWW. This caused the sZ×tν cross-term to have the
-wrong sign relative to the sγ×tν cross-term.
+### 2. Known limitation: IR-divergent rank-2 TID
 
-Fix: Added `gauge_coupling_phase(Val(:g_WWZ)) = -1//1` dispatch function.
-Applied in test: `const_c_sZ = gauge_coupling_phase(Val(:g_WWZ)) * e²/(2sin²θ_W)`.
-Ref: Denner1993 Eq. (A.7): "ZW⁺W⁻: C = -c/s".
+5 of 33 interference terms are rank-2 with SP(q,pa)×SP(q,pb) structure.
+These require sub-triangle C₁/C₂ tensor evaluation which hits B₀(0,0,0)
+(IR divergent in the massless case). Options to fix:
+- (a) Use massive fermion regulation (m_e, m_μ > 0)
+- (b) Use COLLIER for C-tensor evaluation (handles dim-reg)
+- (c) Implement D₀₀/D_{ij} rank-2 tensor coefficients directly
 
-**Why these bugs compensated each other:** With the old vertex (Bug 1, gA→-gA
-in cross-terms) AND the positive coupling weight (Bug 2, missing -1 on sZ),
-the product of two wrong signs gave a partially correct cross-term. Near
-threshold (170 GeV) the error was 2%; at 500 GeV it grew to 55%.
-
-### 2. Three additional bug fixes
-
-**`_scalar` helper** (test file): `first(r.terms)` picked an arbitrary Dict
-entry, giving phantom values when Eps terms were present. Fixed to use
-`FactorKey()` lookup for the true scalar coefficient.
-
-**`fermion_contract` break condition** (test file): Missing Eps acceptance
-in the convergence check (ran all 10 iterations instead of breaking early).
-Fixed to match `gauge_contract`'s condition.
-
-**`propagator_num(::Boson)`**: Identified as dead code — defined but never
-called. Not fixed (no functional impact), but documented for future cleanup.
+Tracked in: feynfeld-544 (TID Phase D completion)
 
 ### 3. Beads
 
-- **Closed:** feynfeld-pyi (eeZ γ5 ordering bug)
-- **Closed:** feynfeld-r3u (deep investigation of cross-term sign)
+- **Claimed:** feynfeld-7h8 (1-loop amplitude builder) — Phases A-C DONE
+- **Created:** feynfeld-544 (TID Phase D: rank-2 completion)
+- **Created:** feynfeld-73g (Phase E+F: NLO evaluation + FeynCalc validation)
+- **Dependency chain:** feynfeld-7h8 → feynfeld-544 → feynfeld-73g
 
 ---
 
 ## KNOWN ISSUES AND BLOCKERS
 
+### P1: Rank-2 TID IR divergence (feynfeld-544)
+5 rank-2 terms skipped in massless box. Blocks full NLO validation.
+
 ### P1 (pre-existing): Δα imaginary part — 1 flaky test
-Intermittent. Not related to Session 15 changes.
+Intermittent. Not related to Session 16 changes.
 
 ### P3: `propagator_num(::Boson)` is dead code
-Defined in rules.jl but never called. The boson propagator numerator -g_{μν}
-is not applied in `_build_gauge_exchange` or `_build_boson_exchange`. For
-now this is harmless because the (-1)² cancels in diagonals and the relative
-sign is handled by `gauge_coupling_phase`. Future: consider activating it.
+Pre-existing. Defined but never called.
 
 ### P3: `PropagatorRule` exported but undefined
-Pre-existing: FeynfeldX.jl exports `PropagatorRule` but the struct doesn't exist.
+Pre-existing.
 
 ---
 
 ## WHAT TO DO NEXT
 
-### Priority 1: MUnit test porting (~370 remaining)
+### Priority 1: Complete rank-2 TID (feynfeld-544)
+Fix the IR-divergent sub-triangle C₁/C₂ in the massless box.
+Best approach: use COLLIER for C-tensor evaluation (handles dim-reg natively).
+Alternative: add small fermion masses for IR regulation.
 
-MUnit progress: 60/~430 done across 5 function files + 2 batch files.
-High-value next targets:
-- feynfeld-rcd: Contract D-dim section (20 tests, all portable)
+### Priority 2: NLO validation (feynfeld-73g)
+Once TID is complete, evaluate the full box interference at multiple (s,t)
+points and compare against FeynCalc ElAel-MuAmu.m reference.
+Ref: arXiv:hep-ph/0010075, Eq. 2.32.
+
+### Priority 3: MUnit test porting (~370 remaining)
+Continues alongside spirals. High-value targets:
+- feynfeld-rcd: Contract D-dim section (20 tests)
 - feynfeld-4mm: SUNSimplify (78 tests)
 - feynfeld-36h: SUNTrace (24 tests)
-
-### Priority 2: Spiral 10 continuation
-1-loop amplitude builder (feynfeld-7h8), ee→μμ NLO box (feynfeld-4q5).
 
 ---
 
@@ -125,29 +121,36 @@ See `CLAUDE.md` for the full 12 rules. Critical ones:
 
 ### Branch and code location
 - **Branch:** `master`
-- **v2 source:** `src/v2/` (39 files, ~4,200 LOC)
-- **v2 tests:** `test/v2/` (20 files + munit/) — 405+ tests
+- **v2 source:** `src/v2/` (43 files, ~4,600 LOC)
+- **v2 tests:** `test/v2/` (21 files + munit/) — 540+ tests
 - **v1:** FROZEN. Do not extend.
 
-### New/modified files in Session 15
+### New/modified files in Session 16
 
 | File | LOC | What |
 |------|-----|------|
-| `src/v2/rules.jl` | 116 | eeZ vertex fix + gauge_coupling_phase dispatch |
-| `src/v2/FeynfeldX.jl` | ~140 | Export gauge_coupling_phase |
-| `test/v2/test_ee_ww_grozin.jl` | 289 | Coupling sign fix, _scalar fix, tolerance tightened |
+| `src/v2/loop_channels.jl` | 79 | NEW: LoopChannel type + box_channels() |
+| `src/v2/loop_amplitude.jl` | 115 | NEW: build_loop_box_amplitude() + BoxDenominators |
+| `src/v2/loop_interference.jl` | 63 | NEW: spin_sum_tree_loop_interference() |
+| `src/v2/tid.jl` | 141 | NEW: evaluate_box_integral() + TID |
+| `src/v2/FeynfeldX.jl` | ~130 | MODIFIED: includes + exports for loop infrastructure |
+| `test/v2/test_box_ee_mumu.jl` | 153 | NEW: 136 tests for Phases A-D |
 
-### Coupling constant conventions (UPDATED from Session 14)
+### Box diagram momentum routing
 
-| Channel | Pipeline output | Coupling weight | Propagator |
-|---------|----------------|-----------------|------------|
-| s-γ | DiracExpr[γ^ρ] + AlgSum[V_ρμν] | +e² = +4πα | 1/s |
-| s-Z | DiracExpr[(gV−gAγ5)γ^ρ] + AlgSum[V_ρμν] | **−e²/(2sin²θ_W)** | 1/(s−M_Z²) |
-| t-ν | DiracChain[γ^μ P_L q̸ γ^ν P_L] | +e²/(2sin²θ_W) | 1/t |
+For the direct box e⁻(p₁)+e⁺(p₂)→μ⁻(k₁)+μ⁺(k₂):
+- D₀ = q² (photon₁)
+- D₁ = (q+p₁)² (electron internal)
+- D₂ = (q+p₁+p₂)² (photon₂)
+- D₃ = (q+k₁)² (muon internal)
+- PaVe: D₀(0,0,0,0,s,t, 0,0,0,0)
 
-Note: **c_sZ is NEGATIVE** (from gauge_coupling_phase). This encodes the relative
-phase between γWW (C=+1) and ZWW (C=−cW/sW) triple gauge couplings (Denner A.7).
-The sign cancels in diagonals (w_Z² > 0) but matters for interference terms.
+For the crossed box: D₃ = (q+k₂)², PaVe: D₀(0,0,0,0,s,u, 0,0,0,0)
+
+### Accumulated momenta (PaVe convention)
+- K₁ = p₁
+- K₂ = p₁ + p₂  (MomentumSum)
+- K₃ = k₁ (direct) or k₂ (crossed)
 
 ---
 
@@ -155,18 +158,15 @@ The sign cancels in diagonals (w_Z² > 0) but matters for interference terms.
 
 ```bash
 # Run single test (fast)
-julia --project=. test/v2/test_vertical.jl       # 5s, pipeline
-julia --project=. test/v2/test_ee_ww_grozin.jl   # 12s, Stage C validation (ratio = 1.0)
-julia --project=. test/v2/test_pipeline.jl        # 8s, all processes
-
-# Run MUnit tests
-for f in test/v2/munit/test_*.jl; do julia --project=. "$f"; done
+julia --project=. test/v2/test_box_ee_mumu.jl   # 5s, Spiral 10 infrastructure
 
 # Full suite (single process, ~5 min)
 julia --project=. test/v2/runtests.jl
 
 # Beads
 bd ready              # available work
+bd show feynfeld-544  # TID completion
+bd show feynfeld-73g  # NLO validation
 bd stats              # project health
 
 # Session end protocol

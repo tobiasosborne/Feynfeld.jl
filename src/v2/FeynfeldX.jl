@@ -33,6 +33,11 @@ include("diagrams.jl")
 include("channels.jl")
 include("amplitude.jl")
 
+# ---- Layer 3b: Loop diagrams ----
+include("loop_channels.jl")
+include("loop_amplitude.jl")
+include("loop_interference.jl")
+
 # ---- Layer 1b: QCD Model ----
 include("qcd_model.jl")
 
@@ -48,6 +53,7 @@ include("c0_analytical.jl")
 include("d0_collier.jl")
 include("pave_eval.jl")
 include("d_tensor.jl")
+include("tid.jl")
 include("schwinger.jl")
 include("vertex.jl")
 include("running_alpha.jl")
@@ -98,6 +104,9 @@ export vertex_factor, vertex_structure, propagator_num, gauge_coupling_phase
 # ---- Exports: Diagrams / Channels (Layer 3) ----
 export ExternalLeg
 export TreeChannel, tree_channels, vertex_legs, build_amplitude, propagator_momentum
+export LoopChannel, box_channels, build_loop_box_amplitude, BoxDenominators
+export spin_sum_tree_loop_interference
+export evaluate_box_integral
 
 # ---- Exports: Integrals (Layer 5) ----
 export polarization_sum
