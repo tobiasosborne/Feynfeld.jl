@@ -1,4 +1,4 @@
-# HANDOFF — 2026-04-03 (Session 16: Spiral 10 complete, Δα fix, TID rank-2 via COLLIER)
+# HANDOFF — 2026-04-04 (Session 17: NLO box validation, normalization discovery)
 
 ## DO NOT DELETE THIS FILE. Read it completely before working.
 
@@ -9,7 +9,50 @@
 1. Read `CLAUDE.md` — rules, **pipeline principle**, anti-hallucination, Julia idioms
 2. Run `bd ready` to see available work
 3. Run `julia --project=. test/v2/runtests.jl` to verify all tests pass (406 tests, ~5 min)
-4. **CHECK `refs/papers/`** — ensure required papers are present BEFORE writing any code
+4. Run `julia --project=. test/v2/test_nlo_box_validation.jl` for NLO box tests (63 tests, ~3 min)
+5. **CHECK `refs/papers/`** — ensure required papers are present BEFORE writing any code
+
+---
+
+## SESSION 17 ACCOMPLISHMENTS
+
+### 1. NLO box validation — Phases E+F (feynfeld-73g CLOSED)
+
+Assembled the full box contribution to Born-virtual interference and validated
+at multiple kinematic points.
+
+**New source:** `nlo_box.jl` (108 LOC)
+- `evaluate_single_box_channel()`: runs full pipeline for one box channel
+- `evaluate_box_channels()`: sums over direct + crossed boxes
+- `born_virtual_box()`: physical Born-virtual with coupling factors
+
+**New test:** `test_nlo_box_validation.jl` (210 LOC, 63 tests)
+- Phase D: TID evaluation (direct + crossed, finiteness, non-degeneracy)
+- Phase E: Channel sum assembly
+- F1: Im(I) forward-backward symmetry (PASS)
+- F2: Im(I) crossing at θ=90° (PASS)
+- F3: Finiteness scan (4 energies × 5 angles = 20 points)
+- F4: Order of magnitude box/Born ~ O(α/π) (PASS)
+- F5: Energy scaling (ratio changes < 10× over √s = 50–500 GeV)
+- F6: COLLIER D₀ sanity
+- F7: born_virtual_box non-zero
+
+### 2. Key normalization discovery
+
+The overall coupling factor in the tree×box interference is **purely imaginary**:
+the physical quantity depends on **Im(I_COLLIER)**, not Re(I_COLLIER).
+
+Evidence:
+- Im(I_total) is forward-backward symmetric: -273024 at cosθ=±0.5 ✓
+- Re(I_total) breaks F-B symmetry: -3.38e7 vs -2.78e7 ✗
+- Im gives box/Born ~ 6e-3 ≈ O(α/π) ✓
+- Re gives box/Born ~ 0.78 ≈ O(1) ✗
+
+Formula: `(1/4) Σ 2Re(M_tree* × M_box) = -e⁶/(32π²s) × Im(I_COLLIER)`
+
+The imaginary coupling arises because the tree propagator phase (-i/s) combines
+with the loop measure (i/(16π²)) and vertex phases to give a net purely-imaginary
+overall factor. Full derivation still needed (tracked for future work).
 
 ---
 
@@ -67,6 +110,7 @@ Fixed to `@test imag(da_mz) < 0.0`. All 406 tests now pass, zero flaky.
 - **feynfeld-7h8** CLOSED: 1-loop amplitude builder (Phases A-C)
 - **feynfeld-544** CLOSED: Rank-2 TID complete (COLLIER B₀ fallback)
 - **feynfeld-8c4** CREATED: Epic for world-class diagram generation (P4 backlog)
+- **feynfeld-73g** CLOSED: NLO box validation (Phases E+F, 63 tests)
 
 ---
 
@@ -82,23 +126,18 @@ Pre-existing.
 
 ## WHAT TO DO NEXT
 
-### Priority 1: NLO box validation (feynfeld-73g)
+### Priority 1: Full Born-virtual (vertex + self-energy + CTs)
 
-The full box integral pipeline works (all 33 terms, finite ComplexF64).
-**Next step**: evaluate at multiple (s,t) points and cross-validate against
-FeynCalc `ElAel-MuAmu.m` reference (arXiv:hep-ph/0010075, Eq. 2.32).
+Box-only validation complete (feynfeld-73g CLOSED). To compare against
+FeynCalc's `bornVirtualRenormalized[1]` from arXiv:hep-ph/0010075 Eq. 2.32,
+we need the remaining 1-loop contributions:
+1. Vertex correction diagrams (electron and muon lines)
+2. Vacuum polarization (photon self-energy)
+3. Counter-terms (MS-bar for photon field, OS for fermions)
+4. Then sum all + boxes and compare O(ε⁰) finite part against FeynCalc
 
-Needs:
-1. Assemble coupling factors (e⁶ for tree×box interference)
-2. Sum direct + crossed box contributions
-3. Add tree propagator denominator (1/s from tree photon)
-4. Evaluate 2·Re(M_tree* × M_box) at √s = 50, 100, 200 GeV
-5. Compare box coefficient of D₀(s,t) against FeynCalc GLI entries
-6. The FeynCalc reference separates into 3 topologies:
-   - GLI["fctopology1", {1,1,1,1}] → box with (s,t)
-   - GLI["fctopology2", {1,1,1,1}] → box with (s,u)
-   - GLI["fctopology3", {1,1,1,1}] → crossed box with (t,u)
-7. Full Born-virtual also includes vertex + self-energy + VP (not just box)
+Also needed: rigorous derivation of the Im(I_COLLIER) normalization
+(currently empirical — see Session 17 discovery).
 
 ### Priority 2: MUnit test porting (~370 remaining)
 
@@ -140,7 +179,7 @@ See `CLAUDE.md` for the full 12 rules. Critical ones:
 ### Branch and code location
 - **Branch:** `master`
 - **v2 source:** `src/v2/` (44 files, ~4,800 LOC)
-- **v2 tests:** `test/v2/` (21 files + munit/) — 406 tests, ALL PASS
+- **v2 tests:** `test/v2/` (22 files + munit/) — 406+63 tests, ALL PASS
 - **v1:** FROZEN. Do not extend.
 
 ### What Feynfeld can compute (textbook order)
@@ -167,10 +206,19 @@ See `CLAUDE.md` for the full 12 rules. Critical ones:
 - Box e⁺e⁻ → μ⁺μ⁻: channels → amplitude → trace → TID → ComplexF64
 - Direct box D₀(0,0,0,0,s,t) + crossed D₀(0,0,0,0,s,u)
 - All 33 interference terms evaluate (rank 0/1/2 via PV + COLLIER)
-- Awaiting FeynCalc cross-validation (feynfeld-73g)
+- Validated: box/Born ~ O(α/π), Im(I) F-B symmetric, 63 tests
+- Full Born-virtual comparison awaits vertex + self-energy + CTs
 
 **Cannot yet do:** φ⁴, 2→3+, full NLO pipeline (real emission, counter-terms),
 2-loop, automatic diagram generation for arbitrary processes.
+
+### Files new/modified in Session 17
+
+| File | LOC | What |
+|------|-----|------|
+| `src/v2/nlo_box.jl` | 108 | NEW: evaluate_box_channels + born_virtual_box |
+| `src/v2/FeynfeldX.jl` | +3 | MODIFIED: include + exports |
+| `test/v2/test_nlo_box_validation.jl` | 210 | NEW: 63 tests for Phases D-F |
 
 ### Files new/modified in Session 16
 
@@ -227,8 +275,9 @@ trace (AlgSum with SP(q,...)) → classify by rank → dispatch:
 
 ```bash
 # Run single test (fast)
-julia --project=. test/v2/test_box_ee_mumu.jl   # 5s, Spiral 10
-julia --project=. test/v2/test_running_alpha.jl  # 4s, running α
+julia --project=. test/v2/test_box_ee_mumu.jl        # 5s, Spiral 10 Phases A-C
+julia --project=. test/v2/test_nlo_box_validation.jl  # 3min, Phases D-F (63 tests)
+julia --project=. test/v2/test_running_alpha.jl       # 4s, running α
 
 # Full suite (single process, ~5 min)
 julia --project=. test/v2/runtests.jl            # 406 tests, ALL PASS

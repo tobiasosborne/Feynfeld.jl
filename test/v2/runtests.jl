@@ -28,4 +28,6 @@ using .FeynfeldX
     include("test_ee_ww.jl")
     include("test_pipeline.jl")
     include("test_vertex_g2.jl")
+    include("test_box_ee_mumu.jl")
+    include("test_nlo_box_validation.jl")
 end
