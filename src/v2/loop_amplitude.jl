@@ -20,7 +20,7 @@ Stores accumulated momenta and the Mandelstam-dependent invariant labels
 (:s_inv and :t_inv or :u_inv) for evaluation at specific kinematics.
 """
 struct BoxDenominators
-    accum_mom_names::NTuple{3, Any}         # K₁, K₂, K₃ as Momentum/MomentumSum
+    accum_mom_names::NTuple{3, Union{Momentum, MomentumSum}}  # K₁, K₂, K₃
     masses::NTuple{4, Rational{Int}}        # m₀², m₁², m₂², m₃²
     kinematic_inv::Symbol                   # :t or :u — which Mandelstam is p₁₃
 end

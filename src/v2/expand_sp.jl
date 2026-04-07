@@ -34,7 +34,20 @@ end
 _try_expand(::Pair{Momentum, Momentum}) = nothing
 _try_expand(::Pair{LorentzIndex, Momentum}) = nothing
 _try_expand(::Pair{LorentzIndex, LorentzIndex}) = nothing
-_try_expand(::Eps) = nothing
+# Eps with MomentumSum slot: expand by linearity ε(αK₁+βK₂, b, c, d) = α ε(K₁,...) + β ε(K₂,...)
+function _try_expand(e::Eps)
+    for (slot_idx, slot) in enumerate((e.a, e.b, e.c, e.d))
+        slot isa MomentumSum || continue
+        result = Tuple{Coeff, Union{AlgFactor, Nothing}}[]
+        for (c, m) in slot.terms
+            slots = PairArg[e.a, e.b, e.c, e.d]
+            slots[slot_idx] = m
+            push!(result, (c, Eps(slots[1], slots[2], slots[3], slots[4])))
+        end
+        return result
+    end
+    nothing  # no MomentumSum slots
+end
 
 # MomentumSum in first slot
 function _try_expand(p::Pair{MomentumSum, A}) where {A<:PairArg}

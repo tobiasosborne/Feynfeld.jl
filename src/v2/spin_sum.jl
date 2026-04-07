@@ -47,13 +47,9 @@ function fermion_spin_sum(chains::Vector{DiracChain})
             push!(result_chains, DiracChain(trace_gammas_p))
         else
             # Massive: Tr[(p-slash + m) * gammas] = Tr[p-slash * gammas] + m * Tr[gammas]
-            # We need to return multiple chains with coefficients
-            # For now, handle massless case (tracer bullet is massless)
             push!(result_chains, DiracChain(trace_gammas_p))
-            if !iszero(mass)
-                mass_gammas = DiracGamma[DiracGamma(IdSlot()); inner_gammas...]
-                push!(result_chains, DiracChain(mass_gammas))
-            end
+            mass_gammas = DiracGamma[DiracGamma(IdSlot()); inner_gammas...]
+            push!(result_chains, DiracChain(mass_gammas))
         end
     end
     result_chains

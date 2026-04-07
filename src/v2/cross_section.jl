@@ -36,11 +36,11 @@ function sp_context_from_mandelstam(man::Mandelstam{Rational{Int}})
 end
 
 # ---- Cross-section problem (DiffEq pattern) ----
-struct CrossSectionProblem
+struct CrossSectionProblem{T<:Number}
     model::AbstractModel
     incoming::Vector{ExternalLeg}
     outgoing::Vector{ExternalLeg}
-    s::Number  # CM energy squared
+    s::T  # CM energy squared
 end
 
 # ---- Solve: the full pipeline ----
@@ -51,7 +51,7 @@ function solve_tree(prob::CrossSectionProblem)
     isempty(channels) && error("No valid tree-level channels for this process")
 
     # Build amplitude for each channel
-    all_amps = []
+    all_amps = Tuple{DiracExpr, DiracExpr}[]
     for ch in channels
         amp = build_amplitude(ch, rules, prob.model)
         push!(all_amps, amp)
@@ -131,26 +131,4 @@ end
 # After angular integration: σ = πα²/(2s) × ∫₋₁¹ (1+cos²θ) dcosθ = 4πα²/(3s)
 function sigma_total_tree_ee_mumu(s::Float64; alpha::Float64=1/137.036)
     4π * alpha^2 / (3 * s)
-end
-
-# ---- Compton scattering cross-section ----
-
-# Total cross-section for Compton scattering in the massless limit.
-# Ref: P&S §5.5, below Eq. (5.87). In the massless limit with s+t+u=0:
-# |M̄|² = -2e⁴(u/s + s/u)
-# Ref: refs/FeynCalc/.../ElGa-ElGa.m, line 96: "ampSquared[0]/.SMP["m_e"]->0"
-#
-# dσ/dt = |M̄|² / (16π s²)  for 2→2 massless (all identical stats: 1/(16πs²))
-# Ref: P&S Eq. (4.85): dσ = |M|²/(2s) × dΦ₂, with dΦ₂ = dt/(8πs) for massless 2→2
-#
-# σ_total = ∫ dt × |M̄|²/(16πs²)  with t ∈ [-s, 0] (massless: u = -s-t)
-function sigma_total_compton_massless(s::Float64; alpha::Float64 = 1 / 137.036)
-    # |M̄|² = -2e⁴(u/s + s/u) = 2α²(4π)²(-u/s - s/u)  [e² = 4πα]
-    # After substituting u = -s-t and integrating dt from -s to 0:
-    # σ = (2πα²/s) × ∫₋₁⁰ dx [-(1+x)/1 - 1/(1+x)]   where x = t/s ∈ [-1,0], u/s = -1-x
-    # But u/s = (-s-t)/s = -1-t/s diverges at t=0 (forward singularity).
-    # This is the well-known IR divergence of massless Compton.
-    # The massive case (Klein-Nishina) is IR-finite. Massless total σ is divergent.
-    # For a finite result, one needs a t-cut or the full massive formula.
-    error("Massless Compton total cross-section is IR divergent (forward singularity at t=0). Use massive Klein-Nishina formula.")
 end

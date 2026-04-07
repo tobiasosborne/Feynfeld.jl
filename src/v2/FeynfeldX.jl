@@ -32,6 +32,7 @@ include("rules.jl")
 include("diagrams.jl")
 include("channels.jl")
 include("amplitude.jl")
+include("gauge_exchange.jl")
 
 # ---- Layer 3b: Loop diagrams ----
 include("loop_channels.jl")
@@ -51,8 +52,10 @@ include("polarization_sum.jl")
 include("pave.jl")
 include("c0_analytical.jl")
 include("d0_collier.jl")
+include("b0_eval.jl")
 include("pave_eval.jl")
 include("d_tensor.jl")
+include("sp_lookup.jl")
 include("tid.jl")
 include("schwinger.jl")
 include("vertex.jl")
@@ -85,7 +88,7 @@ export GA, GAD, GS, GA5, GA6, GA7
 export u, v, ubar, vbar
 export dot, gammas, gamma_pair, lorentz_index
 export dirac_trace
-export fermion_spin_sum, spin_sum_amplitude_squared, spin_sum_interference
+export spin_sum_amplitude_squared, spin_sum_interference
 export DiracExpr, dirac_trick
 export colour_trace, colour_delta_trace, contract_colour
 export casimir_fundamental, casimir_adjoint, trace_normalization
@@ -101,7 +104,7 @@ export get_field, fermion_fields, boson_fields
 export mass_trait, charge_trait, species, Massive, Massless, Charged, Neutral
 
 # ---- Exports: Rules (Layer 2) ----
-export VertexRule, PropagatorRule, FeynmanRules, feynman_rules
+export VertexRule, FeynmanRules, feynman_rules
 export vertex_factor, vertex_structure, propagator_num, gauge_coupling_phase
 
 # ---- Exports: Diagrams / Channels (Layer 3) ----

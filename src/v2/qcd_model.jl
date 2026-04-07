@@ -32,11 +32,6 @@ function feynman_rules(model::QCDModel)
     FeynmanRules(model, vertices, gauge)
 end
 
-# qqg vertex structure: γ^μ (same as QED)
-function vertex_structure(::SU{N}, ::Fermion, ::Boson, mu::LorentzIndex) where N
-    DiracExpr(DiracChain([DiracGamma(LISlot(mu))]))
-end
-
 """
     triple_gauge_vertex(mu1, mu2, mu3, p1, p2, p3)
 

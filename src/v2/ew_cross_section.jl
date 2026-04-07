@@ -77,13 +77,3 @@ function _sigma_grozin(s::Float64, sin2_W::Float64, alpha::Float64)::Float64
 
     part_log + part_sq
 end
-
-"""
-    dsigma_dt_ee_ww(s_gev2, t_gev2; M_W, sin2_W, alpha) → Float64
-
-Tree-level differential cross-section dσ/dt for e⁺e⁻ → W⁺W⁻ in pb/GeV².
-(Not yet implemented — future extension.)
-"""
-function dsigma_dt_ee_ww(s_gev2::Float64, t_gev2::Float64; kwargs...)
-    error("dsigma_dt_ee_ww not yet implemented; use sigma_ee_ww for total")
-end

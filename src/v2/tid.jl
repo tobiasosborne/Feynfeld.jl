@@ -78,7 +78,7 @@ end
 
 # ---- Helpers ----
 _involves_q(f::ScalarProduct) = (f.a.name == :q || f.b.name == :q)
-_involves_q(::Any) = false
+_involves_q(::AlgFactor) = false
 
 function _q_partner(sp::ScalarProduct)
     sp.a.name == :q && return sp.b.name
@@ -86,18 +86,6 @@ function _q_partner(sp::ScalarProduct)
     error("SP does not involve q")
 end
 
-# K · p_a where K is Momentum or MomentumSum
-_Kdot(K::Momentum, pa::Symbol, sv) = _splookup(sv, K.name, pa)
-function _Kdot(K::MomentumSum, pa::Symbol, sv)
-    sum(Float64(c) * _splookup(sv, m.name, pa) for (c, m) in K.terms)
-end
-
-function _splookup(sv::Dict{Tuple{Symbol,Symbol},Float64}, a::Symbol, b::Symbol)
-    key = a <= b ? (a, b) : (b, a)
-    haskey(sv, key) && return sv[key]
-    haskey(sv, (b, a)) && return sv[(b, a)]
-    error("SP($a,$b) not in sp_vals")
-end
 
 # ---- Rank 1 ----
 # ∫ q·p_a / [D₀...D₃] = Σ_i (K_i · p_a) D_i
@@ -185,18 +173,3 @@ function _tri_rank1(j::Int, pb::Symbol, sv, K1, K2, K3, tri_inv, tri_mass; mu2=1
     k1p * c1 + k2p * c2
 end
 
-# Generalized _Kdot for K dotted with another Momentum/MomentumSum
-_Kdot(K::Momentum, K_ref::Momentum, sv) = _splookup(sv, K.name, K_ref.name)
-function _Kdot(K::Momentum, K_ref::MomentumSum, sv)
-    sum(Float64(c) * _splookup(sv, K.name, m.name) for (c, m) in K_ref.terms)
-end
-function _Kdot(K::MomentumSum, K_ref::Momentum, sv)
-    sum(Float64(c) * _splookup(sv, m.name, K_ref.name) for (c, m) in K.terms)
-end
-function _Kdot(K::MomentumSum, K_ref::MomentumSum, sv)
-    val = 0.0
-    for (ci, mi) in K.terms, (cj, mj) in K_ref.terms
-        val += Float64(ci) * Float64(cj) * _splookup(sv, mi.name, mj.name)
-    end
-    val
-end

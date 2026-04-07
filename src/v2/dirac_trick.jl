@@ -76,14 +76,13 @@ function _apply_sandwich(coeff, left, inner, right, dim)
         # γ^μ γ_μ = D → scalar D times identity
         # Result: D * coeff * [left . right]
         new_gs = vcat(left, right)
-        new_coeff = isempty(new_gs) ? d * coeff : d * coeff
         return _trick_gammas(d * coeff, DiracGamma[new_gs...])
     end
 
     if n == 1
         # γ^μ γ^a γ_μ = -(D-2) γ^a
         # Result: (2-D) * coeff * [left . γ^a . right]
-        factor = add_coeff(2//1, isa(d, DimPoly) ? -d : -d)
+        factor = add_coeff(2//1, -d)
         factor = normalise_coeff(factor)
         new_gs = DiracGamma[left; inner; right]
         return _trick_gammas(factor * coeff, new_gs)
