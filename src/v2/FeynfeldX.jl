@@ -34,6 +34,19 @@ include("channels.jl")
 include("amplitude.jl")
 include("gauge_exchange.jl")
 
+# ---- Layer 1d: φ³ Model ----
+include("phi3_model.jl")
+
+# ---- Layer 3c: Algorithmic diagram generation ----
+include("degree_partition.jl")
+include("topology_types.jl")
+include("topology_filter.jl")
+include("topology_enum.jl")
+include("vertex_check.jl")
+include("field_assign.jl")
+include("fermion_flow.jl")
+include("diagram_gen.jl")
+
 # ---- Layer 3b: Loop diagrams ----
 include("loop_channels.jl")
 include("loop_amplitude.jl")
@@ -110,6 +123,8 @@ export vertex_factor, vertex_structure, propagator_num, gauge_coupling_phase
 # ---- Exports: Diagrams / Channels (Layer 3) ----
 export ExternalLeg
 export TreeChannel, tree_channels, vertex_legs, build_amplitude, propagator_momentum
+export Phi3Model, phi3_model
+export count_diagrams, generate_tree_channels
 export LoopChannel, box_channels, build_loop_box_amplitude, BoxDenominators
 export spin_sum_tree_loop_interference
 export evaluate_box_integral
