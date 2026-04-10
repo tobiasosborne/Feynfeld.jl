@@ -44,7 +44,6 @@ include("topology_filter.jl")
 include("topology_enum.jl")
 include("vertex_check.jl")
 include("field_assign.jl")
-include("fermion_flow.jl")
 include("diagram_gen.jl")
 
 # ---- Layer 3b: Loop diagrams ----

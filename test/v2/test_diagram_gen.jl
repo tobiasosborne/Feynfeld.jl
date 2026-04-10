@@ -115,9 +115,7 @@ using .FeynfeldX
 
         # e⁺e⁻ → μ⁺μ⁻ 1-loop all: 18 diagrams
         # Source: golden_masters/qed2/eminus_eplus_TO_muminus_muplus_1L.out
-        # KNOWN BUG: gets 22 instead of 18 — fermion loop correction incomplete
-        # for vertex corrections where loop shares vertices with open fermion line
-        @test_broken count_diagrams(qed, [:e, :e], [:mu, :mu]; loops=1) == 18
+        @test count_diagrams(qed, [:e, :e], [:mu, :mu]; loops=1) == 18
 
         # e⁻μ⁻ → e⁻μ⁻ tree: 1 diagram (t-channel only)
         # Source: golden_masters/qed2/eminus_muminus_TO_eminus_muminus_0L.out

@@ -1,123 +1,152 @@
 # Field assignment: map abstract topology to concrete Feynman diagrams.
 #
-# Given a topology and a model, count valid field assignments.
+# Given a topology and an expanded model, count valid field assignments.
 # External edges are fixed. Internal edges are assigned by backtracking.
-# Fermion flow (particle/antiparticle) is tracked at each vertex.
+#
+# With expanded fields (particle ≠ antiparticle), each field name carries
+# full identity. Vertex i sees field f, vertex j sees conjugate(f).
+# Canonical ordering on parallel edges prevents multi-edge permutation.
+# Closed fermion loop overcounting (self-loops) corrected via ÷2^n.
 #
 # Ref: refs/qgraf/ALGORITHM.md, Section 4
 
-"""
-    _count_field_assignments(topo, ext_fields, is_anti, rules, model) → Int
-
-Count valid field assignments. External edges fixed, internal variable.
-Fermion orientations tracked. Closed fermion loop overcounting corrected.
-"""
-function _count_field_assignments(topo::FeynmanTopology, ext_fields::Vector{Symbol},
-                                  is_anti::Vector{Bool},
-                                  rules::FeynmanRules, model::AbstractModel)
+function _count_field_assignments_expanded(topo::FeynmanTopology,
+        ext_fields::Vector{Symbol}, exp)
     n = n_vertices(topo)
     n_ext = topo.n_ext
 
     edges = Tuple{Int,Int}[]
     edge_fixed = Symbol[]
-    edge_anti_at_i = Union{Bool, Nothing}[]
     for i in 1:n, j in i:n
         for _ in 1:topo.adj[i, j]
             push!(edges, (i, j))
-            if i <= n_ext
-                push!(edge_fixed, ext_fields[i])
-                push!(edge_anti_at_i, is_anti[i])
-            else
-                push!(edge_fixed, :none)
-                push!(edge_anti_at_i, nothing)
-            end
+            push!(edge_fixed, i <= n_ext ? ext_fields[i] : :none)
         end
     end
 
-    all_fields = [f.name for f in model_fields(model)]
-    vertex_rules = _vertex_rule_multisets(rules)
-
     edge_fields = copy(edge_fixed)
-    count = Ref(0//1)  # Rational for fermion loop correction
-    _assign_edges!(count, edge_fields, edge_fixed, edge_anti_at_i, edges, 1,
-                   topo, ext_fields, is_anti, all_fields, vertex_rules, model)
+    count = Ref(0//1)
+    _assign_expanded!(count, edge_fields, edge_fixed, edges, 1,
+                      topo, exp.all_fields, exp.vertex_rules,
+                      exp.conjugate, exp.self_conjugate)
     Int(count[])
 end
 
-"""
-    _vertex_rule_multisets(rules) → Set{Vector{Symbol}}
-"""
-function _vertex_rule_multisets(rules::FeynmanRules)
-    result = Set{Vector{Symbol}}()
-    for (fields, _) in rules.vertices
-        push!(result, sort(collect(fields)))
-    end
-    result
-end
-
-function _assign_edges!(count, edge_fields, edge_fixed, edge_anti_at_i, edges,
-                        idx, topo, ext_fields, is_anti, all_fields,
-                        vertex_rules, model)
-    n_edges = length(edges)
-    n_ext = topo.n_ext
-    n = n_vertices(topo)
-
-    if idx > n_edges
-        for v in (n_ext + 1):n
-            _check_vertex_with_flow(v, topo, edge_fields, edge_anti_at_i, edges,
-                                    ext_fields, is_anti, vertex_rules, model) || return
+function _assign_expanded!(count, edge_fields, edge_fixed, edges, idx,
+                           topo, all_fields, vertex_rules, conjugate, self_conj)
+    if idx > length(edges)
+        n_ext = topo.n_ext
+        for v in (n_ext + 1):n_vertices(topo)
+            _check_vertex_expanded(v, topo, edge_fields, edges,
+                                   vertex_rules, conjugate) || return
         end
-        # Correct for closed fermion loop overcounting
-        n_fl = _count_closed_fermion_loops(topo, edge_fields, edge_anti_at_i,
-                                            edges, is_anti, model)
+        # Closed fermion loops are counted in both orientations → divide by 2 each
+        n_fl = _count_closed_loops_expanded(topo, edge_fields, edges, self_conj)
         count[] += 1 // (1 << n_fl)
         return
     end
 
     if edge_fixed[idx] != :none
-        _assign_edges!(count, edge_fields, edge_fixed, edge_anti_at_i, edges,
-                        idx + 1, topo, ext_fields, is_anti, all_fields,
-                        vertex_rules, model)
+        _assign_expanded!(count, edge_fields, edge_fixed, edges,
+                          idx + 1, topo, all_fields, vertex_rules,
+                          conjugate, self_conj)
         return
     end
 
     i, j = edges[idx]
+    n_ext = topo.n_ext
+    # Canonical ordering on parallel edges: if this edge has the same
+    # (i,j) as the previous one, only try fields ≥ the previous field.
+    # Prevents counting permutations of indistinguishable multi-edges.
+    min_field = :_  # underscore sorts before all letters
+    if idx > 1 && edges[idx] == edges[idx - 1] && edge_fixed[idx] == :none &&
+                   edge_fixed[idx - 1] == :none
+        min_field = edge_fields[idx - 1]
+    end
     for fname in all_fields
-        field_obj = get_field(model, fname)
-        if field_obj.self_conjugate
-            edge_fields[idx] = fname
-            edge_anti_at_i[idx] = false
-            _try_assignment!(count, edge_fields, edge_fixed, edge_anti_at_i,
-                             edges, idx, i, j, n_ext, topo, ext_fields, is_anti,
-                             all_fields, vertex_rules, model)
-        else
-            for anti_at_i in (false, true)
-                edge_fields[idx] = fname
-                edge_anti_at_i[idx] = anti_at_i
-                _try_assignment!(count, edge_fields, edge_fixed, edge_anti_at_i,
-                                 edges, idx, i, j, n_ext, topo, ext_fields,
-                                 is_anti, all_fields, vertex_rules, model)
-            end
+        fname >= min_field || continue
+        edge_fields[idx] = fname
+        valid = true
+        for v in (i, j)
+            v > n_ext || continue
+            _partial_vertex_ok_expanded(v, idx, topo, edge_fields, edges,
+                                        vertex_rules, conjugate) || (valid = false; break)
+        end
+        if valid
+            _assign_expanded!(count, edge_fields, edge_fixed, edges,
+                              idx + 1, topo, all_fields, vertex_rules,
+                              conjugate, self_conj)
         end
     end
     edge_fields[idx] = :none
-    edge_anti_at_i[idx] = nothing
 end
 
-function _try_assignment!(count, edge_fields, edge_fixed, edge_anti_at_i,
-                          edges, idx, i, j, n_ext, topo, ext_fields, is_anti,
-                          all_fields, vertex_rules, model)
-    valid = true
-    for v in (i, j)
-        v > n_ext || continue
-        _partial_vertex_ok_flow(v, idx, topo, edge_fields, edge_anti_at_i,
-                                edges, ext_fields, is_anti, vertex_rules,
-                                model) || (valid = false; break)
+# Count closed fermion loops: connected components of non-self-conjugate
+# internal edges whose vertices don't touch any external vertex.
+# Simpler than the old fermion_flow.jl because expanded fields make
+# fermion detection trivial (just check self_conj membership).
+function _count_closed_loops_expanded(topo, edge_fields, edges, self_conj)
+    n_ext = topo.n_ext
+
+    # Internal non-self-conjugate edges
+    fedges = Int[]
+    for (idx, (i, j)) in enumerate(edges)
+        edge_fields[idx] == :none && continue
+        i > n_ext && j > n_ext || continue
+        edge_fields[idx] in self_conj && continue
+        push!(fedges, idx)
     end
-    valid && _assign_edges!(count, edge_fields, edge_fixed, edge_anti_at_i,
-                            edges, idx + 1, topo, ext_fields, is_anti,
-                            all_fields, vertex_rules, model)
-end
+    isempty(fedges) && return 0
 
-# Vertex checking and fermion flow functions are in vertex_check.jl
-# Fermion loop counting is in fermion_flow.jl
+    # Which internal vertices carry an external FERMION leg?
+    # (Photon legs don't break fermion loop closure)
+    ext_adj = Set{Int}()
+    for (idx, (i, j)) in enumerate(edges)
+        i <= n_ext || continue
+        edge_fields[idx] in self_conj && continue
+        push!(ext_adj, j)
+    end
+
+    # Union-find on shared internal vertices
+    par = Dict(idx => idx for idx in fedges)
+    uf(x) = (while par[x] != x; par[x] = par[par[x]]; x = par[x]; end; x)
+
+    vmap = Dict{Int, Vector{Int}}()
+    for idx in fedges
+        i, j = edges[idx]
+        push!(get!(Vector{Int}, vmap, i), idx)
+        i != j && push!(get!(Vector{Int}, vmap, j), idx)
+    end
+    for (_, ve) in vmap
+        for k in 2:length(ve)
+            ra, rb = uf(ve[1]), uf(ve[k])
+            ra != rb && (par[ra] = rb)
+        end
+    end
+
+    # Count components not touching external-adjacent vertices.
+    # Skip multi-edge components (all edges between same distinct pair) —
+    # those are already handled by the canonical edge ordering.
+    comps = Dict{Int, Vector{Int}}()
+    for idx in fedges
+        push!(get!(Vector{Int}, comps, uf(idx)), idx)
+    end
+    n_closed = 0
+    for (_, elist) in comps
+        touches = false
+        for idx in elist
+            i, j = edges[idx]
+            (i in ext_adj || j in ext_adj) && (touches = true; break)
+        end
+        touches && continue
+        # Check if this is a multi-edge (all edges between same distinct pair)
+        if length(elist) >= 2
+            i0, j0 = edges[elist[1]]
+            if i0 != j0 && all(edges[idx] == (i0, j0) for idx in elist)
+                continue  # multi-edge: canonical ordering handles it
+            end
+        end
+        n_closed += 1
+    end
+    n_closed
+end
