@@ -1,4 +1,4 @@
-# HANDOFF — 2026-04-10 (Session 20: fermion field expansion fix + topology audit)
+# HANDOFF — 2026-04-12 (Session 21: qgraf Strategy C port — 474→465 fixed)
 
 ## DO NOT DELETE THIS FILE. Read it completely before working.
 
@@ -6,218 +6,211 @@
 
 ## START HERE
 
-1. Read `CLAUDE.md` — rules, **pipeline principle**, anti-hallucination, Julia idioms
-2. Run `bd ready` to see available work
-3. Run `julia --project=. test/v2/test_diagram_gen.jl` to verify diagram gen (31/31 pass)
-4. Run `julia --project=. test/v2/runtests.jl` to verify full suite (605 tests, ~5 min)
-5. **READ THE CRITICAL FAILURE SECTION BELOW BEFORE DOING ANYTHING**
+1. Read `CLAUDE.md` — rules, **pipeline principle**, anti-hallucination, Julia idioms.
+2. Run `bd ready` to see available work (57 open issues; see §"Open beads" below for the new ones from this session).
+3. Run `julia --project=. test/v2/test_diagram_gen.jl` → expect 32/32 green.
+4. Run `julia --project=. test/v2/qgraf/test_types.jl` → expect 98/98.
+5. Run `julia --project=. test/v2/qgraf/test_canonical.jl` → expect 35/35.
+6. Optional: `QGRAF_MAX_SECONDS=120 julia --project=. scripts/qgraf_golden_master_report.jl 2`
+   → live-streams every golden-master case with status + timing. Currently PASS=63
+   of 104 at loops≤2 (14 FAIL, 26 SKIP, 1 ERROR; breakdown in §"Remaining work").
 
 ---
 
-## SESSION 20 ACCOMPLISHMENTS
+## SESSION 21 ACCOMPLISHMENTS
 
-### 1. Fermion field expansion fix (the broken test)
+### 1. **phi3 φφ→φφ 2-loop regression fixed (474 → 465)**
 
-Fixed `count_diagrams(qed, [:e,:e], [:mu,:mu]; loops=1)` returning 22 instead
-of 18. Replaced the old orientation-tracking approach (`edge_anti_at_i` +
-`_check_vertex_with_flow` + `fermion_flow.jl`) with qgraf's expanded-field
-approach: separate `:e`/`:e_bar` symbols for particle/antiparticle.
+The centerpiece of HANDOFF Session 20's CRITICAL FAILURE section. Root cause was
+`topology_enum.jl`'s `_is_canonical_topo` using pairwise swaps over degree-only
+equivalence classes — misses multi-vertex automorphisms, producing 9 duplicate
+topologies at 2-loop+.
 
-**Key insight the Session 19 agent missed and the stuck Session 20a agent got
-wrong**: when an edge carries field `f`, vertex i (lower index) sees `f` but
-vertex j (higher index) sees `conjugate(f)`. The stuck agent used `f` at both
-ends — that's why it broke 10 tests.
+Fix: full per-equivalence-class lex-next-permutation canonicality check ported
+from qgraf-4.0.6.f08:13156–13291 (labels 77/93/102/202/204).
 
-**Two overcounting corrections needed with expanded fields:**
-1. **Parallel edge canonical ordering**: multi-edges between same vertex pair
-   must have fields in non-decreasing order (prevents permutation overcounting)
-2. **Closed fermion loop ÷2**: self-loops (edge from v to v) with fermion
-   fields are counted in both orientations; skip multi-edge components
-   (already handled by #1)
+`topology_filter._is_canonical_topo` now delegates to
+`QgrafPort.is_canonical_feynman` which:
+- builds degree-only classes (matching `topology_enum.jl`'s non-sorted fill),
+- enumerates full S_n permutations per class (not pairwise swaps),
+- compares ALL vertex pairs (ext-int included since no Step A/B pre-sorting),
+- uses lex-smallest convention to match the descending fill order.
 
-**Files changed:**
-| File | Before | After | Change |
-|------|--------|-------|--------|
-| `diagram_gen.jl` | 89 LOC | 149 LOC | +ExpandedModel, expansion functions, -_infer_antiparticles |
-| `field_assign.jl` | 123 LOC | 152 LOC | Rewritten: expanded backtracking + loop correction |
-| `vertex_check.jl` | 175 LOC | 74 LOC | Rewritten: conjugate-aware vertex checks, deleted flow functions |
-| `fermion_flow.jl` | 82 LOC | DELETED | Replaced by _count_closed_loops_expanded |
-| `FeynfeldX.jl` | — | -1 line | Removed fermion_flow.jl include |
-| `test_diagram_gen.jl` | — | -2 lines | @test_broken → @test |
+Commit: `182a657` "Fix qg21 canonicality: 474 → 465 at φ³ 2-loop".
 
-**Test results: 31/31 diagram gen, 605/605 full suite.**
+### 2. **Strategy C qgraf port — foundation delivered**
 
-### 2. Comprehensive golden master validation
+After a 3-way design audition (A: faithful coroutine, B: algebraic pipe,
+C: hybrid recursive-descent), picked Strategy C: plain `for` loops outside,
+recursive backtracking inside, zero-allocation hot path via preallocated
+`TopoState`, callback monomorphisation via `where {F}`.
 
-Ran 46 golden master cases against qgraf counts (up to 2-loop):
-- **44 PASS** — all tree-level, all 1-loop, all QED, all QCD
-- **2 KNOWN FAIL** — 2-loop φ³ (474 vs 465): duplicate topologies from
-  incomplete canonicalization (see CRITICAL FAILURE below)
+New submodule `src/v2/qgraf/` under `FeynfeldX.QgrafPort`:
 
-### 3. Gap analysis and issue registration
+| File | LOC | Contents |
+|------|-----|----------|
+| `QgrafPort.jl` | 16 | submodule wrapper |
+| `types.jl` | 190 | `Partition`, `EquivClass`, `FilterSet`, `TopoState` + helpers; `MAX_V=24` |
+| `canonical.jl` | 212 | `compute_equiv_classes!`, `_lex_next_class!`, `next_class_perm!`, `is_canonical_full!`, `is_canonical_feynman` |
 
-Registered 7 beads issues for golden master coverage gaps:
-- `feynfeld-ejl` P2: 1-gen QED model (unlocks 13 cases)
-- `feynfeld-wjw` P2: 4-point VertexRule for gggg (unlocks 8 cases)
-- `feynfeld-rff` P3: 3-gen QED model (unlocks 6 cases)
-- `feynfeld-sia` P3: diagram filter predicates (unlocks 13 cases)
-- `feynfeld-jzg` P4: QCD ghost fields (unlocks 1 case)
-- `feynfeld-ciz` P2: **topology_enum.jl rewrite** (correctness + performance)
-- `feynfeld-0b2` P2: 2-loop overcounting (symptom of feynfeld-ciz)
+Ground truth acquired: **`refs/papers/Nogueira1993_JCompPhys105_279.pdf`**
+(fetched via Playwright + TIB VPN, committed to gitignored `refs/papers/`).
 
----
+### 3. **Multi-generation QED models**
 
-## !! CRITICAL FAILURE: topology_enum.jl IS A BROKEN PROTOTYPE !!
+`QEDModel` refactored to hold `Vector{Field{Fermion}}` (was hard-coded electron
++ muon). New constructors:
 
-**This is the most important section of this handoff.**
+- `qed1_model()` — electron only, matches qgraf qed1
+- `qed_model()` — 2-gen (electron + muon), matches qgraf qed2, unchanged default
+- `qed3_model()` — 3-gen (e, μ, τ), matches qgraf qed3
 
-`topology_enum.jl` does NOT implement qgraf's algorithm. It implements a naive
-brute-force approximation that happens to give correct results at tree and
-1-loop but **produces wrong answers at 2-loop+**.
+Legacy `.electron`/`.muon`/`.tau` accessors preserved via `getproperty`.
 
-### What qgraf does (ALGORITHM.md §3):
+Commit: `349e3a1` "Multi-gen QED models + golden-master diagnostic".
 
-```
-Step A: Distribute external connections → xn(i), non-increasing within equiv classes
-Step B: Distribute self-loops → xg(i,i), non-increasing within equiv classes
-Step C: Fill off-diagonal ROW BY ROW, largest column first
-        → within-row: non-increasing within equivalence class
-        → cross-row: row i ≥ row i+1 lexicographically for equivalent vertices
-        → loop budget checked at each row
-        → full permutation-class isomorph check after completion
-```
+### 4. **Golden-master diagnostic script**
 
-Each step prunes entire search tree branches BEFORE entering the next level.
+`scripts/qgraf_golden_master_report.jl` parses `SUMMARY.md` (zero deps),
+streams per-case PASS/FAIL/SKIP/SLOW/ERROR status live, supports
+`QGRAF_MAX_SECONDS` env var for per-case budget and CLI `max_loops` arg.
 
-### What our code does:
+### 5. **Beads remote configured**
 
-```
-For each entry (i,j) in upper triangle (flat iteration):
-    Try k = max_val, max_val-1, ..., 0
-    Recurse to next entry
-When ALL entries filled:
-    Check connected? canonical? 1PI?
-    Keep if all pass
-```
+Beads Dolt had no remote configured (bd dolt push was failing silently).
+Added `origin → file:///home/tobiasosborne/Projects/Feynfeld.jl/.beads-remote`
+as a local backup. `bd dolt push` now succeeds.
 
-**Three fatal defects:**
-
-1. **No row-level pruning** — generates exponentially many invalid matrices,
-   rejects at the end. A 3-loop φ→φφ that qgraf handles in milliseconds
-   takes minutes (stack depth >80 in `_fill_entry!`).
-
-2. **Incomplete canonicalization** — `_is_canonical_topo` only checks pairwise
-   vertex swaps. qgraf checks ALL permutations within equivalence classes
-   (§3.5). At 2-loop+ with 3+ equivalent vertices, pairwise swaps miss
-   isomorphisms → **duplicate topologies → wrong diagram counts** (474 vs 465).
-
-3. **No structural constraints during fill** — no loop budget tracking, no
-   propagator feasibility, no row ordering. All checked post-hoc.
-
-### What must be done (feynfeld-ciz):
-
-Port qgraf's actual qg21 algorithm from ALGORITHM.md §3:
-1. Step A: external leg distribution with equivalence-class ordering (~40 LOC)
-2. Step B: self-loop distribution with ordering (~30 LOC)
-3. Step C: row-by-row off-diagonal fill with within-row and cross-row
-   ordering + loop budget (~80 LOC)
-4. Full permutation-class isomorph check (~50 LOC)
-
-Total: ~200 LOC Julia replacing the current 134 LOC. This is NOT an
-optimization — it is a **correctness fix** for 2-loop+ topology enumeration.
-
-**Do NOT attempt to patch the current approach.** The entry-by-entry fill
-with post-hoc validation is fundamentally the wrong algorithm. Port qg21
-properly or the 2-loop counts will never be right.
+Note: beads issue data also persists via `.beads/backup/backup_state.json`
+(committed to git) even without a Dolt remote.
 
 ---
 
-## WHAT TO DO NEXT
+## CURRENT STATE
 
-### Priority 1: Port qg21 properly (feynfeld-ciz + feynfeld-0b2)
+### Tests green
 
-This is the #1 task. Everything else is blocked by correct topology
-enumeration. The algorithm is fully specified in ALGORITHM.md §3. The
-golden master suite (102 cases, 14k diagrams) provides complete validation.
-The current 31 tests in test_diagram_gen.jl MUST continue to pass (they're
-all tree+1-loop which the current code handles correctly).
+| Suite | Count | Status |
+|-------|------:|--------|
+| `test/v2/test_diagram_gen.jl` | 32 | **32/32 green** (was 31 + 1 RED target) |
+| `test/v2/qgraf/test_types.jl` | 98 | 98/98 green (new this session) |
+| `test/v2/qgraf/test_canonical.jl` | 35 | 35/35 green (new this session) |
+| `test/v2/test_box_ee_mumu.jl` | 136 | 136/136 green (regression check) |
+| Other v2 tests | various | spot-checked green (bhabha, self-energy, coeff, pave) |
 
-**Approach:**
-1. Read ALGORITHM.md §3 completely (Steps A, B, C, canonicalization)
-2. Write new `topology_enum_v2.jl` implementing qg21 properly
-3. Red-green TDD: start with the 2-loop cases that currently fail
-4. Validate against ALL golden masters
-5. Replace `topology_enum.jl` once all tests pass
+### Golden-master landscape (loops ≤ 2, 104 cases)
 
-### Priority 2: Close golden master coverage gaps
+- **PASS: 63** including phi3 φφ→φφ 2L=465, phi3 φ→φφ 2L=58,
+  qed1 e→eγ 2L=50, qed1 γ→ee 2L=50, all QED 2-gen onepi, phi3 all tree+1L
+- **FAIL: 14** — categorised below
+- **SKIP: 26** — cases using filters we haven't ported yet (notadpole/nosnail/nosigma/etc.)
+- **ERROR: 1** — qcd ghost→ghost (ghost field not in our qcd_model)
 
-After topology enumeration is correct:
-- Add 1-gen QED model (feynfeld-ejl, ~10 LOC, unlocks 13 cases)
-- Generalize VertexRule to N-point (feynfeld-wjw, ~30 LOC, unlocks 8 cases)
-- Add 3-gen QED model (feynfeld-rff, ~5 LOC, unlocks 6 cases)
-- Add diagram filter predicates (feynfeld-sia, ~100 LOC, unlocks 13 cases)
+### Files in play
 
-### Priority 3: Momentum routing
-
-Implement spanning tree + leaf peeling for momentum assignment.
-~80 LOC. Algorithm in ALGORITHM.md §5. Needed for actual amplitudes.
-
-### Priority 4: Pipeline integration
-
-Replace hard-coded tree_channels() with algorithmic generation.
-
----
-
-## WHAT WORKS (do not break)
-
-| Component | Status | Tests |
-|-----------|--------|-------|
-| Expanded field assignment | CORRECT at all loop orders | 31/31 |
-| φ³ tree + 1-loop | CORRECT | 11/11 golden masters |
-| QED tree (all processes) | CORRECT | 14/14 golden masters |
-| QED 1-loop 1PI | CORRECT | 7/7 golden masters |
-| QED 1-loop all (2-gen) | CORRECT (ee→μμ=18 ✓) | 2/2 golden masters |
-| QCD tree (3-point only) | CORRECT | 5/5 golden masters |
-| Full v2 algebra suite | CORRECT | 605/605 |
-
-## WHAT IS BROKEN
-
-| Component | Status | Issue |
-|-----------|--------|-------|
-| 2-loop+ topology enumeration | WRONG COUNTS | feynfeld-ciz |
-| 2-loop+ canonicalization | INCOMPLETE (pairwise only) | feynfeld-0b2 |
-| 3-loop+ performance | UNUSABLE (minutes+) | feynfeld-ciz |
-| QCD 4-gluon vertex | MISSING | feynfeld-wjw |
-| 1-gen QED model | MISSING | feynfeld-ejl |
-| Diagram filter options | MISSING | feynfeld-sia |
+| Path | Purpose | Status |
+|------|---------|--------|
+| `src/v2/qgraf/QgrafPort.jl` | new submodule | Phase 1 green |
+| `src/v2/qgraf/types.jl` | core types | Phase 1 green |
+| `src/v2/qgraf/canonical.jl` | per-class lex-perm check | Phase 2 green |
+| `src/v2/topology_enum.jl` | legacy enum | delegates canonicality to QgrafPort |
+| `src/v2/topology_filter.jl` | legacy filters | `_is_canonical_topo` delegates |
+| `src/v2/model.jl` | model types | `QEDModel` refactored |
+| `scripts/qgraf_golden_master_report.jl` | diagnostic | NEW |
+| `refs/papers/Nogueira1993_JCompPhys105_279.pdf` | canonical algorithm paper | NEW |
+| `refs/papers/fetch_nogueira.mjs` | playwright fetch script | NEW |
 
 ---
 
-## PROJECT STATE
+## REMAINING WORK (failures taxonomy)
 
-### Branch and code location
-- **Branch:** `master`
-- **v2 source:** `src/v2/` (55 files, ~5,400 LOC) — fermion_flow.jl deleted
-- **v2 tests:** `test/v2/` (23 files + munit/) — 605 + 31 = 636 tests
-- **v1:** FROZEN. Do not extend.
+### A. QCD 4-gluon vertex + ghost field — 6 failing cases
 
-### What Feynfeld can compute (unchanged from Session 19)
+| Case | Got | Want |
+|---|---:|---:|
+| qcd gg→gg 0L | 3 | 4 |
+| qcd qq̄→ggg 0L | 15 | 16 |
+| qcd gg→ggg 0L | 15 | 25 |
+| qcd gg→gg 1L onepi | 6 | 24 |
+| qcd qq̄→gg 1L onepi | 6 | 7 |
+| qcd qg→qg 1L onepi | 6 | 7 |
+| qcd ghost→ghost 1L onepi | ERROR | 1 |
 
-**Tree-level QED/QCD/EW:** e⁺e⁻→μ⁺μ⁻, Bhabha, Compton, e⁺e⁻→γγ, qq̄→gg, e⁺e⁻→W⁺W⁻
-**1-loop QED (pipeline):** Box e⁺e⁻→μ⁺μ⁻ (direct + crossed, TID, COLLIER)
-**1-loop QED (standalone):** Self-energy, vertex, VP, running α, Schwinger
-**Algorithmic diagram generation:** count_diagrams() for ANY process, CORRECT at tree+1-loop
+Structural: `VertexRule.fields::NTuple{3,Symbol}` is hard-coded 3-point.
+Needs generalisation to variable arity. Beads: **feynfeld-dr6**.
 
-### Files changed in Session 20
+Cleanest route: change `VertexRule.fields` to `Tuple{Vararg{Symbol}}` and
+`FeynmanRules.vertices` to `Dict{Tuple, VertexRule}`. Audit call sites.
+`_model_vertex_degrees` and `_degree_partitions` already support arbitrary
+degrees. `ExpandedModel.vertex_rules` already uses `Set{Vector{Symbol}}`.
 
-| File | LOC | What |
-|------|-----|------|
-| `src/v2/diagram_gen.jl` | 149 | MODIFIED: +ExpandedModel, expansion functions |
-| `src/v2/field_assign.jl` | 152 | REWRITTEN: expanded backtracking + loop correction |
-| `src/v2/vertex_check.jl` | 74 | REWRITTEN: conjugate-aware, old flow functions deleted |
-| `src/v2/fermion_flow.jl` | — | DELETED (82 LOC) |
-| `src/v2/FeynfeldX.jl` | -1 | Removed fermion_flow.jl include |
-| `test/v2/test_diagram_gen.jl` | -2 | @test_broken → @test |
+### B. QED fermion-orientation counting — 5-7 failing cases
+
+Current state (after Phase 6 + Phase 2 fixes):
+| Case | Got | Want |
+|---|---:|---:|
+| qed1 γγ→γγ 1L | 3 | 6 |
+| qed1 ee→γγ 1L | 23 | 24 |
+| qed1 eγ→eγ 1L | 23 | 24 |
+| qed1 γγ→ee 1L | 23 | 24 |
+| qed1 γ→γ 2L | 4 | 6 |
+| qed1 e→e 2L | 11 | 10 |
+| qed3 γ→γ 2L onepi | 6 | 9 |
+
+Root cause: `field_assign.jl::_count_closed_loops_expanded` applies
+`÷ 2^n_fl` halving per "closed fermion loop". This is partially correct:
+- bubbles (multi-edge) already handled by canonical parallel-edge ordering
+  (halving skipped via multi-edge check) → ✓
+- boxes without external fermion attachment (γγ→γγ) are halved but should not
+  be (each fermion-flow orientation is a distinct qgraf diagram) → ✗
+
+Naive removal of halving broke γ→γ 2L, e→e 2L, and ee→γγ 1L (which rely on
+the halving for some sub-diagrams). I attempted it in this session and reverted.
+
+**Proper fix**: port qgraf's **qdis** (fermion sign + orientation labelling
+via signed half-edge integers) as a separate algorithmic pass, replacing the
+heuristic halving in `_count_closed_loops_expanded`. See qgraf-4.0.6.f08
+lines 14465–14575. Beads: create new issue.
+
+### C. Filter predicates not implemented — 26 SKIP cases
+
+`count_diagrams` supports only the `onepi` flag. Golden masters use
+`notadpole, nosnail, nosigma, noselfloop, nodiloop, noparallel, onevi, floop`.
+
+Each maps to a qgraf filter:
+- `qumpi(situ)` dispatch (qgraf-4.0.6.f08:3690) → notadpole/nosbridge/onshell
+- `qumvi(situ)` dispatch (qgraf-4.0.6.f08:3777) → nosnail/onevi/onshellx
+- `qgsig` (qgraf-4.0.6.f08:13669) → nosigma
+- `qcyc` (qgraf-4.0.6.f08:18830) → cycli
+- `noselfloop/nodiloop/noparallel` — inline xg-diagonal/entry bounds in Step C
+
+Beads: **feynfeld-con**. `FilterSet` type already defined in
+`src/v2/qgraf/types.jl`.
+
+### D. Full Strategy C field-assignment port
+
+Eventually the legacy `field_assign.jl` + `vertex_check.jl` should be
+replaced with a Strategy C port of qgraf's `qgen` (dpntro backtracker)
++ `qdis` (fermion sign). This would solve (B) definitively and integrate
+with the new `TopoState`/`EquivClass` types.
+
+Design in Session 21 audition document; Strategy C §7 in the design doc
+spells it out. Beads: **feynfeld-ney** (master).
+
+---
+
+## OPEN BEADS (Session 21)
+
+- `feynfeld-ney` — P0 master: qgraf Strategy C port (hybrid recursive-descent qg21)
+- `feynfeld-chm` — P1: Multi-gen QED models — **DONE, close with --force**
+- `feynfeld-dr6` — P1: QCD 4-gluon vertex (gggg) + ghost
+- `feynfeld-con` — P1: Filter predicates (notadpole/nosnail/nosigma/etc.)
+- `feynfeld-d82` — P1: QED photon `external=` + `notadpole=` keywords
+  (hypothesis disproven this session; close with reason)
+
+Closed this session: `feynfeld-nwe` (Phase 0 harness), `feynfeld-5hr`
+(Phase 1 skeleton), `feynfeld-xjc` (Phase 2 canonical), `feynfeld-4tg`
+(THE 474→465 regression — fixed).
 
 ---
 
@@ -239,24 +232,37 @@ See `CLAUDE.md` for the full 12 rules. Critical ones:
 ## QUICK COMMANDS
 
 ```bash
-# Diagram generation tests (fast, ~3s)
-julia --project=. test/v2/test_diagram_gen.jl
+# Main regression test
+julia --project=. test/v2/test_diagram_gen.jl            # expect 32/32
 
-# Full suite (single process, ~5 min)
-julia --project=. test/v2/runtests.jl
+# New qgraf port unit tests
+julia --project=. test/v2/qgraf/test_types.jl            # expect 98/98
+julia --project=. test/v2/qgraf/test_canonical.jl        # expect 35/35
 
-# Quick diagram count check
+# Golden-master diagnostic (LIVE streaming, one line per case)
+QGRAF_MAX_SECONDS=120 julia --project=. scripts/qgraf_golden_master_report.jl 2
+
+# Quick count checks
 julia --project=. -e '
 include("src/v2/FeynfeldX.jl"); using .FeynfeldX
-println(count_diagrams(qed_model(), [:e, :e], [:mu, :mu]; loops=1))  # should be 18
+println(count_diagrams(phi3_model(), [:phi,:phi], [:phi,:phi]; loops=2))  # 465 (was 474)
+println(count_diagrams(qed_model(), [:e,:e], [:mu,:mu]; loops=1))          # 18
 '
 
 # Beads
-bd ready              # available work
-bd stats              # project health
-bd show feynfeld-ciz  # THE critical issue
+bd ready                                      # available work
+bd stats                                       # project health (218 total, 57 open)
+bd show feynfeld-ney                          # Strategy C master issue
+bd dolt push                                   # now works (local file:// remote)
 
 # Session end protocol
 git add <files> && git commit -m "..." && git push
 bd dolt push
 ```
+
+---
+
+## COMMIT HISTORY (Session 21)
+
+- `182a657` Fix qg21 canonicality: 474 → 465 at φ³ 2-loop (full per-class perm)
+- `349e3a1` Multi-gen QED models + golden-master diagnostic

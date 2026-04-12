@@ -24,3 +24,6 @@ Thumbs.db
 # Dolt database files (added by bd init)
 .dolt/
 *.db
+
+# Local Dolt backup remote for beads (not part of the source)
+.beads-remote/
