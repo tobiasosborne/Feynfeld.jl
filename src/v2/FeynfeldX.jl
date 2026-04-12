@@ -37,6 +37,12 @@ include("gauge_exchange.jl")
 # ---- Layer 1d: φ³ Model ----
 include("phi3_model.jl")
 
+# ---- Layer 3d: qgraf-faithful topology generator (Strategy C port) ----
+# Submodule included FIRST so the legacy canonicality filter can delegate
+# to `QgrafPort.is_canonical_feynman` (full per-class lex-next-permutation).
+# Beads: feynfeld-ney (master), feynfeld-5hr (skeleton).
+include("qgraf/QgrafPort.jl")
+
 # ---- Layer 3c: Algorithmic diagram generation ----
 include("degree_partition.jl")
 include("topology_types.jl")

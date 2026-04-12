@@ -61,6 +61,23 @@ using .FeynfeldX
         @test count_diagrams(phi3, [:phi, :phi], [:phi, :phi]; loops=1, onepi=true) == 3
     end
 
+    # ─── φ³ 2-loop (qg21 regression — Strategy C port target) ─────
+    # First RED test for the qgraf Strategy C port. Current naive fill
+    # + post-hoc pairwise-swap canonicalization gives 474 (duplicate
+    # topologies at 2-loop+). qgraf's row-by-row fill + full per-class
+    # lex-permutation isomorph check gives 465.
+    # Ref: refs/qgraf/v4.0.6/qgraf-4.0.6.dir/qgraf-4.0.6.f08 lines 12426-13668 (qg21)
+    # Ref: refs/papers/Nogueira1993_JCompPhys105_279.pdf §2 "The method"
+    # Beads: feynfeld-4tg, blocked by feynfeld-ney
+    @testset "φ³ 2-loop (Strategy C port target)" begin
+        phi3 = phi3_model()
+
+        # φφ → φφ 2-loop: 465 diagrams (qgraf golden master)
+        # Source: refs/qgraf/v4.0.6/qgraf-4.0.6.dir/golden_masters/phi3/phi_phi_TO_phi_phi_2L.out
+        # RED as of Session 20: naive port gives 474 (9 duplicates)
+        @test count_diagrams(phi3, [:phi, :phi], [:phi, :phi]; loops=2) == 465
+    end
+
     # ─── QED: electrons + photons ─────────────────────────────────
     # Source: refs/qgraf/v4.0.6/qgraf-4.0.6.dir/golden_masters/qed1/
     @testset "QED 1-gen tree-level" begin

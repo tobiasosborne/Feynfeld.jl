@@ -106,29 +106,12 @@ end
 """
     _is_canonical_topo(topo) → Bool
 
-Check if topo is the canonical (lexicographically smallest) representative
-of its isomorphism class under permutations of equivalent vertices.
+Check if topo is the canonical (lex-smallest) representative of its
+isomorphism class. Delegates to `QgrafPort.is_canonical_feynman`, which
+runs the full per-equivalence-class lex-next-permutation check (qg21
+labels 77/93/102/202/204 in qgraf-4.0.6.f08:13156-13291) replacing the
+old pairwise-swap approach. Beads: feynfeld-ney, feynfeld-xjc.
 """
 function _is_canonical_topo(topo::FeynmanTopology)
-    n = n_vertices(topo)
-    n_ext = topo.n_ext
-    adj = topo.adj
-
-    # External vertices are DISTINGUISHABLE (represent different particles)
-    # so they are NOT permutable. Only internal vertices of the same degree
-    # can be swapped for canonicalization.
-    int_classes = Dict{Int, Vector{Int}}()
-    for v in (n_ext+1):n
-        d = topo.vdeg[v]
-        cls = get!(Vector{Int}, int_classes, d)
-        push!(cls, v)
-    end
-
-    for (_, cls) in int_classes
-        for i in cls, j in cls
-            j > i || continue
-            _compare_swapped(adj, n, i, j) < 0 && return false
-        end
-    end
-    true
+    QgrafPort.is_canonical_feynman(topo.adj, topo.vdeg, topo.n_ext)
 end
