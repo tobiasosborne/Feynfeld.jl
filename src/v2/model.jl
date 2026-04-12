@@ -77,22 +77,40 @@ function get_field(m::AbstractModel, name::Symbol)
 end
 
 # ---- Concrete QED model ----
+# N generations of charged leptons (default 2: electron + muon) coupled to
+# a single photon. Matches qgraf's qed1/qed2/qed3 model-file families.
 struct QEDModel <: AbstractModel
-    electron::Field{Fermion}
-    muon::Field{Fermion}
+    leptons::Vector{Field{Fermion}}   # lepton generations in order (e, μ, τ, …)
     photon::Field{Boson}
 end
 
 model_name(::QEDModel) = :QED
-model_fields(m::QEDModel) = Field[m.electron, m.muon, m.photon]
+model_fields(m::QEDModel) = Field[m.leptons; m.photon]
 gauge_groups(::QEDModel) = GaugeGroup[U1()]
 
-function qed_model(; m_e=:m_e, m_mu=:m_mu)
-    QEDModel(
-        fermion(:e, m_e; charge=-1//1),
-        fermion(:mu, m_mu; charge=-1//1),
-        vector_boson(:gamma, :zero),
-    )
+# Legacy accessors for code that still references .electron / .muon.
+function Base.getproperty(m::QEDModel, sym::Symbol)
+    sym === :electron && return m.leptons[1]
+    sym === :muon     && return length(m.leptons) >= 2 ? m.leptons[2] : error("QEDModel has no muon (only $(length(m.leptons)) generations)")
+    sym === :tau      && return length(m.leptons) >= 3 ? m.leptons[3] : error("QEDModel has no tau (only $(length(m.leptons)) generations)")
+    getfield(m, sym)
 end
 
-Base.show(io::IO, ::QEDModel) = print(io, "QEDModel(e, μ, γ)")
+"Construct a QED model with N generations (default 2: e + μ).
+Corresponds to qgraf's qed2 model-file by default."
+function qed_model(; m_e=:m_e, m_mu=:m_mu, generations::Int=2)
+    generations >= 1 || error("QED needs ≥ 1 generation")
+    leptons = Field{Fermion}[fermion(:e, m_e; charge=-1//1)]
+    generations >= 2 && push!(leptons, fermion(:mu, m_mu; charge=-1//1))
+    generations >= 3 && push!(leptons, fermion(:tau, :m_tau; charge=-1//1))
+    QEDModel(leptons, vector_boson(:gamma, :zero))
+end
+
+"QED with a single charged lepton (electron). Matches qgraf qed1."
+qed1_model(; m_e=:m_e) = QEDModel([fermion(:e, m_e; charge=-1//1)],
+                                   vector_boson(:gamma, :zero))
+
+"QED with three charged lepton generations (e, μ, τ). Matches qgraf qed3."
+qed3_model(; m_e=:m_e, m_mu=:m_mu, m_tau=:m_tau) = qed_model(; m_e, m_mu, generations=3)
+
+Base.show(io::IO, m::QEDModel) = print(io, "QEDModel($(length(m.leptons)) gen, γ)")

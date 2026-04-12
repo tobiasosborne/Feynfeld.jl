@@ -115,7 +115,7 @@ export casimir_fundamental, casimir_adjoint, trace_normalization
 export GaugeGroup, U1, SU
 export FieldSpecies, Fermion, Boson, Scalar
 export Field, fermion, vector_boson, scalar
-export AbstractModel, QEDModel, qed_model, QCDModel, qcd_model, triple_gauge_vertex
+export AbstractModel, QEDModel, qed_model, qed1_model, qed3_model, QCDModel, qcd_model, triple_gauge_vertex
 export EWModel, ew_model
 export model_name, model_fields, gauge_groups
 export get_field, fermion_fields, boson_fields
