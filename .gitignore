@@ -5,8 +5,28 @@ Manifest.toml
 *.jl.mem
 deps/build.log
 
-# Reference repos (large, not part of the package)
-refs/
+# Reference repos — externally-owned material is excluded by default.
+# Agents working on other devices should read refs/README.md for how to
+# re-acquire the ignored pieces (qgraf source, FeynCalc/FeynArts mirrors,
+# paywalled papers). Allow-listing below explicitly re-includes our own
+# work (cleanroom specs, fetch scripts, generated test fixtures).
+refs/*
+!refs/README.md
+!refs/qgraf/
+refs/qgraf/*
+!refs/qgraf/README.md
+!refs/qgraf/ALGORITHM.md
+!refs/qgraf/v4.0.6/
+refs/qgraf/v4.0.6/*
+!refs/qgraf/v4.0.6/qgraf-4.0.6.dir/
+refs/qgraf/v4.0.6/qgraf-4.0.6.dir/*
+!refs/qgraf/v4.0.6/qgraf-4.0.6.dir/generate_golden_masters.py
+!refs/qgraf/v4.0.6/qgraf-4.0.6.dir/parse_golden_master.py
+!refs/qgraf/v4.0.6/qgraf-4.0.6.dir/golden_masters/
+!refs/papers/
+refs/papers/*
+!refs/papers/README.md
+!refs/papers/fetch_nogueira.mjs
 
 # IDE / editor
 .vscode/
@@ -27,3 +47,12 @@ Thumbs.db
 
 # Local Dolt backup remote for beads (not part of the source)
 .beads-remote/
+
+# Playwright download cache (PDFs, browser profile)
+.playwright-cli/
+
+# Local run outputs
+output/
+
+# Agent-review markdown dumps
+reviews/
