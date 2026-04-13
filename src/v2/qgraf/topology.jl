@@ -268,6 +268,65 @@ function step_b_enumerate!(callback::F, state::TopoState) where {F}
 end
 
 """
+    _is_connected_internal(state) -> Bool
+
+BFS from vertex `n` over the internal subgraph (vertices rhop1..n).  Returns
+true iff every internal vertex is reachable.  Externals are not visited
+(they each have degree 1 and are guaranteed reachable when their owner
+internal is reached).
+
+Source: qgraf-4.0.6.f08:12980-13038 (Fortran labels 220, 21, ...).
+This is a simplified port that drops the bipartite-test machinery (the `bip`
+filter is handled separately) and the new-component-start logic — we simply
+detect any unvisited internal as "disconnected".
+"""
+function _is_connected_internal(state::TopoState)
+    n      = Int(state.n)
+    rhop1  = Int(state.rhop1)
+
+    if rhop1 > n          # no internals → vacuously connected
+        return true
+    end
+
+    visited = falses(n)
+    queue   = Vector{Int}(undef, n)
+    qhead   = 1
+    qtail   = 1
+
+    visited[n] = true
+    queue[qtail] = n
+    qtail += 1
+
+    @inbounds while qhead < qtail
+        v = queue[qhead]
+        qhead += 1
+        # Upper-triangle neighbors (u > v).
+        for u in (v + 1):n
+            if !visited[u] && state.xg[v, u] != Int8(0)
+                visited[u] = true
+                queue[qtail] = u
+                qtail += 1
+            end
+        end
+        # Lower-triangle neighbors (u < v).
+        for u in 1:(v - 1)
+            if !visited[u] && state.xg[u, v] != Int8(0)
+                visited[u] = true
+                queue[qtail] = u
+                qtail += 1
+            end
+        end
+    end
+
+    @inbounds for i in rhop1:n
+        if !visited[i]
+            return false
+        end
+    end
+    return true
+end
+
+"""
     qg21_enumerate!(callback, state)
 
 Drive the full qg21 topology enumeration: Step B (xc/xn distribution) feeds
@@ -515,6 +574,12 @@ function step_c_enumerate!(callback::F, state::TopoState) where {F}
         @goto row_fill
 
     @label emit
+        # qg21:12980-13038 — connectedness BFS (signed coloring; only the
+        # connectedness component is checked here, the bipartite test is a
+        # later filter).  Reject disconnected internal subgraphs.
+        if !_is_connected_internal(state)
+            @goto row_decrement
+        end
         callback(state)
         @goto row_decrement   # try next topology
 
