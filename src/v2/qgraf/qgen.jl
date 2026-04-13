@@ -131,3 +131,125 @@ function compute_qg10_labels(state::TopoState)
 
     return (; vlis, invlis, vmap, lmap, rdeg, sdeg)
 end
+
+# ── Multiset helpers (simple Symbol → Int counter approach) ────────────
+
+function _is_sub_multiset(sub::AbstractVector{Symbol}, sup::AbstractVector{Symbol})
+    counts = Dict{Symbol, Int}()
+    for f in sup
+        counts[f] = get(counts, f, 0) + 1
+    end
+    for f in sub
+        c = get(counts, f, 0)
+        c == 0 && return false
+        counts[f] = c - 1
+    end
+    true
+end
+
+function _multiset_diff(a::AbstractVector{Symbol}, b::AbstractVector{Symbol})
+    counts = Dict{Symbol, Int}()
+    for f in a
+        counts[f] = get(counts, f, 0) + 1
+    end
+    for f in b
+        counts[f] = get(counts, f, 0) - 1
+    end
+    result = Symbol[]
+    for (f, c) in counts
+        for _ in 1:c
+            push!(result, f)
+        end
+    end
+    sort!(result)
+end
+
+"""
+    qgen_count_assignments(state, labels, ext_assignment, dpntro, conjugate) -> Int
+
+Count valid field assignments to internal slots, given an external-slot
+field assignment and the dpntro lookup table.  Multiset matching against
+vertex rules; recursive backtracker over `labels.vlis` order.
+
+Source: refs/qgraf/v4.0.6/qgraf-4.0.6.dir/qgraf-4.0.6.f08:13880-13987.
+
+Phase 12c minimal port:
+  • Multiset rule matching (qgraf does positional matching with sorted
+    rules; multiset is equivalent in algorithm, more idiomatic in Julia).
+  • DOES NOT yet apply the symmetry-factor 1/S weighting that gives the
+    true distinct-diagram count — that's Phase 15.  Returned count is the
+    SUM over all (perm, assignment) tuples and over-counts by the
+    topology automorphism size.
+  • Self-loop slot validity (link(field) pairing) deferred until needed.
+"""
+function qgen_count_assignments(state::TopoState, labels,
+                                 ext_assignment::AbstractVector{Symbol},
+                                 dpntro::Dict{Int, Vector{Vector{Symbol}}},
+                                 conjugate::Dict{Symbol, Symbol})
+    n     = Int(state.n)
+    n_ext = Int(state.n_ext)
+    pmap  = fill(:_, n, MAX_V)
+
+    # qgen:13880-13884 — externals: pmap[i,1] = ext field, propagate conjugate
+    @inbounds for i in 1:n_ext
+        f = ext_assignment[i]
+        pmap[i, 1] = f
+        nb   = Int(labels.vmap[i, 1])
+        slot = Int(labels.lmap[i, 1])
+        pmap[nb, slot] = conjugate[f]
+    end
+
+    return _qgen_recurse(state, labels, pmap, dpntro, conjugate, n_ext + 1)
+end
+
+function _qgen_recurse(state::TopoState, labels, pmap::Matrix{Symbol},
+                       dpntro::Dict{Int, Vector{Vector{Symbol}}},
+                       conjugate::Dict{Symbol, Symbol}, vind::Int)
+    n = Int(state.n)
+    if vind > n
+        return 1   # all internal vertices satisfied
+    end
+
+    vv      = Int(labels.vlis[vind])
+    deg     = Int(state.vdeg[vv])
+    rdeg_vv = Int(labels.rdeg[vv])
+
+    # Already-assigned fields at vv (slots 1..rdeg_vv from earlier vertices).
+    assigned = Symbol[pmap[vv, k] for k in 1:rdeg_vv]
+    sort!(assigned)
+
+    rules = get(dpntro, deg, Vector{Vector{Symbol}}())
+    count = 0
+
+    # Save the slots we will mutate so we can restore on backtrack.
+    saved = Vector{Tuple{Int, Int, Symbol}}()
+
+    for rule in rules
+        _is_sub_multiset(assigned, rule) || continue
+        remaining = _multiset_diff(rule, assigned)
+
+        # Assign remaining[1..end] to slots rdeg+1..deg (in given order),
+        # propagate conjugate to neighbour at vmap[vv, slot] / lmap[vv, slot].
+        empty!(saved)
+        ok = true
+        @inbounds for k in 1:length(remaining)
+            slot = rdeg_vv + k
+            pmap[vv, slot]  = remaining[k]
+            nb   = Int(labels.vmap[vv, slot])
+            nb_s = Int(labels.lmap[vv, slot])
+            push!(saved, (nb, nb_s, pmap[nb, nb_s]))
+            pmap[nb, nb_s] = conjugate[remaining[k]]
+        end
+
+        ok && (count += _qgen_recurse(state, labels, pmap, dpntro, conjugate, vind + 1))
+
+        # Backtrack: restore neighbour slots; pmap[vv, rdeg+1..] are owned by us
+        # and will be overwritten on next iteration (or left dangling — fine
+        # since vind never revisits this vertex within this recursion frame).
+        @inbounds for (nb, nb_s, prev) in saved
+            pmap[nb, nb_s] = prev
+        end
+    end
+
+    return count
+end
