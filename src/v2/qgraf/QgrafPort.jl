@@ -33,6 +33,7 @@ export Partition, EquivClass, FilterSet, TopoState,
        build_spanning_tree, count_chords,
        qgen_enumerate_assignments,
        count_dedup_burnside, count_dedup_canonical, count_dedup_prefilter,
+       count_diagrams_qg21,
        is_emission_canonical, emission_stabilizer,
        is_pmap_canonical, pmap_stabilizer
 

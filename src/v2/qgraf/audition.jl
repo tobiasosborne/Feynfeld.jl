@@ -201,6 +201,66 @@ function count_dedup_canonical(model, in_fields::Vector{Symbol},
 end
 
 """
+    count_diagrams_qg21(model, in_fields, out_fields; loops, onepi=false) -> Int
+
+Phase 17b — primary entry point for the new Strategy C qgraf pipeline.
+
+Wraps qg21 → qg10 → qgen and applies (A) Burnside dedup, the only audition
+strategy that handles physically-distinct s/t channels correctly when the
+topology automorphism group includes in↔out crossings.
+
+Optional `onepi` filter rejects topologies that aren't 1-particle-irreducible
+(any internal-edge bridge → reject).
+
+Source-faithful but DOES NOT yet replicate qgraf's full output (momentum
+routing, qompac formatting); for diagram COUNTING this is sufficient.
+"""
+function count_diagrams_qg21(model, in_fields::Vector{Symbol},
+                              out_fields::Vector{Symbol};
+                              loops::Int=0, onepi::Bool=false)
+    n_ext   = length(in_fields) + length(out_fields)
+    ext_raw = vcat(in_fields, out_fields)
+    exp     = Main.FeynfeldX._expand_model_for_diagen(model)
+    ext_exp = Main.FeynfeldX._expand_external_fields(ext_raw, exp)
+    dpntro  = build_dpntro(exp.vertex_rules)
+    rules   = Main.FeynfeldX.feynman_rules(model)
+    vd      = Set(length(k) for k in keys(rules.vertices))
+
+    total = Rational{Int}(0)
+    for dp in Main.FeynfeldX._degree_partitions(n_ext, loops, vd)
+        degs = sort([d for (d, c) in dp.counts if c > 0])
+        isempty(degs) && continue
+        cv = Int8[get(dp.counts, d, 0) for d in degs[1]:degs[end]]
+        qp = Partition(Int8(n_ext), cv, Int8(degs[1]), Int8(loops))
+        s  = TopoState(qp)
+        qg21_enumerate!(s) do state
+            onepi && !is_one_pi(state) && return
+            labels = compute_qg10_labels(state)
+            autos  = enumerate_topology_automorphisms(state)
+            g_size = length(autos)
+            ps1 = collect(1:n_ext)
+            while true
+                ext_perm = Symbol[ext_exp[ps1[i]] for i in 1:n_ext]
+                qgen_enumerate_assignments(state, labels, ext_perm, dpntro,
+                                            exp.conjugate) do st, pmap
+                    n_stab = emission_stabilizer(st, labels, autos, ps1, pmap)
+                    total += n_stab // g_size
+                end
+                j = n_ext - 1
+                while j >= 1 && ps1[j] >= ps1[j + 1]; j -= 1; end
+                j == 0 && break
+                k = n_ext
+                while ps1[k] <= ps1[j]; k -= 1; end
+                ps1[j], ps1[k] = ps1[k], ps1[j]
+                reverse!(view(ps1, (j + 1):n_ext))
+            end
+        end
+    end
+    @assert denominator(total) == 1 "Burnside sum non-integer ($total)"
+    Int(numerator(total))
+end
+
+"""
     count_dedup_prefilter(model, in_fields, out_fields; loops) -> Int
 
 Approach (C) — pre-filter ext-leg perms: for each topology, compute
