@@ -59,10 +59,13 @@ using .FeynfeldX.QgrafPort: count_diagrams_qg21
                                     loops=1, onepi=true)
     end
 
-    @testset "[broken] QED ee→μμ 1L 2gen — qgen flavor-loop bug (Phase 12d)" begin
-        # Legacy = 18; qgen returns ≤17.  See audition commit for diagnosis.
-        @test_broken count_diagrams_qg21(qed_model(), [:e, :e], [:mu, :mu]; loops=1) ==
-                     count_diagrams(qed_model(),     [:e, :e], [:mu, :mu]; loops=1)
+    @testset "QED ee→μμ 1L 2gen — flavor-loop bug fix (Phase 12d)" begin
+        # Was @test_broken — Burnside returned 16 vs legacy 18.
+        # Fixed by enumerating all positional perms of remaining slots in
+        # _qgen_recurse + applying self-loop & multi-edge filters
+        # (qgen:13921-13954).  See grind/ for the diagnostic infrastructure.
+        @test count_diagrams_qg21(qed_model(), [:e, :e], [:mu, :mu]; loops=1) ==
+              count_diagrams(qed_model(),     [:e, :e], [:mu, :mu]; loops=1)
     end
 
 end

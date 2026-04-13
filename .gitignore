@@ -56,3 +56,14 @@ output/
 
 # Agent-review markdown dumps
 reviews/
+
+# GRIND METHOD diagnostic scratch — keep our scripts but not qgraf-derived
+# files (qgraf is externally licensed and the binary is not redistributable).
+grind/qgraf-grind*
+grind/fmodules/
+grind/models/
+grind/styles/
+grind/out_tmp/
+grind/*_trace.txt
+grind/*_stdout.txt
+grind/v2_test_results.txt

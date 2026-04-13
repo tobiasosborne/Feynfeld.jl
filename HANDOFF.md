@@ -1,4 +1,4 @@
-# HANDOFF — 2026-04-13 (Session 22: Strategy C qg21 port — phases 2-17b complete)
+# HANDOFF — 2026-04-13 (Session 23: BUG 1 fixed via GRIND METHOD — Phase 12d)
 
 ## DO NOT DELETE THIS FILE. Read it completely before working.
 
@@ -10,10 +10,77 @@
 2. Run `bd ready` to see available work.
 3. Run `julia --project=. test/v2/test_diagram_gen.jl` → expect 32/32 green.
 4. Run all qgraf-port tests: `for f in test/v2/qgraf/*.jl; do julia --project=. "$f"; done`
-   → expect ~440 tests across 14 files, all green or `@test_broken`.
-5. Optional: `QGRAF_MAX_SECONDS=120 julia --project=. scripts/qgraf_golden_master_report.jl 2`
-   → live-streams every golden-master case. Currently PASS=70/104 at loops≤2
-   (was 63 at start of session; +7 thanks to phases 2-4).
+   → expect ~440 tests across 14 files, all green or `@test_broken` (only the
+   φ³ 2L 465 case = BUG 2 is still broken).
+5. Run full v2 suite: `grind/run_v2_tests.sh` → 25/25 files pass, 0 fail/error.
+6. Optional: `QGRAF_MAX_SECONDS=120 julia --project=. scripts/qgraf_golden_master_report.jl 2`
+   → still PASS=70/104 (legacy `count_diagrams` path; BUG 1 fix only affects
+   the new `count_diagrams_qg21` path).
+
+---
+
+## SESSION 23 ACCOMPLISHMENTS — BUG 1 FIXED
+
+**Root cause** (verified by GRIND METHOD with instrumented qgraf-grind in `grind/`):
+qgraf's `dpntro` (rule lookup table built by `qrvi:22020-22090`) stores ALL
+distinct positional permutations of each vertex (12 rules for QED2 deg-3, 6 perms
+× 2 vertex types). Julia's previous `_qgen_recurse` stored 1 sorted multiset per
+fieldset and assigned `_multiset_diff(rule, assigned)` (sorted) to slots in fixed
+order, missing emissions where the slot ordering of "remaining" fields was
+non-canonical.
+
+For ee→μμ 1L: missing 1 orbit on penguin topology + 1 on box topology
+(Burnside contribution 1+1=2; A=16 vs qgraf=18).
+
+**The fix** (`src/v2/qgraf/qgen.jl`, +96/-38 LOC):
+- New helper `_qgen_check_perm` implements qgraf's two slot-ordering filters:
+  - Self-loop pair check (`qgen:13921-13934`): conjugate pairs in canonical order
+  - Multi-edge ordering (`qgen:13948-13954`): consecutive slots to same neighbour sorted
+- `_qgen_enumerate_recurse` and `_qgen_recurse` now iterate
+  `multiset_permutations(remaining, length(remaining))` per matching multiset rule,
+  apply the filters, then recurse if valid.
+
+**Verification** (35/35 spot-checks against qgraf golden masters + full test suite):
+
+| Test surface | Result |
+|---|---|
+| ee→μμ 1L (THE bug case) | 16 → **18** ✓ |
+| QED1 (15 cases vs golden masters) | 15/15 ✓ |
+| QED2 (7 cases vs golden masters) | 7/7 ✓ |
+| QCD (13 cases vs golden masters) | 13/13 ✓ |
+| Phase 17b battery (`test_qg21_battery.jl`) | 23 pass + 1 broken (BUG 2 unchanged) |
+| Phase 17 audition (`test_phase17_audition.jl`) | 17 pass + 4 broken (B/C still over-count) |
+| Full v2 suite (25 files) | 25/25 pass, 0 fail/error |
+
+**Test-marker updates**:
+- `test_count_diagrams_qg21.jl`: ee→μμ 1L `@test_broken` → `@test`
+- `test_phase17_audition.jl`: A Burnside `@test_broken` → `@test`; B/C remain
+  `@test_broken` (now over-count to 19; the canonicality bug from the
+  audition VERDICT is unaffected by Phase 12d).
+
+**Side fix**: `Combinatorics` added to `Project.toml [deps]` (was only transitive
+via Manifest; would silently break the build if a dep upgrade dropped the
+transitive pull). Reviewer S2.
+
+**BUG 2 status (UNCHANGED — separate root cause)**: φ³ φφ→φφ 2L still returns
+483 vs target 465. Phase 12d is provably a no-op for φ³ (single rule, single
+multiset perm). The C3 TODO note in `qgen.jl` flags one suspect: `pmap[vv,
+rdeg+1..vdeg]` is not saved on backtrack (only neighbour slots are). Benign for
+currently-passing cases, but worth checking against BUG 2 where self-loop
+topologies abound.
+
+## GRIND METHOD reusable infrastructure
+
+`grind/` directory (qgraf binary/source/traces gitignored):
+- `run_v2_tests.sh` — sequential v2 test runner with incremental output
+- `dump_julia_emissions.jl` — Julia-side per-emission state dump
+- `inspect_dpntro.gdb`, `inspect_qgen.gdb` — gdb scripts for instrumented qgraf
+- `ctrl.dat` — qgraf control file for the bug case
+- `README.md` — how to instrument and rebuild qgraf locally
+
+Use this same workflow on BUG 2: instrument qgraf, dump per-emission state for
+phi3 φφ→φφ 2L (483 vs 465 = +18 over-count), compare against Julia trace,
+identify first divergence.
 
 ---
 
@@ -101,35 +168,37 @@ Pipeline: `qg21_enumerate!` → qg10 ext-perm loop → `qgen_enumerate_assignmen
 
 ## KNOWN BUGS — BLOCKERS FOR PHASE 17c PIPELINE SWAP
 
-Two real, reproducible bugs.  Both gate the full pipeline swap.
+One remaining bug (BUG 2). BUG 1 fixed in Session 23.
 
-### BUG 1 — qgen flavor-loop under-count (QED multi-gen 1L)
+### BUG 1 — qgen flavor-loop under-count (QED multi-gen 1L) — **FIXED Session 23**
 
-**Symptom**:
+**Was**:
 ```
-count_diagrams_qg21(qed_model(), [:e,:e], [:mu,:mu]; loops=1)  →  17  (legacy: 18, qgraf golden: 18)
+count_diagrams_qg21(qed_model(), [:e,:e], [:mu,:mu]; loops=1)  →  16  (legacy: 18, qgraf golden: 18)
 ```
 
-Discovered during Phase 17a audition.  All three dedup strategies agree on 16-17 (off by 1-2 from 18); since they share the same emission stream, the deficit is in `qgen` itself, not in dedup.
+**Now**:
+```
+count_diagrams_qg21(qed_model(), [:e,:e], [:mu,:mu]; loops=1)  →  18 ✓
+```
 
-**Diagnosis (incomplete)**:
-- For multi-generation QED, a 1-loop diagram can carry an `e`-loop OR a `μ`-loop.
-- Both rules `(e, e_bar, γ)` and `(μ, μ_bar, γ)` are in `dpntro[3]`.
-- `qgen_count_assignments` iterates rules at each vertex via the multiset matching.
-- Hypothesis: when an internal vertex has all 3 slots empty (no fields assigned yet), my multiset matcher tries each rule but the BACKTRACKING (saving/restoring neighbor pmap) might prematurely commit to one flavor for the rest of the loop.
+**Root cause** (verified by GRIND METHOD): qgraf's qgen iterates ALL distinct
+positional permutations of each vertex (qrvi:22020-22090); Julia's
+`_qgen_recurse` was using multiset matching with sorted slot assignment,
+missing valid emissions where the slot ordering of "remaining" fields was
+non-canonical. Missed 1 orbit on penguin + 1 on box.
 
-**Diagnostic scripts**:
-- `scripts/audition_compare.jl` — battery vs legacy on 10 cases
-- `scripts/debug_qed_1l.jl` — counts QED 1L topologies (returns 6)
+**Fix**: `src/v2/qgraf/qgen.jl` — Phase 12d. New `_qgen_check_perm` helper
+implements qgraf's self-loop pair check (qgen:13921-13934) and multi-edge
+ordering filter (qgen:13948-13954); `_qgen_{recurse,enumerate_recurse}` now
+iterate `multiset_permutations(remaining)` per matching rule and apply the
+filters. See SESSION 23 ACCOMPLISHMENTS above.
 
-**Where to look**:
-- `src/v2/qgraf/qgen.jl::_qgen_recurse` — the multiset rule iteration
-- `src/v2/qgraf/qgen.jl::_qgen_enumerate_recurse` — same recursion for the emit-callback variant
+**Verification**: 35/35 spot-checks against qgraf golden masters
+(QED1: 15, QED2: 7, QCD: 13) all match. Full v2 suite: 25/25 pass.
 
-**Audition counts that hit this bug**:
-- `qed_model()` `ee → μμ` 1L: A=16, B=17, C=17 (legacy=18)
-
-**Commit context**: `bff47ef`, `7842015`.
+**Diagnostic infra**: see `grind/` (instrumented qgraf gitignored, our
+scripts and README committed).
 
 ### BUG 2 — phi3 2-loop φφ→φφ over-count (+18)
 
@@ -237,15 +306,19 @@ Plus full v2 regression (test_ee_mumu_x, test_ee_ww, test_qqbar_gg, etc.) all gr
 
 ## REMAINING WORK
 
-### Phase 17c — pipeline swap (gated on bug fixes)
+### Phase 17c — pipeline swap (gated on BUG 2)
 
 Replace `count_diagrams` in `src/v2/diagram_gen.jl` with a wrapper that
 calls `count_diagrams_qg21`.  Wire the Phase 14 filter predicates into the
 new path so the 26 SKIP cases unlock.
 
-**Gating**: BUG 1 (qgen flavor-loop) and BUG 2 (2L over-count) MUST be
-fixed first; otherwise Phase 17c regresses 2 of 32 currently-passing
-test_diagram_gen tests AND introduces incorrect counts on QED 1L 2-gen.
+**Gating**: BUG 1 fixed Session 23. BUG 2 (φ³ 2L φφ→φφ over-count +18)
+still gates the swap; otherwise Phase 17c regresses test_diagram_gen on
+the φ³ 2L 4-point case.
+
+**BUG 2 next-step diagnostic** (after fixing it): re-run
+`grind/run_v2_tests.sh` and the 35 spot-check battery; rerun the golden
+master report to see how many of the 26 currently-SKIP cases turn green.
 
 ### Phase 18 — Diagram → AlgSum amplitude bridge (Layer 4)
 

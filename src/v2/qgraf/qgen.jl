@@ -5,6 +5,10 @@
 #  Phase 12a — dpntro builder (this file).
 #  Phase 12b — vmap/lmap construction (extension to qg10).
 #  Phase 12c — qgen recursive backtracker.
+#  Phase 12d — full slot-permutation enumeration with self-loop & multi-edge
+#              filters (qgen:13921-13954) — fixes the multi-flavor under-count.
+
+using Combinatorics: multiset_permutations as _msperms
 
 """
     build_dpntro(vertex_rules) -> Dict{Int, Vector{Vector{Symbol}}}
@@ -164,6 +168,52 @@ function _multiset_diff(a::AbstractVector{Symbol}, b::AbstractVector{Symbol})
     sort!(result)
 end
 
+# ── qgen slot-ordering filters ─────────────────────────────────────────
+#
+# Source: refs/qgraf/v4.0.6/qgraf-4.0.6.dir/qgraf-4.0.6.f08:13921-13954
+#
+# qgraf enumerates ALL distinct positional permutations of each vertex
+# (qrvi:22020-22090, building rotvpo) and applies two filters per perm:
+#
+#   • Self-loop pair check (qgen:13921-13934): slots rdeg+1..sdeg come in
+#     conjugate pairs (j2 = link(j3)) with within-pair canonical order
+#     (j2 ≤ j3) AND across-pair canonical order (j2 ≤ next pair's j2).
+#     "j2 = link(j3)" with j2 ≤ j3 picks the (e_minus, e_plus)-style pair
+#     and rejects (e_plus, e_minus); for self-conjugate fields the pair
+#     is (γ, γ) and trivially passes.
+#
+#   • Multi-edge ordering (qgen:13948-13954): for non-self-loop slots
+#     i, i+1 in [sdeg+1, vdeg-1], if vmap[i] == vmap[i+1] (parallel edges
+#     to the same neighbour) then pmap[i] ≤ pmap[i+1].
+#
+# `perm[k]` is the proposed field for slot rdeg_vv + k.
+function _qgen_check_perm(perm::AbstractVector{Symbol},
+                          vmap_row::AbstractVector,
+                          rdeg_vv::Int, sdeg_vv::Int, deg::Int,
+                          conjugate::AbstractDict{Symbol, Symbol})
+    # qgen:13921-13934 — self-loop pair check (pairs at slots rdeg+1, rdeg+3, ...).
+    i1 = rdeg_vv + 1
+    @inbounds while i1 < sdeg_vv
+        k = i1 - rdeg_vv
+        p1 = perm[k]
+        p2 = perm[k + 1]
+        p1 > p2 && return false
+        p1 == conjugate[p2] || return false
+        if i1 + 1 != sdeg_vv
+            perm[k + 2] < p1 && return false
+        end
+        i1 += 2
+    end
+    # qgen:13948-13954 — multi-edge ordering on non-self-loop slots.
+    @inbounds for i in (sdeg_vv + 1):(deg - 1)
+        if Int(vmap_row[i]) == Int(vmap_row[i + 1])
+            k = i - rdeg_vv
+            perm[k] > perm[k + 1] && return false
+        end
+    end
+    return true
+end
+
 """
     qgen_count_assignments(state, labels, ext_assignment, dpntro, conjugate) -> Int
 
@@ -173,14 +223,16 @@ vertex rules; recursive backtracker over `labels.vlis` order.
 
 Source: refs/qgraf/v4.0.6/qgraf-4.0.6.dir/qgraf-4.0.6.f08:13880-13987.
 
-Phase 12c minimal port:
-  • Multiset rule matching (qgraf does positional matching with sorted
-    rules; multiset is equivalent in algorithm, more idiomatic in Julia).
+Phase 12d (qgen-faithful port):
+  • Per matching multiset rule, enumerate all distinct positional
+    permutations of the unassigned slots — this matches qgraf's
+    positional rule iteration over rotvpo (qrvi:22020-22090).
+  • Self-loop and multi-edge filters applied per perm via
+    `_qgen_check_perm` (qgen:13921-13954).
   • DOES NOT yet apply the symmetry-factor 1/S weighting that gives the
     true distinct-diagram count — that's Phase 15.  Returned count is the
     SUM over all (perm, assignment) tuples and over-counts by the
     topology automorphism size.
-  • Self-loop slot validity (link(field) pairing) deferred until needed.
 """
 function qgen_count_assignments(state::TopoState, labels,
                                  ext_assignment::AbstractVector{Symbol},
@@ -468,25 +520,34 @@ function _qgen_enumerate_recurse(callback::F, state::TopoState, labels,
     vv      = Int(labels.vlis[vind])
     deg     = Int(state.vdeg[vv])
     rdeg_vv = Int(labels.rdeg[vv])
+    sdeg_vv = Int(labels.sdeg[vv])
     assigned = Symbol[pmap[vv, k] for k in 1:rdeg_vv]
     sort!(assigned)
-    rules = get(dpntro, deg, Vector{Vector{Symbol}}())
-    saved = Vector{Tuple{Int, Int, Symbol}}()
-    @inbounds for rule in rules
+    rules    = get(dpntro, deg, Vector{Vector{Symbol}}())
+    vmap_row = view(labels.vmap, vv, :)
+    saved    = Vector{Tuple{Int, Int, Symbol}}()
+    for rule in rules
         _is_sub_multiset(assigned, rule) || continue
         remaining = _multiset_diff(rule, assigned)
-        empty!(saved)
-        for k in 1:length(remaining)
-            slot = rdeg_vv + k
-            pmap[vv, slot] = remaining[k]
-            nb   = Int(labels.vmap[vv, slot])
-            nb_s = Int(labels.lmap[vv, slot])
-            push!(saved, (nb, nb_s, pmap[nb, nb_s]))
-            pmap[nb, nb_s] = conjugate[remaining[k]]
-        end
-        _qgen_enumerate_recurse(callback, state, labels, pmap, dpntro, conjugate, vind + 1)
-        for (nb, nb_s, prev) in saved
-            pmap[nb, nb_s] = prev
+        # qgen:13889-13987 — qgraf iterates ALL distinct positional perms of
+        # the rule whose first rdeg slots match pmap[vv,1..rdeg].  We model
+        # this by enumerating distinct perms of `remaining` for each
+        # multiset-matching rule.
+        for perm in _msperms(remaining, length(remaining))
+            _qgen_check_perm(perm, vmap_row, rdeg_vv, sdeg_vv, deg, conjugate) || continue
+            empty!(saved)
+            @inbounds for k in 1:length(perm)
+                slot = rdeg_vv + k
+                pmap[vv, slot] = perm[k]
+                nb   = Int(vmap_row[slot])
+                nb_s = Int(labels.lmap[vv, slot])
+                push!(saved, (nb, nb_s, pmap[nb, nb_s]))
+                pmap[nb, nb_s] = conjugate[perm[k]]
+            end
+            _qgen_enumerate_recurse(callback, state, labels, pmap, dpntro, conjugate, vind + 1)
+            @inbounds for (nb, nb_s, prev) in saved
+                pmap[nb, nb_s] = prev
+            end
         end
     end
 end
@@ -502,14 +563,15 @@ function _qgen_recurse(state::TopoState, labels, pmap::Matrix{Symbol},
     vv      = Int(labels.vlis[vind])
     deg     = Int(state.vdeg[vv])
     rdeg_vv = Int(labels.rdeg[vv])
+    sdeg_vv = Int(labels.sdeg[vv])
 
     # Already-assigned fields at vv (slots 1..rdeg_vv from earlier vertices).
     assigned = Symbol[pmap[vv, k] for k in 1:rdeg_vv]
     sort!(assigned)
 
-    rules = get(dpntro, deg, Vector{Vector{Symbol}}())
-    count = 0
-
+    rules    = get(dpntro, deg, Vector{Vector{Symbol}}())
+    vmap_row = view(labels.vmap, vv, :)
+    count    = 0
     # Save the slots we will mutate so we can restore on backtrack.
     saved = Vector{Tuple{Int, Int, Symbol}}()
 
@@ -517,26 +579,29 @@ function _qgen_recurse(state::TopoState, labels, pmap::Matrix{Symbol},
         _is_sub_multiset(assigned, rule) || continue
         remaining = _multiset_diff(rule, assigned)
 
-        # Assign remaining[1..end] to slots rdeg+1..deg (in given order),
-        # propagate conjugate to neighbour at vmap[vv, slot] / lmap[vv, slot].
-        empty!(saved)
-        ok = true
-        @inbounds for k in 1:length(remaining)
-            slot = rdeg_vv + k
-            pmap[vv, slot]  = remaining[k]
-            nb   = Int(labels.vmap[vv, slot])
-            nb_s = Int(labels.lmap[vv, slot])
-            push!(saved, (nb, nb_s, pmap[nb, nb_s]))
-            pmap[nb, nb_s] = conjugate[remaining[k]]
-        end
-
-        ok && (count += _qgen_recurse(state, labels, pmap, dpntro, conjugate, vind + 1))
-
-        # Backtrack: restore neighbour slots; pmap[vv, rdeg+1..] are owned by us
-        # and will be overwritten on next iteration (or left dangling — fine
-        # since vind never revisits this vertex within this recursion frame).
-        @inbounds for (nb, nb_s, prev) in saved
-            pmap[nb, nb_s] = prev
+        # qgen:13889-13987 — enumerate ALL distinct positional perms of the
+        # rule that agree with pmap[vv,1..rdeg].  For each, apply the
+        # self-loop & multi-edge filters (qgen:13921-13954) before recursing.
+        # TODO BUG 2: pmap[vv, rdeg+1..vdeg] is NOT saved on backtrack
+        # (only neighbour slots are).  Self-loop slots write to vmap[vv,*]==vv,
+        # so the back-prop falls within vv itself and IS saved.  Benign for
+        # currently-passing cases (next perm overwrites), but worth checking
+        # against BUG 2 (φ³ 2L over-count) where self-loop topologies abound.
+        for perm in _msperms(remaining, length(remaining))
+            _qgen_check_perm(perm, vmap_row, rdeg_vv, sdeg_vv, deg, conjugate) || continue
+            empty!(saved)
+            @inbounds for k in 1:length(perm)
+                slot = rdeg_vv + k
+                pmap[vv, slot]  = perm[k]
+                nb   = Int(vmap_row[slot])
+                nb_s = Int(labels.lmap[vv, slot])
+                push!(saved, (nb, nb_s, pmap[nb, nb_s]))
+                pmap[nb, nb_s] = conjugate[perm[k]]
+            end
+            count += _qgen_recurse(state, labels, pmap, dpntro, conjugate, vind + 1)
+            @inbounds for (nb, nb_s, prev) in saved
+                pmap[nb, nb_s] = prev
+            end
         end
     end
 
