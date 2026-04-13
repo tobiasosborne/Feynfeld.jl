@@ -293,72 +293,318 @@ in `state.xg[1:n, 1:n]`).
 
 Source: qgraf-4.0.6.f08:12659-13150.
 
-Phase 7a only: trivial single-internal path (no dsum, no row fill).
-Phase 7b/7c will extend with self-loop enumeration and row-by-row fill.
+Goto-style control flow (Fortran labels mapped 1:1 to Julia @label/@goto):
+
+  setup       (12695-12764)  ← compute str, dta, place ext edges
+  label 70    (12765-12781)  ← outer dsum loop, xg-diagonal init
+  label 19    (12815-12841)  ← ds[] init, xset build, lps[lin]=loop-dsum+1
+  label 10    (12842-12853)  ← greedy row fill at current lin
+  label 28    (12897-12958)  ← row-completion check, advance to next row or emit
+  label 200   (12959+)       ← emit topology
+  label 17    (12862-12876)  ← row backtrack (decrement and re-fill)
+  label 23    (12877-12890)  ← column-increment within row
+  label 38    (12891-12896)  ← cross-col canonical-violation re-entry to 23
+  label 15    (12857-12861)  ← row-decrement entry
+  label 32    (12782-12798)  ← xg-diagonal backtrack (find rightmost xg(i,i)>0)
+  label 33    (12790-12798)  ← find smaller-index slot to bump
+  label 65    (12799-12814)  ← redistribute lower xg(i,i) after bump
 """
 function step_c_enumerate!(callback::F, state::TopoState) where {F}
     n      = Int(state.n)
     n_ext  = Int(state.n_ext)
     rhop1  = Int(state.rhop1)
+    nloop  = Int(state.nloop)
 
     # qg21:12660-12664 — reject xc(1)>0 when rho(-1)<n.
-    # (The remaining-degree constraint can't be satisfied otherwise.)
     if n_ext < n && state.xc[1] > Int8(0)
         return nothing
     end
 
-    # ── Place all edges fixed by Step B's (xc, xn) ───────────────────
-    #
-    # qg21:12743-12745 — clear strict upper triangle.
-    @inbounds for i in 1:(n - 1)
-        for j in (i + 1):n
-            state.xg[i, j] = Int8(0)
-            state.xg[j, i] = Int8(0)
+    # ── Pre-compute str[], dta[] (default filters only — Phase 14 will
+    #     extend for nob/nosb/nopa/etc.) ────────────────────────────────
+    str_arr = zeros(Int8, MAX_V)
+    dta_arr = zeros(Int8, MAX_V)
+    @inbounds for i in rhop1:n
+        # qg21:12530-12540 — str[i] = max edges from row i
+        if state.vdeg[i] != state.vdeg[n]
+            str_arr[i] = Int8(min(Int(state.vdeg[i]), nloop + 1))
+        elseif n > 2
+            str_arr[i] = Int8(min(Int(state.vdeg[i]) - 1, nloop + 1))
+        else
+            str_arr[i] = Int8(min(Int(state.vdeg[i]), nloop + 1))
         end
-    end
-    # Clear diagonal too (will be set by dsum step).
-    @inbounds for i in 1:n
-        state.xg[i, i] = Int8(0)
+        # qg21:12722-12740 — dta[i] = max self-loops × 2 (in half-edges)
+        ii_dta = (n > rhop1) ? 1 : 0
+        jj = max(0, min(Int(state.vdeg[i]) - Int(state.xn[i]) - ii_dta, 2 * nloop)) ÷ 2
+        dta_arr[i] = Int8(2 * jj)
     end
 
-    # qg21:12746-12748 — external-to-external pairs at xg(2i-1, 2i) = 1.
+    # ── qg21:12743-12764 — clear xg, place ext-to-ext + ext-to-internal ─
+    @inbounds for i in 1:n
+        for j in 1:n
+            state.xg[i, j] = Int8(0)
+        end
+    end
     half_pairs = Int(state.xc[1]) ÷ 2
     @inbounds for i in 1:half_pairs
         state.xg[2i - 1, 2i] = Int8(1)
     end
-
-    # qg21:12752-12764 — external-to-internal connections.
-    # j1 advances over external slots already used by ext-to-ext pairs.
-    j1 = Int(state.xc[1])
+    jcur = Int(state.xc[1])
     @inbounds for i in rhop1:n
         if state.xn[i] > Int8(0)
             for _ in 1:Int(state.xn[i])
-                j1 += 1
-                state.xg[j1, i] = Int8(1)
+                jcur += 1
+                state.xg[jcur, i] = Int8(1)
             end
         end
     end
 
-    # ── Phase 7a: trivial single-internal-row case ─────────────────────
-    #
-    # If limin == n, there is no off-diagonal row to fill.  qg21 does:
-    #   ds[lin,i] = vdeg(i) - xn(i) - xg(i,i)
-    #   row-fill loop: empty (no col)
-    #   ii = ds[lin,lin]
-    #   if ii == 0: emit
-    #   else:       backtrack (impossible at limin → reject)
-    #
-    # Phase 7b/7c will replace this short-circuit with the full Step C
-    # state machine (dsum loop + xg-diagonal backtrack + row fill).
-    if rhop1 == n
-        # dsum=0 only: xg(i,i)=0 already from clear above.
-        ds_lin = Int(state.vdeg[n]) - Int(state.xn[n])      # ds[lin=n, n]
-        if ds_lin == 0
-            callback(state)
+    # ── State machine variables ─────────────────────────────────────────
+    limin = rhop1
+    limax = max(limin, n - 1)
+    lin   = limin
+    dsum  = -1
+    aux   = 0
+    col   = 0
+    msum  = 0
+    j1q   = 0
+    j2q   = 0
+    bond  = 0
+    iiv   = 0
+    xset  = zeros(Int8, MAX_V)
+
+    # ── Inner helpers (closures share local state) ──────────────────────
+    "Build xset[1..n]; return false if not canonical (caller → label 32)."
+    function _build_xset!()
+        xset[1] = Int8(1)
+        jj_x = Int8(1)
+        @inbounds for i in 2:n
+            if state.vdeg[i - 1] != state.vdeg[i]
+                jj_x += Int8(1)
+            elseif state.xn[i - 1] != state.xn[i]
+                jj_x += Int8(1)
+            else
+                ii_x = Int(state.xg[i - 1, i - 1]) - Int(state.xg[i, i])
+                if ii_x > 0
+                    jj_x += Int8(1)
+                elseif ii_x < 0
+                    return false   # not canonical
+                end
+            end
+            xset[i] = jj_x
         end
-        return nothing
+        return true
     end
 
-    # Phase 7b/7c will land here.
-    return nothing
+    @label dsum_outer
+        # qg21:12765-12781 — advance dsum, distribute xg(i,i) greedily.
+        dsum += 1
+        if dsum > nloop
+            return nothing
+        end
+        iiv = 2 * dsum
+        @inbounds for i in n:-1:rhop1
+            jj = min(iiv, Int(dta_arr[i]))
+            state.xg[i, i] = Int8(jj)
+            iiv -= jj
+        end
+        if iiv != 0
+            # Can't fit dsum self-loops with these dta bounds — try next dsum.
+            @goto dsum_outer
+        end
+
+    @label ds_init
+        # qg21:12815-12818 — ds[limin, i] = vdeg[i] - xn[i] - xg[i,i].
+        @inbounds for i in limin:n
+            state.ds[limin, i] = state.vdeg[i] - state.xn[i] - state.xg[i, i]
+        end
+
+        # qg21:12819-12840 — build xset (canonical class index).
+        if !_build_xset!()
+            @goto xg_diag_backtrack
+        end
+
+        # qg21:12841 — lps[limin] = loop - dsum + 1.
+        state.lps[limin] = Int8(nloop - dsum + 1)
+        lin = limin
+
+    @label row_fill
+        # qg21:12842-12853 — greedy row fill at row lin.
+        iiv  = Int(state.ds[lin, lin])
+        bond = min(Int(str_arr[lin]), Int(state.lps[lin]))
+        @inbounds for c in n:-1:(lin + 1)
+            jj = min(iiv, bond, Int(state.ds[lin, c]))
+            state.xg[lin, c] = Int8(jj)
+            iiv -= jj
+        end
+        if iiv > 0
+            @goto row_decrement   # label 15
+        end
+        @goto row_check           # label 28
+
+    @label row_check
+        # qg21:12897-12958 — row-completion check + cross-row/col canonical.
+        if lin == n
+            @goto emit
+        end
+        msum = 0
+        @inbounds for i in (lin + 1):n
+            ii_m = Int(state.xg[lin, i]) - 1
+            if ii_m > 0
+                msum += ii_m
+            end
+        end
+        if msum >= Int(state.lps[lin])
+            @goto row_decrement
+        end
+
+        # qg21:12911-12933 — cross-row canonical (only when xset[lin]==xset[lin-1]).
+        if lin > limin
+            if xset[lin] == xset[lin - 1]
+                same_class = true
+                # Check rows: i in limin..lin-2 — if xg[i,lin-1]>xg[i,lin], canonical.
+                @inbounds for i in limin:(lin - 2)
+                    iiv = Int(state.xg[i, lin - 1]) - Int(state.xg[i, lin])
+                    if iiv > 0
+                        same_class = false   # canonical → skip the strict check
+                        break
+                    elseif iiv < 0
+                        # Should not occur in well-formed enumeration.
+                        error("qg21_7 — invariant violation at row $lin")
+                    end
+                end
+                if same_class
+                    @inbounds for c in (lin + 1):n
+                        iiv = Int(state.xg[lin - 1, c]) - Int(state.xg[lin, c])
+                        if iiv < 0
+                            col = c
+                            @goto col_aux_38   # NOT canonical
+                        elseif iiv > 0
+                            break              # canonical (skip rest)
+                        end
+                    end
+                end
+            end
+        end
+
+        # qg21:12935-12946 — cross-col canonical for adjacent equivalent cols.
+        @inbounds for c in (lin + 2):n
+            if xset[c] == xset[c - 1]
+                broke = false
+                for i in limin:lin
+                    iiv = Int(state.xg[i, c - 1]) - Int(state.xg[i, c])
+                    if iiv < 0
+                        col = c
+                        @goto col_aux_38
+                    elseif iiv > 0
+                        broke = true
+                        break
+                    end
+                end
+            end
+        end
+
+        # qg21:12947-12958 — propagate ds and advance to next row.
+        @inbounds for i in (lin + 1):n
+            new_ds = Int(state.ds[lin, i]) - Int(state.xg[lin, i])
+            new_ds < 0 && error("qg21_8 — negative ds at lin=$lin, i=$i")
+            state.ds[lin + 1, i] = Int8(new_ds)
+        end
+        lin += 1
+        state.lps[lin] = Int8(Int(state.lps[lin - 1]) - msum)
+        @goto row_fill
+
+    @label emit
+        callback(state)
+        @goto row_decrement   # try next topology
+
+    # qg21:12891-12896 — entry point from cross-row/col canonical violation.
+    @label col_aux_38
+        aux = -1
+        @inbounds for i in col:n
+            aux += Int(state.xg[lin, i])
+        end
+        @goto col_increment   # label 23
+
+    @label row_decrement
+        # qg21:12857-12861 — backtrack one row.
+        if lin == limin
+            @goto xg_diag_backtrack
+        end
+        lin -= 1
+
+    # qg21:12862-12890 — try to increment some column entry within row lin.
+    @label row_recheck
+        @inbounds for c in n:-1:(lin + 1)
+            aux = Int(state.xg[lin, c]) - 1
+            if aux >= 0
+                col = c
+                @goto col_increment
+            end
+        end
+        @goto row_decrement
+
+    @label col_increment
+        # qg21:12877-12890 — find a column to increment, redistribute right.
+        bond = min(Int(str_arr[lin]), Int(state.lps[lin]))
+        found_inc = false
+        @inbounds for i in (col - 1):-1:(lin + 1)
+            if min(Int(state.ds[lin, i]), bond) > Int(state.xg[lin, i])
+                state.xg[lin, i] += Int8(1)
+                # Refill cols i+1..n with `aux` remaining.
+                for k in n:-1:(i + 1)
+                    jj = min(aux, bond, Int(state.ds[lin, k]))
+                    state.xg[lin, k] = Int8(jj)
+                    aux -= jj
+                end
+                found_inc = true
+                break
+            else
+                aux += Int(state.xg[lin, i])
+            end
+        end
+        if found_inc
+            @goto row_check
+        else
+            @goto row_decrement
+        end
+
+    @label xg_diag_backtrack
+        # qg21:12782-12798 — find rightmost xg(i,i) > 0 to backtrack.
+        j1q = 0
+        @inbounds for i in n:-1:rhop1
+            if state.xg[i, i] > Int8(0)
+                j1q = i
+                break
+            end
+        end
+        if j1q == 0
+            @goto dsum_outer
+        end
+
+        # qg21:12790-12798 — find smaller-index slot to bump by 2.
+        j2q = 0
+        @inbounds for i in (j1q - 1):-1:rhop1
+            if state.xg[i, i] < dta_arr[i]
+                state.xg[i, i] += Int8(2)
+                j2q = i
+                break
+            end
+        end
+        if j2q == 0
+            @goto dsum_outer
+        end
+
+        # qg21:12799-12814 — redistribute lower diagonal slots.
+        iiv = -2
+        @inbounds for i in (j2q + 1):j1q
+            iiv += Int(state.xg[i, i])
+        end
+        @inbounds for i in n:-1:(j2q + 1)
+            jj = min(iiv, Int(dta_arr[i]))
+            state.xg[i, i] = Int8(jj)
+            iiv -= jj
+        end
+        iiv == 0 || error("qg21_3 — invalid xg-diagonal redistribution")
+        @goto ds_init
 end
