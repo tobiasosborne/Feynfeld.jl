@@ -56,3 +56,105 @@ function has_no_parallel(state::TopoState)
     end
     return true
 end
+
+# ── qumpi family — bridge filters (port of qg21:3690-3776) ─────────────
+
+# Returns the set of vertices reachable from `start` in `state.xg`,
+# treating xg as a symmetric adjacency, with edge (skip_i, skip_j)
+# temporarily removed (set skip_i=0 to remove no edge).
+function _bfs_reachable(state::TopoState, start::Int, skip_i::Int, skip_j::Int)
+    n = Int(state.n)
+    visited = falses(n)
+    queue = Vector{Int}(undef, n)
+    qhead = 1; qtail = 1
+    visited[start] = true
+    queue[qtail] = start; qtail += 1
+    @inbounds while qhead < qtail
+        v = queue[qhead]; qhead += 1
+        for u in 1:n
+            visited[u] && continue
+            (v == skip_i && u == skip_j) && continue
+            (v == skip_j && u == skip_i) && continue
+            edge = u < v ? state.xg[u, v] : state.xg[v, u]
+            edge > Int8(0) || continue
+            visited[u] = true
+            queue[qtail] = u; qtail += 1
+        end
+    end
+    return visited
+end
+
+"""
+    is_one_pi(state) -> Bool
+
+True iff the topology is one-particle-irreducible: removing any single
+internal edge does not disconnect the diagram.
+
+Source: qgraf-4.0.6.f08:3690-3776 (qumpi(1, ...)).
+"""
+function is_one_pi(state::TopoState)
+    rhop1 = Int(state.rhop1)
+    n     = Int(state.n)
+    @inbounds for i in rhop1:(n - 1)
+        for j in (i + 1):n
+            state.xg[i, j] == Int8(1) || continue
+            visited = _bfs_reachable(state, 1, i, j)
+            all(visited[1:n]) || return false
+        end
+    end
+    return true
+end
+
+"""
+    has_no_sbridge(state) -> Bool
+
+True iff no internal-edge bridge has one component completely lacking
+externals (= "self-bridge" in qgraf parlance).
+Source: qg21:3690-3776 (qumpi(2, ...)).
+"""
+function has_no_sbridge(state::TopoState)
+    rhop1 = Int(state.rhop1)
+    n     = Int(state.n)
+    n_ext = Int(state.n_ext)
+    @inbounds for i in rhop1:(n - 1)
+        for j in (i + 1):n
+            state.xg[i, j] == Int8(1) || continue
+            visited = _bfs_reachable(state, 1, i, j)
+            all(visited[1:n]) && continue   # not a bridge
+            ii = sum(visited[1:n_ext])      # externals in component containing 1
+            (ii == 0 || ii == n_ext) && return false
+        end
+    end
+    return true
+end
+
+"""
+    has_no_tadpole(state) -> Bool
+
+Same trigger as has_no_sbridge — qgraf uses xx=3 to RECORD the tadpole
+without rejecting; the rejection variant matches xx=2.  Provided as a
+distinct name for callers that want the notadpole semantic.
+"""
+has_no_tadpole(state::TopoState) = has_no_sbridge(state)
+
+"""
+    has_no_onshell(state) -> Bool
+
+True iff no internal-edge bridge has one component with exactly 1 external.
+Source: qg21:3690-3776 (qumpi(4, ...)).
+"""
+function has_no_onshell(state::TopoState)
+    rhop1 = Int(state.rhop1)
+    n     = Int(state.n)
+    n_ext = Int(state.n_ext)
+    @inbounds for i in rhop1:(n - 1)
+        for j in (i + 1):n
+            state.xg[i, j] == Int8(1) || continue
+            visited = _bfs_reachable(state, 1, i, j)
+            all(visited[1:n]) && continue
+            ii = sum(visited[1:n_ext])
+            (ii == 1 || ii == n_ext - 1) && return false
+        end
+    end
+    return true
+end
