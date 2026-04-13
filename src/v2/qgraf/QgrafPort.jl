@@ -19,6 +19,7 @@ export Partition, EquivClass, FilterSet, TopoState,
        qg21_enumerate!,
        qg10_enumerate!,
        _is_connected_internal,
-       build_dpntro
+       build_dpntro,
+       compute_qg10_labels
 
 end
