@@ -43,4 +43,20 @@ using .FeynfeldX.QgrafPort: count_dedup_burnside, count_dedup_canonical,
         _check(qed_model(), [:e, :e], [:mu, :mu]; loops=0, expected=1)
     end
 
+    @testset "phi3 1L φφ→φφ → 39 (qgraf golden master)" begin
+        _check(phi3_model(), [:phi, :phi], [:phi, :phi]; loops=1, expected=39)
+    end
+
+    @testset "QED ee→μμ 1L (2-gen) — discrepancy across all 3" begin
+        # Audition reveals a real bug: legacy 18 vs (A=16, B=17, C=17).
+        # Diagnosis: my qgen multiset-matching seems to miss flavor-loop
+        # variants (e-loop AND μ-loop) for some perms.  Investigate before
+        # the pipeline swap (Phase 17b) — this is the kind of bug the
+        # audition was designed to catch.
+        m = qed_model()
+        @test_broken count_dedup_burnside(m,  [:e,:e], [:mu,:mu]; loops=1) == 18
+        @test_broken count_dedup_canonical(m, [:e,:e], [:mu,:mu]; loops=1) == 18
+        @test_broken count_dedup_prefilter(m, [:e,:e], [:mu,:mu]; loops=1) == 18
+    end
+
 end
