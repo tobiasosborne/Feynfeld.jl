@@ -21,6 +21,7 @@ export Partition, EquivClass, FilterSet, TopoState,
        _is_connected_internal,
        build_dpntro,
        compute_qg10_labels,
-       qgen_count_assignments
+       qgen_count_assignments,
+       qdis_fermion_sign
 
 end

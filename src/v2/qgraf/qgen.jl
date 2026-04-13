@@ -202,6 +202,159 @@ function qgen_count_assignments(state::TopoState, labels,
     return _qgen_recurse(state, labels, pmap, dpntro, conjugate, n_ext + 1)
 end
 
+"""
+    qdis_fermion_sign(state, labels, pmap, ps1, n_inco, antiq, conjugate, amap) -> Int
+
+Compute the fermion sign (±1) of a Feynman diagram by encoding each
+fermion half-edge as a signed integer and counting transpositions during
+pair cancellation.
+
+Source: refs/qgraf/v4.0.6/qgraf-4.0.6.dir/qgraf-4.0.6.f08:14465-14575.
+
+Inputs:
+  state, labels  — topology + qg10 labels
+  pmap[v, slot]  — assigned field at each (vertex, slot)
+  ps1[i]         — external-leg permutation (1..n_ext)
+  n_inco         — number of incoming externals (process spec)
+  antiq[field]   — Bool/Int: 1 if `field` is fermion-statistics
+  conjugate[f]   — antiparticle of `f` (i.e., qgraf's link(f))
+  amap[v, slot]  — internal-edge label (qgraf-style; nleg+1, nleg+2, ...)
+
+Encoding (qg21:14478-14509):
+  external (vmap[i1,j1] ≤ nleg):
+    ij_post = ps1[ij_pre]
+    if ij_post > n_inco:  jj = 2*(n_inco - ij_post)        (outgoing, ≤ 0 even)
+    else:                  jj = 1 - 2*ij_post              (incoming, < 0 odd)
+  internal:
+    if ii < link(ii):                  jj = 2*amap_off - 1  (positive odd)
+    if ii > link(ii):                  jj = 2*amap_off      (positive even)
+    if ii == link(ii) (self-conj):
+      if i1 < ij:                      jj = 2*amap_off - 1
+      if i1 > ij:                      jj = 2*amap_off
+      if i1 == ij (self-loop):
+        odd j1-rdeg pos:               jj = 2*amap_off - 1
+        even j1-rdeg pos:              jj = 2*amap_off
+  where amap_off = amap[i1, j1] - nleg
+
+Pairing (qg21:14512-14566): cancel positive-code pairs, then incoming
+external codes, then outgoing — each non-trivial swap flips dis.
+"""
+function qdis_fermion_sign(state::TopoState, labels, pmap::AbstractMatrix{Symbol},
+                            ps1::AbstractVector{<:Integer}, n_inco::Integer,
+                            antiq::AbstractDict{Symbol, <:Integer},
+                            conjugate::AbstractDict{Symbol, Symbol},
+                            amap::AbstractMatrix{<:Integer})
+    n     = Int(state.n)
+    n_ext = Int(state.n_ext)
+    rhop1 = Int(state.rhop1)
+    nleg  = n_ext
+
+    # ── qg21:14476-14511 — encode fermion half-edges into xli ─────────
+    xli = Int[]
+    @inbounds for i1 in rhop1:n
+        for j1 in 1:Int(state.vdeg[i1])
+            f = pmap[i1, j1]
+            (haskey(antiq, f) && antiq[f] != 0) || continue
+            ij = Int(labels.vmap[i1, j1])
+            jj = 0
+            if ij <= nleg
+                ij_post = Int(ps1[ij])
+                if ij_post > n_inco
+                    jj = 2 * (Int(n_inco) - ij_post)
+                else
+                    jj = 1 - 2 * ij_post
+                end
+            else
+                amap_off = Int(amap[i1, j1]) - nleg
+                conj_f   = conjugate[f]
+                if f < conj_f
+                    jj = 2 * amap_off - 1
+                elseif f > conj_f
+                    jj = 2 * amap_off
+                elseif i1 < ij
+                    jj = 2 * amap_off - 1
+                elseif i1 > ij
+                    jj = 2 * amap_off
+                else
+                    rdeg_i = Int(labels.rdeg[i1])
+                    if mod(j1 - rdeg_i, 2) != 0
+                        jj = 2 * amap_off - 1
+                    else
+                        jj = 2 * amap_off
+                    end
+                end
+            end
+            push!(xli, jj)
+        end
+    end
+
+    dis = 1
+    nf  = length(xli)
+
+    # ── qg21:14512-14541 — cancel positive-code pairs, label 266 ─────
+    while true
+        ii = 0
+        @inbounds for i1 in 1:nf
+            if xli[i1] > ii
+                ii = xli[i1]
+            end
+        end
+        ii > 0 || break
+        j1 = 0
+        j2 = 0
+        j3 = nf
+        while j3 >= 1
+            if xli[j3] > ii - 2
+                j2 = j1
+                j1 = xli[j3]
+                if j3 != nf
+                    xli[j3] = xli[nf]
+                    dis = -dis
+                end
+                nf -= 1
+            end
+            (j3 > 1 && j2 == 0) || break
+            j3 -= 1
+        end
+        if j1 > j2
+            dis = -dis
+        end
+    end
+
+    # ── qg21:14543-14554 — cancel incoming external codes ────────────
+    @inbounds for i1 in 1:Int(n_inco)
+        target = 1 - 2 * i1
+        for i2 in nf:-1:1
+            if xli[i2] == target
+                if i2 != nf
+                    xli[i2] = xli[nf]
+                    dis = -dis
+                end
+                nf -= 1
+                break
+            end
+        end
+    end
+
+    # ── qg21:14555-14566 — cancel outgoing external codes ────────────
+    @inbounds for i1 in n_ext:-1:(Int(n_inco) + 1)
+        target = 2 * (Int(n_inco) - i1)
+        for i2 in nf:-1:1
+            if xli[i2] == target
+                if i2 != nf
+                    xli[i2] = xli[nf]
+                    dis = -dis
+                end
+                nf -= 1
+                break
+            end
+        end
+    end
+
+    nf == 0 || error("qdis_1 — fermion half-edges did not pair (nf=$nf)")
+    return dis
+end
+
 function _qgen_recurse(state::TopoState, labels, pmap::Matrix{Symbol},
                        dpntro::Dict{Int, Vector{Vector{Symbol}}},
                        conjugate::Dict{Symbol, Symbol}, vind::Int)
