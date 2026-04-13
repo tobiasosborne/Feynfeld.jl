@@ -6,11 +6,13 @@ module QgrafPort
 
 include("types.jl")
 include("canonical.jl")
+include("topology.jl")
 
 export Partition, EquivClass, FilterSet, TopoState,
        rho_k, n_internal, n_vertices, n_edges, no_filters,
        MAX_V,
        compute_equiv_classes!, next_class_perm!, is_canonical_full!,
-       is_canonical_feynman
+       is_canonical_feynman,
+       step_b_enumerate!
 
 end
