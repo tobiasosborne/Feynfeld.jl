@@ -31,7 +31,7 @@ gauge_groups(::Phi3Model) = GaugeGroup[]
 φ³ has one vertex: [φ, φ, φ] with coupling :g_phi3.
 """
 function feynman_rules(m::Phi3Model)
-    verts = Dict{NTuple{3,Symbol}, VertexRule}()
+    verts = Dict{Tuple, VertexRule}()
     verts[(:phi, :phi, :phi)] = VertexRule((:phi, :phi, :phi), :g_phi3)
     FeynmanRules(m, verts, U1())
 end

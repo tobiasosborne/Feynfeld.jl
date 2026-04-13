@@ -6,11 +6,15 @@
 #   - Vertex structure encoded via dispatch, not data
 
 # ---- Vertex rule ----
+# Variable arity: 3 for cubic vertices (qqg, eeγ, φ³), 4 for quartic (gggg).
+# arity(v) == length(v.fields).
+# Source: refs/qgraf/v4.0.6/qgraf-4.0.6.dir/models/qcd "[gluon,gluon,gluon,gluon]"
 struct VertexRule
-    fields::NTuple{3, Symbol}
+    fields::Tuple{Vararg{Symbol}}
     coupling::Symbol
 end
 Base.show(io::IO, v::VertexRule) = print(io, join(v.fields, "-"), " [g=$(v.coupling)]")
+arity(v::VertexRule) = length(v.fields)
 
 # Vertex Lorentz structure — dispatch on gauge group + species + coupling key.
 # Returns DiracExpr (may be sum of chains for chiral vertices).
@@ -72,19 +76,21 @@ end
 propagator_num(::Scalar, ::Momentum, mass_val) = alg(1)
 
 # ---- FeynmanRules: callable struct ----
+# Dict key is `Tuple` (any tuple of Symbols) so 3-, 4-, ... arity vertices coexist.
 struct FeynmanRules
     model::AbstractModel
-    vertices::Dict{NTuple{3,Symbol}, VertexRule}
+    vertices::Dict{Tuple, VertexRule}
     _gauge::GaugeGroup
 end
 
 # Callable: rules(field_names...) → VertexRule
-function (r::FeynmanRules)(fields::NTuple{3,Symbol})
+function (r::FeynmanRules)(fields::Tuple{Vararg{Symbol}})
     haskey(r.vertices, fields) || error("No vertex for $fields in $(model_name(r.model))")
     r.vertices[fields]
 end
 
-# Get the Lorentz structure for a vertex at a given index
+# Lorentz structure for a 3-vertex.
+# Higher-arity Lorentz (4-gluon) is Layer-4 work — TBD in a later phase.
 function vertex_factor(r::FeynmanRules, fields::NTuple{3,Symbol}, mu::LorentzIndex)
     v = r(fields)
     f1 = get_field(r.model, fields[1])
@@ -103,7 +109,7 @@ function feynman_rules(model::AbstractModel)
     length(gs) == 1 || error("Multi-gauge models not yet supported")
     gauge = gs[1]
 
-    vertices = Dict{NTuple{3,Symbol}, VertexRule}()
+    vertices = Dict{Tuple, VertexRule}()
     for f in fermion_fields(model)
         for b in boson_fields(model)
             key = (f.name, f.name, b.name)

@@ -34,7 +34,7 @@ end
 # Feynman rules: 5 vertex types
 function feynman_rules(model::EWModel)
     gauge = U1()  # gauge parameter only used for vertex_structure dispatch
-    vertices = Dict{NTuple{3,Symbol}, VertexRule}()
+    vertices = Dict{Tuple, VertexRule}()
     # eeγ: standard QED
     vertices[(:e, :e, :gamma)] = VertexRule((:e, :e, :gamma), :e)
     # eeZ: chiral coupling (g_V - g_A γ5)γ^μ

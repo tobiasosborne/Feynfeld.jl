@@ -25,7 +25,7 @@ end
 # Feynman rules: qqg + ggg vertices
 function feynman_rules(model::QCDModel)
     gauge = first(gauge_groups(model))
-    vertices = Dict{NTuple{3,Symbol}, VertexRule}()
+    vertices = Dict{Tuple, VertexRule}()
     q, g = model.quark, model.gluon
     vertices[(q.name, q.name, g.name)] = VertexRule((q.name, q.name, g.name), :g_s)
     vertices[(g.name, g.name, g.name)] = VertexRule((g.name, g.name, g.name), :g_s)
