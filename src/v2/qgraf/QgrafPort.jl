@@ -10,6 +10,7 @@ include("topology.jl")
 include("qgen.jl")
 include("filters.jl")
 include("momentum.jl")
+include("audition.jl")
 
 export Partition, EquivClass, FilterSet, TopoState,
        rho_k, n_internal, n_vertices, n_edges, no_filters,
@@ -29,6 +30,10 @@ export Partition, EquivClass, FilterSet, TopoState,
        has_no_selfloop, has_no_diloop, has_no_parallel,
        is_one_pi, has_no_sbridge, has_no_tadpole, has_no_onshell,
        has_no_snail, is_one_vi,
-       build_spanning_tree, count_chords
+       build_spanning_tree, count_chords,
+       qgen_enumerate_assignments,
+       count_dedup_burnside, count_dedup_canonical, count_dedup_prefilter,
+       is_emission_canonical, emission_stabilizer,
+       is_pmap_canonical, pmap_stabilizer
 
 end

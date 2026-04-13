@@ -429,6 +429,68 @@ function qdis_fermion_sign(state::TopoState, labels, pmap::AbstractMatrix{Symbol
     return dis
 end
 
+"""
+    qgen_enumerate_assignments(callback, state, labels, ext_assignment, dpntro, conjugate)
+
+Variant of `qgen_count_assignments` that yields each valid (topology, pmap)
+emission via `callback(state, pmap::Matrix{Symbol})`.  Used by the Phase 17
+dedup audition where we need the actual pmap per emission, not just a
+running count.
+
+Same algorithm as `qgen_count_assignments` (qgen:13880-13987).
+"""
+function qgen_enumerate_assignments(callback::F, state::TopoState, labels,
+                                     ext_assignment::AbstractVector{Symbol},
+                                     dpntro::Dict{Int, Vector{Vector{Symbol}}},
+                                     conjugate::Dict{Symbol, Symbol}) where {F}
+    n     = Int(state.n)
+    n_ext = Int(state.n_ext)
+    pmap  = fill(:_, n, MAX_V)
+    @inbounds for i in 1:n_ext
+        f = ext_assignment[i]
+        pmap[i, 1] = f
+        nb   = Int(labels.vmap[i, 1])
+        slot = Int(labels.lmap[i, 1])
+        pmap[nb, slot] = conjugate[f]
+    end
+    _qgen_enumerate_recurse(callback, state, labels, pmap, dpntro, conjugate, n_ext + 1)
+end
+
+function _qgen_enumerate_recurse(callback::F, state::TopoState, labels,
+                                  pmap::Matrix{Symbol},
+                                  dpntro::Dict{Int, Vector{Vector{Symbol}}},
+                                  conjugate::Dict{Symbol, Symbol}, vind::Int) where {F}
+    n = Int(state.n)
+    if vind > n
+        callback(state, pmap)
+        return
+    end
+    vv      = Int(labels.vlis[vind])
+    deg     = Int(state.vdeg[vv])
+    rdeg_vv = Int(labels.rdeg[vv])
+    assigned = Symbol[pmap[vv, k] for k in 1:rdeg_vv]
+    sort!(assigned)
+    rules = get(dpntro, deg, Vector{Vector{Symbol}}())
+    saved = Vector{Tuple{Int, Int, Symbol}}()
+    @inbounds for rule in rules
+        _is_sub_multiset(assigned, rule) || continue
+        remaining = _multiset_diff(rule, assigned)
+        empty!(saved)
+        for k in 1:length(remaining)
+            slot = rdeg_vv + k
+            pmap[vv, slot] = remaining[k]
+            nb   = Int(labels.vmap[vv, slot])
+            nb_s = Int(labels.lmap[vv, slot])
+            push!(saved, (nb, nb_s, pmap[nb, nb_s]))
+            pmap[nb, nb_s] = conjugate[remaining[k]]
+        end
+        _qgen_enumerate_recurse(callback, state, labels, pmap, dpntro, conjugate, vind + 1)
+        for (nb, nb_s, prev) in saved
+            pmap[nb, nb_s] = prev
+        end
+    end
+end
+
 function _qgen_recurse(state::TopoState, labels, pmap::Matrix{Symbol},
                        dpntro::Dict{Int, Vector{Vector{Symbol}}},
                        conjugate::Dict{Symbol, Symbol}, vind::Int)
