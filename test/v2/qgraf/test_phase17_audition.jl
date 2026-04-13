@@ -59,4 +59,15 @@ using .FeynfeldX.QgrafPort: count_dedup_burnside, count_dedup_canonical,
         @test_broken count_dedup_prefilter(m, [:e,:e], [:mu,:mu]; loops=1) == 18
     end
 
+    @testset "AUDITION VERDICT: (A) Burnside agrees with legacy on QED ee→ee" begin
+        # QED1 ee→ee tree: legacy = 2 (s + t channels).
+        # (A) Burnside    = 2  ✓
+        # (B) canonical   = 1  ✗ over-dedups (s ≡ t under in↔out auto, wrong)
+        # (C) pre-filter  = 1  ✗ same bug
+        m = qed1_model()
+        @test count_dedup_burnside(m, [:e, :e], [:e, :e]; loops=0) == 2
+        @test_broken count_dedup_canonical(m, [:e, :e], [:e, :e]; loops=0) == 2
+        @test_broken count_dedup_prefilter(m, [:e, :e], [:e, :e]; loops=0) == 2
+    end
+
 end
