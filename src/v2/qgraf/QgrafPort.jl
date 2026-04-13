@@ -8,6 +8,7 @@ include("types.jl")
 include("canonical.jl")
 include("topology.jl")
 include("qgen.jl")
+include("filters.jl")
 
 export Partition, EquivClass, FilterSet, TopoState,
        rho_k, n_internal, n_vertices, n_edges, no_filters,
@@ -22,6 +23,7 @@ export Partition, EquivClass, FilterSet, TopoState,
        build_dpntro,
        compute_qg10_labels,
        qgen_count_assignments,
-       qdis_fermion_sign
+       qdis_fermion_sign,
+       has_no_selfloop, has_no_diloop, has_no_parallel
 
 end
