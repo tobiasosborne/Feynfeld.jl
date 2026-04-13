@@ -7,6 +7,7 @@ module QgrafPort
 include("types.jl")
 include("canonical.jl")
 include("topology.jl")
+include("qgen.jl")
 
 export Partition, EquivClass, FilterSet, TopoState,
        rho_k, n_internal, n_vertices, n_edges, no_filters,
@@ -17,6 +18,7 @@ export Partition, EquivClass, FilterSet, TopoState,
        step_c_enumerate!,
        qg21_enumerate!,
        qg10_enumerate!,
-       _is_connected_internal
+       _is_connected_internal,
+       build_dpntro
 
 end
