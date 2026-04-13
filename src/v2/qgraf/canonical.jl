@@ -222,6 +222,47 @@ function is_canonical_full!(state::TopoState)::Bool
 end
 
 """
+    enumerate_topology_automorphisms(state) -> Vector{Vector{Int8}}
+
+Return every permutation π of [1..n] (from the FULL equivalence-class
+product space, including externals) such that gam(π(i), π(j)) == gam(i, j)
+for all (i, j) — i.e., the topology automorphism group as a list of
+explicit permutations.  The identity is always included as the first
+element.
+
+Externals (vdeg=1) form one equivalence class (they're interchangeable
+under topology auto when they attach to equivalent internals); internals
+use the existing (vdeg, xn, xg_diag) classification from
+`compute_equiv_classes!`.
+
+Used by Phase 17 dedup-audition (Burnside / canonical-pmap / pre-filter).
+"""
+function enumerate_topology_automorphisms(state::TopoState)::Vector{Vector{Int8}}
+    n     = Int(state.n)
+    n_ext = Int(state.n_ext)
+
+    classes = EquivClass[]
+    if n_ext > 0
+        push!(classes, EquivClass(Int8.(1:n_ext), Int8(1)))
+    end
+    compute_equiv_classes!(state)
+    for c in state.classes
+        push!(classes, c)
+    end
+
+    perm = collect(Int8(1):Int8(n))
+    autos = Vector{Vector{Int8}}()
+    push!(autos, copy(perm))    # identity
+    while next_class_perm!(perm, classes)
+        if _compare_permuted_adjacency(state, perm) == 0
+            push!(autos, copy(perm))
+        end
+    end
+    state.ngsym = Int32(length(autos))
+    autos
+end
+
+"""
     is_canonical_feynman(adj, vdeg, n_ext) → Bool
 
 Bridge: canonicality check for the legacy `FeynmanTopology` shape produced
