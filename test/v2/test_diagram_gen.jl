@@ -148,11 +148,9 @@ using .FeynfeldX
         # Source: golden_masters/qcd/quark_antiquark_TO_gluon_gluon_0L.out
         @test count_diagrams(qcd, [:q, :q], [:g, :g]; loops=0) == 3
 
-        # gg → gg tree: 3 diagrams (s + t + u via ggg vertices)
-        # Note: qgraf gets 4 because its QCD model includes 4-gluon contact vertex.
-        # Our QCDModel only has 3-point vertices, so contact diagram is absent.
-        # Source: golden_masters/qcd/gluon_gluon_TO_gluon_gluon_0L.out (4 with gggg)
-        @test count_diagrams(qcd, [:g, :g], [:g, :g]; loops=0) == 3
+        # gg → gg tree: 4 diagrams (s + t + u via ggg + 1 contact via gggg)
+        # Source: golden_masters/qcd/gluon_gluon_TO_gluon_gluon_0L.out
+        @test count_diagrams(qcd, [:g, :g], [:g, :g]; loops=0) == 4
 
         # qq̄ → qq̄ tree: 2 diagrams (s + t)
         # Source: golden_masters/qcd/quark_antiquark_TO_quark_antiquark_0L.out

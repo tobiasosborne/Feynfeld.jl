@@ -29,6 +29,10 @@ function feynman_rules(model::QCDModel)
     q, g = model.quark, model.gluon
     vertices[(q.name, q.name, g.name)] = VertexRule((q.name, q.name, g.name), :g_s)
     vertices[(g.name, g.name, g.name)] = VertexRule((g.name, g.name, g.name), :g_s)
+    # 4-gluon contact vertex.
+    # Source: refs/qgraf/v4.0.6/qgraf-4.0.6.dir/models/qcd "[gluon,gluon,gluon,gluon]"
+    vertices[(g.name, g.name, g.name, g.name)] =
+        VertexRule((g.name, g.name, g.name, g.name), :g_s)
     FeynmanRules(model, vertices, gauge)
 end
 
