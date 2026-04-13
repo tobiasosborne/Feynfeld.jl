@@ -13,6 +13,8 @@ export Partition, EquivClass, FilterSet, TopoState,
        MAX_V,
        compute_equiv_classes!, next_class_perm!, is_canonical_full!,
        is_canonical_feynman,
-       step_b_enumerate!
+       step_b_enumerate!,
+       step_c_enumerate!,
+       qg21_enumerate!
 
 end

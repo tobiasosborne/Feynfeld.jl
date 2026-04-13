@@ -266,3 +266,99 @@ function step_b_enumerate!(callback::F, state::TopoState) where {F}
         end
         return nothing
 end
+
+"""
+    qg21_enumerate!(callback, state)
+
+Drive the full qg21 topology enumeration: Step B (xc/xn distribution) feeds
+each emission into Step C (xg topology generation).  Calls `callback(state)`
+once per emitted canonical topology.
+
+Source: refs/qgraf/v4.0.6/qgraf-4.0.6.dir/qgraf-4.0.6.f08:12426-13150.
+"""
+function qg21_enumerate!(callback::F, state::TopoState) where {F}
+    step_b_enumerate!(state) do s
+        step_c_enumerate!(callback, s)
+    end
+    return nothing
+end
+
+"""
+    step_c_enumerate!(callback, state)
+
+Step C: given an (xc, xn) configuration in `state`, enumerate all
+non-isomorphic topologies xg respecting vdeg, xn and xc.  Calls
+`callback(state)` once per emitted topology (canonical adjacency matrix
+in `state.xg[1:n, 1:n]`).
+
+Source: qgraf-4.0.6.f08:12659-13150.
+
+Phase 7a only: trivial single-internal path (no dsum, no row fill).
+Phase 7b/7c will extend with self-loop enumeration and row-by-row fill.
+"""
+function step_c_enumerate!(callback::F, state::TopoState) where {F}
+    n      = Int(state.n)
+    n_ext  = Int(state.n_ext)
+    rhop1  = Int(state.rhop1)
+
+    # qg21:12660-12664 — reject xc(1)>0 when rho(-1)<n.
+    # (The remaining-degree constraint can't be satisfied otherwise.)
+    if n_ext < n && state.xc[1] > Int8(0)
+        return nothing
+    end
+
+    # ── Place all edges fixed by Step B's (xc, xn) ───────────────────
+    #
+    # qg21:12743-12745 — clear strict upper triangle.
+    @inbounds for i in 1:(n - 1)
+        for j in (i + 1):n
+            state.xg[i, j] = Int8(0)
+            state.xg[j, i] = Int8(0)
+        end
+    end
+    # Clear diagonal too (will be set by dsum step).
+    @inbounds for i in 1:n
+        state.xg[i, i] = Int8(0)
+    end
+
+    # qg21:12746-12748 — external-to-external pairs at xg(2i-1, 2i) = 1.
+    half_pairs = Int(state.xc[1]) ÷ 2
+    @inbounds for i in 1:half_pairs
+        state.xg[2i - 1, 2i] = Int8(1)
+    end
+
+    # qg21:12752-12764 — external-to-internal connections.
+    # j1 advances over external slots already used by ext-to-ext pairs.
+    j1 = Int(state.xc[1])
+    @inbounds for i in rhop1:n
+        if state.xn[i] > Int8(0)
+            for _ in 1:Int(state.xn[i])
+                j1 += 1
+                state.xg[j1, i] = Int8(1)
+            end
+        end
+    end
+
+    # ── Phase 7a: trivial single-internal-row case ─────────────────────
+    #
+    # If limin == n, there is no off-diagonal row to fill.  qg21 does:
+    #   ds[lin,i] = vdeg(i) - xn(i) - xg(i,i)
+    #   row-fill loop: empty (no col)
+    #   ii = ds[lin,lin]
+    #   if ii == 0: emit
+    #   else:       backtrack (impossible at limin → reject)
+    #
+    # Phase 7b/7c will replace this short-circuit with the full Step C
+    # state machine (dsum loop + xg-diagonal backtrack + row fill).
+    if rhop1 == n
+        # dsum=0 only: xg(i,i)=0 already from clear above.
+        ds_lin = Int(state.vdeg[n]) - Int(state.xn[n])      # ds[lin=n, n]
+        if ds_lin == 0
+            callback(state)
+        end
+        return nothing
+    end
+
+    # Phase 7b/7c will land here.
+    return nothing
+end
