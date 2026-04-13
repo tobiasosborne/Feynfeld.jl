@@ -343,6 +343,67 @@ function qg21_enumerate!(callback::F, state::TopoState) where {F}
 end
 
 """
+    qg10_enumerate!(callback, state)
+
+Drive the qg10 stage: for each canonical topology emitted by qg21,
+enumerate every external-leg labelling (permutation of the n_ext external
+slots).  Calls `callback(state, ps1)` where `ps1::Vector{Int8}` is the
+current permutation of [1..n_ext].
+
+Source: refs/qgraf/v4.0.6/qgraf-4.0.6.dir/qgraf-4.0.6.f08:12001-12200.
+
+Phase 11 minimal port:
+  • Lex-next (Knuth Algorithm L) over n_ext! permutations.
+  • DOES NOT yet dedupe equivalent labellings under topology automorphisms;
+    qgen (Phase 12) is responsible for dropping duplicates via the
+    field-assignment matching step.
+  • DOES NOT yet build vlis/vmap/lmap/amap auxiliary tables (Phase 12).
+"""
+function qg10_enumerate!(callback::F, state::TopoState) where {F}
+    qg21_enumerate!(state) do s
+        n_ext = Int(s.n_ext)
+        if n_ext == 0
+            callback(s, Int8[])
+            return
+        end
+        ps1 = collect(Int8(1):Int8(n_ext))
+        while true
+            callback(s, ps1)
+            _lex_next_perm!(ps1) || break
+        end
+    end
+    return nothing
+end
+
+"In-place Knuth Algorithm L — lex-next permutation; returns false if exhausted."
+function _lex_next_perm!(p::AbstractVector{Int8})
+    n = length(p)
+    n <= 1 && return false
+    # Find largest j with p[j] < p[j+1]
+    j = n - 1
+    @inbounds while j >= 1 && p[j] >= p[j + 1]
+        j -= 1
+    end
+    j == 0 && return false
+    # Find largest k > j with p[k] > p[j]
+    k = n
+    @inbounds while p[k] <= p[j]
+        k -= 1
+    end
+    # Swap p[j], p[k]
+    @inbounds p[j], p[k] = p[k], p[j]
+    # Reverse the suffix p[j+1..n]
+    @inbounds begin
+        a, b = j + 1, n
+        while a < b
+            p[a], p[b] = p[b], p[a]
+            a += 1; b -= 1
+        end
+    end
+    return true
+end
+
+"""
     step_c_enumerate!(callback, state)
 
 Step C: given an (xc, xn) configuration in `state`, enumerate all

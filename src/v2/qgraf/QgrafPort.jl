@@ -16,6 +16,7 @@ export Partition, EquivClass, FilterSet, TopoState,
        step_b_enumerate!,
        step_c_enumerate!,
        qg21_enumerate!,
+       qg10_enumerate!,
        _is_connected_internal
 
 end
