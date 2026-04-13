@@ -24,6 +24,7 @@ export Partition, EquivClass, FilterSet, TopoState,
        compute_qg10_labels,
        qgen_count_assignments,
        qdis_fermion_sign,
+       compute_local_sym_factor,
        has_no_selfloop, has_no_diloop, has_no_parallel,
        is_one_pi, has_no_sbridge, has_no_tadpole, has_no_onshell,
        has_no_snail, is_one_vi

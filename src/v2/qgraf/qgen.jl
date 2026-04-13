@@ -203,6 +203,80 @@ function qgen_count_assignments(state::TopoState, labels,
 end
 
 """
+    compute_local_sym_factor(state, labels, pmap, conjugate) -> Int
+
+S_local: the local (per-vertex-pair) symmetry factor accounting for
+permutations of identical propagators between two vertices, plus the
+self-conjugate self-loop reversal symmetry.
+
+Source: qgraf-4.0.6.f08:14361-14411 (sets ndsym(symt%l)).
+
+Algorithm:
+  for each internal vertex i:
+    j ← rdeg(i) + 1
+    while j ≤ vdeg(i):
+      ii ← vmap[i, j]; aux ← gam(i, ii); k ← j + aux
+      if i ≠ ii (not a self-loop):
+        # group successive identical pmap entries among the gam(i,ii)
+        # parallel slots; multiply S_local *= kk for each group of size kk.
+        ...
+      else (self-loop, i == ii):
+        # self-loop slots come in pairs; group by pairs.
+        # multiply S_local *= kk per identical-pair group.
+        # extra factor 2^kk if the pmap field is self-conjugate
+        # (the loop-reversal Z_2 — Nogueira p. 281 §3 inset).
+        ...
+"""
+function compute_local_sym_factor(state::TopoState, labels,
+                                    pmap::AbstractMatrix{Symbol},
+                                    conjugate::AbstractDict{Symbol, Symbol})
+    s_local = 1
+    n     = Int(state.n)
+    rhop1 = Int(state.rhop1)
+    @inbounds for i in rhop1:n
+        j = Int(labels.rdeg[i]) + 1
+        vdeg_i = Int(state.vdeg[i])
+        while j <= vdeg_i
+            ii    = Int(labels.vmap[i, j])
+            aux   = Int(_gam(state, i, ii))
+            k     = j + aux
+            if i != ii
+                # Non-self-loop: gam(i,ii) parallel slots among j..k-1.
+                while j < k
+                    kk = 1
+                    f  = pmap[i, j]
+                    while j + kk < k && pmap[i, j + kk] == f
+                        kk += 1
+                        s_local *= kk
+                    end
+                    j += kk
+                end
+            else
+                # Self-loop: gam(i,i) half-edges = 2 × #self-loops; iterate
+                # in pairs (qgen:14387-14407 uses j+kk+kk).
+                while j < k
+                    kk = 1
+                    f  = pmap[i, j]
+                    while j + 2*kk < k && pmap[i, j + 2*kk] == f
+                        kk += 1
+                        s_local *= kk
+                    end
+                    if f == conjugate[f]
+                        # Self-conjugate field: each self-loop pair has the
+                        # extra Z_2 reversal symmetry → factor 2 per pair.
+                        for _ in 1:kk
+                            s_local *= 2
+                        end
+                    end
+                    j += 2 * kk
+                end
+            end
+        end
+    end
+    return s_local
+end
+
+"""
     qdis_fermion_sign(state, labels, pmap, ps1, n_inco, antiq, conjugate, amap) -> Int
 
 Compute the fermion sign (±1) of a Feynman diagram by encoding each
