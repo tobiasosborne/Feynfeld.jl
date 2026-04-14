@@ -13,30 +13,57 @@
 using Combinatorics: partitions, multiset_permutations
 
 """
-    count_diagrams(model, in_fields, out_fields; loops=0, onepi=false)
+    count_diagrams(model, in_fields, out_fields; loops=0, onepi=false,
+                   nosbridge=false, notadpole=false, onshell=false,
+                   nosnail=false, onevi=false,
+                   noselfloop=false, nodiloop=false, noparallel=false)
 
 Count connected Feynman diagrams for the given process at the specified
-loop order. Internally expands fermion fields into particle/antiparticle
-pairs (matching qgraf's link-array approach) to eliminate orientation
-ambiguity. Ref: refs/qgraf/ALGORITHM.md, Section 1.2.
+loop order. Phase 17c (Session 24): delegates to `QgrafPort.count_diagrams_qg21`,
+the Strategy C qgraf port. The legacy implementation (fill-all-entries
++ is_canonical_feynman) is preserved via `_count_diagrams_legacy` for
+regression testing.
+
+Filter kwargs mirror qgraf's dflag options. Currently unsupported:
+`nosigma`, `cycli`, `onshellx`, `floop`, `bipart`.
 """
 function count_diagrams(model::AbstractModel, in_fields::Vector{Symbol},
-                        out_fields::Vector{Symbol}; loops::Int=0, onepi::Bool=false)
+                        out_fields::Vector{Symbol};
+                        loops::Int=0,
+                        onepi::Bool=false,
+                        nosbridge::Bool=false,
+                        notadpole::Bool=false,
+                        onshell::Bool=false,
+                        nosnail::Bool=false,
+                        onevi::Bool=false,
+                        noselfloop::Bool=false,
+                        nodiloop::Bool=false,
+                        noparallel::Bool=false)
+    QgrafPort.count_diagrams_qg21(model, in_fields, out_fields;
+                                    loops, onepi, nosbridge, notadpole,
+                                    onshell, nosnail, onevi, noselfloop,
+                                    nodiloop, noparallel)
+end
+
+"""
+    _count_diagrams_legacy(model, in_fields, out_fields; loops=0, onepi=false)
+
+Pre-Phase-17c implementation of `count_diagrams`: fill-all-entries topology
+enumeration + per-topology field assignment counting. Preserved for
+regression testing against the new qg21 path.
+"""
+function _count_diagrams_legacy(model::AbstractModel, in_fields::Vector{Symbol},
+                                out_fields::Vector{Symbol}; loops::Int=0, onepi::Bool=false)
     rules = feynman_rules(model)
     n_ext = length(in_fields) + length(out_fields)
     ext_fields_raw = vcat(in_fields, out_fields)
 
-    # Expand fermion fields into particle/antiparticle pairs (qgraf approach).
-    # Eliminates orientation ambiguity → no overcounting correction needed.
-    # Ref: refs/qgraf/ALGORITHM.md, Section 1.2 (link array)
     exp = _expand_model_for_diagen(model)
     ext_fields = _expand_external_fields(ext_fields_raw, exp)
 
-    # Collect vertex degrees available in the model
     vertex_degrees = _model_vertex_degrees(rules)
     isempty(vertex_degrees) && return 0
 
-    # Enumerate all valid topologies and count field-compatible diagrams
     count = 0
     for partition in _degree_partitions(n_ext, loops, vertex_degrees)
         for topo in _enumerate_topologies(n_ext, partition; onepi)

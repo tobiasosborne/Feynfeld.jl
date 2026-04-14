@@ -201,23 +201,33 @@ function count_dedup_canonical(model, in_fields::Vector{Symbol},
 end
 
 """
-    count_diagrams_qg21(model, in_fields, out_fields; loops, onepi=false) -> Int
+    count_diagrams_qg21(model, in_fields, out_fields; loops, onepi=false,
+                        nosbridge=false, notadpole=false, onshell=false,
+                        nosnail=false, onevi=false,
+                        noselfloop=false, nodiloop=false, noparallel=false) -> Int
 
-Phase 17b — primary entry point for the new Strategy C qgraf pipeline.
+Primary entry point for the qg21 Strategy C diagram counter.  Wraps
+qg21 → qg10 → qgen and applies (A) Burnside dedup over (ps1, pmap) joint
+orbits under the full topology auto group Γ_F.
 
-Wraps qg21 → qg10 → qgen and applies (A) Burnside dedup, the only audition
-strategy that handles physically-distinct s/t channels correctly when the
-topology automorphism group includes in↔out crossings.
+Filter kwargs mirror qgraf's dflag options; each rejects topologies
+failing the named predicate.  Filters not yet ported: `nosigma`,
+`cycli`, `onshellx`, `floop` (fermion-loop required), `bipart`.
 
-Optional `onepi` filter rejects topologies that aren't 1-particle-irreducible
-(any internal-edge bridge → reject).
-
-Source-faithful but DOES NOT yet replicate qgraf's full output (momentum
-routing, qompac formatting); for diagram COUNTING this is sufficient.
+Ref: qg21 filter map (ALGORITHM.md §3.7).
 """
 function count_diagrams_qg21(model, in_fields::Vector{Symbol},
                               out_fields::Vector{Symbol};
-                              loops::Int=0, onepi::Bool=false)
+                              loops::Int=0,
+                              onepi::Bool=false,
+                              nosbridge::Bool=false,
+                              notadpole::Bool=false,
+                              onshell::Bool=false,
+                              nosnail::Bool=false,
+                              onevi::Bool=false,
+                              noselfloop::Bool=false,
+                              nodiloop::Bool=false,
+                              noparallel::Bool=false)
     n_ext   = length(in_fields) + length(out_fields)
     ext_raw = vcat(in_fields, out_fields)
     exp     = Main.FeynfeldX._expand_model_for_diagen(model)
@@ -234,7 +244,21 @@ function count_diagrams_qg21(model, in_fields::Vector{Symbol},
         qp = Partition(Int8(n_ext), cv, Int8(degs[1]), Int8(loops))
         s  = TopoState(qp)
         qg21_enumerate!(s) do state
-            onepi && !is_one_pi(state) && return
+            # Topological filter chain (each reject returns immediately).
+            onepi      && !is_one_pi(state)      && return
+            nosbridge  && !has_no_sbridge(state) && return
+            notadpole  && !has_no_tadpole(state) && return
+            onshell    && !has_no_onshell(state) && return
+            # qgraf nosn > 0 sets intf(nsl)=1 AND intf(nsb)=1 (f08:2794-2798):
+            # nosnail implies both no-self-loop AND no-sbridge.
+            if nosnail
+                !has_no_snail(state)   && return
+                !has_no_sbridge(state) && return
+            end
+            onevi      && !is_one_vi(state)      && return
+            noselfloop && !has_no_selfloop(state) && return
+            nodiloop   && !has_no_diloop(state)  && return
+            noparallel && !has_no_parallel(state) && return
             labels = compute_qg10_labels(state)
             autos  = enumerate_topology_automorphisms(state)
             g_size = length(autos)

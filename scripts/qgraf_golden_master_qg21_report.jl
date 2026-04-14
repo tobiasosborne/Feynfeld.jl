@@ -1,19 +1,15 @@
 #!/usr/bin/env julia
-# Diagnostic: run every golden-master case currently supported and report
-# PASS / FAIL / SKIP. Streams per-case status live. Zero deps — parses
-# SUMMARY.md directly (110 lines).
+# Diagnostic: run every golden-master case through count_diagrams_qg21 (the
+# Strategy C qg21 port) and report PASS / FAIL / SKIP. Sibling to
+# qgraf_golden_master_report.jl which uses the legacy count_diagrams path.
 #
-# Usage: julia --project=. scripts/qgraf_golden_master_report.jl [max_loops]
-#   max_loops (int, default 3) — skip cases with loops > max_loops so that
-#   slow 3- and 4-loop cases don't block early feedback.
+# Usage: julia --project=. scripts/qgraf_golden_master_qg21_report.jl [max_loops]
 #
-# Env: QGRAF_MAX_SECONDS (default 60) — abort the whole run if a single
-#   case exceeds this time. Prevents surprise hangs.
-#
-# Beads: feynfeld-ney
+# Env: QGRAF_MAX_SECONDS (default 60) — per-case time budget.
 
 include("../src/v2/FeynfeldX.jl")
 using .FeynfeldX
+using .FeynfeldX.QgrafPort: count_diagrams_qg21
 
 const SUMMARY = joinpath(@__DIR__, "..", "refs", "qgraf", "v4.0.6",
                          "qgraf-4.0.6.dir", "golden_masters", "SUMMARY.md")
@@ -32,7 +28,7 @@ const FIELD_MAP = Dict(
 const MODEL_CTOR = Dict(
     "phi3" => () -> phi3_model(),
     "qed1" => () -> qed1_model(),
-    "qed2" => () -> qed_model(),        # default = 2-gen
+    "qed2" => () -> qed_model(),
     "qed3" => () -> qed3_model(),
     "qcd"  => () -> qcd_model(),
 )
@@ -56,10 +52,9 @@ struct Case
     out_fields::Vector{Symbol}
     loops::Int
     options::Vector{Symbol}
-    expected::Int   # -1 = FAIL in qgraf
+    expected::Int
 end
 
-# Heuristic complexity score for ordering cases fast-first.
 complexity(c::Case) = c.loops * 1000 +
                       (length(c.in_fields) + length(c.out_fields)) * 10 +
                       length(c.options)
@@ -122,7 +117,7 @@ function run_case(c::Case, max_seconds::Float64)
     local got
     t = 0.0
     try
-        t = @elapsed got = count_diagrams(m, c.in_fields, c.out_fields; kw...)
+        t = @elapsed got = count_diagrams_qg21(m, c.in_fields, c.out_fields; kw...)
     catch e
         return (:error, "$(typeof(e)): $(first(sprint(showerror, e), 120))", t)
     end
@@ -141,8 +136,8 @@ function main()
     cases = parse_cases()
     sort!(cases; by=complexity)
 
-    println("qgraf golden-master report — $(length(cases)) total cases")
-    println("Filter: loops ≤ $max_loops, max $(max_seconds)s per case")
+    println("qgraf golden-master report — QG21 PATH (count_diagrams_qg21)")
+    println("$(length(cases)) total cases, filter: loops ≤ $max_loops, max $(max_seconds)s per case")
     println()
     println("[ idx/total] STATUS  label $(repeat(" ", 55)) time    result")
     println("-"^110)
@@ -169,7 +164,7 @@ function main()
 
     println()
     println("="^70)
-    println("SUMMARY: PASS=$(buckets[:pass])  FAIL=$(buckets[:fail])  SKIP=$(buckets[:skip])  SLOW=$(buckets[:slow])  ERROR=$(buckets[:error])")
+    println("SUMMARY (QG21 PATH): PASS=$(buckets[:pass])  FAIL=$(buckets[:fail])  SKIP=$(buckets[:skip])  SLOW=$(buckets[:slow])  ERROR=$(buckets[:error])")
     println("="^70)
 
     for status in (:fail, :error, :slow)

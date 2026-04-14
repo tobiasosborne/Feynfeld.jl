@@ -105,16 +105,17 @@ using .FeynfeldX
     end
 
     @testset "QED 1-gen 1-loop" begin
-        qed = qed_model()
+        qed1 = qed1_model()    # use the 1-gen model (e only — no μ loop contributions)
 
         # Bhabha 1PI 1-loop: 4 diagrams (2 topologies × 2 fermion orientations).
         # Matches qgraf's count with distinct e⁻/e⁺ fields.
         # Source: golden_masters/qed1/eminus_eplus_TO_eminus_eplus_1L_onepi.out
-        @test count_diagrams(qed, [:e, :e], [:e, :e]; loops=1, onepi=true) == 4
+        @test count_diagrams(qed1, [:e, :e], [:e, :e]; loops=1, onepi=true) == 4
 
-        # γγ → γγ 1-loop: 6 diagrams (box permutations, Furry's theorem allows 1-loop)
+        # γγ → γγ 1-loop: 6 diagrams (box permutations, Furry's theorem allows 1-loop).
+        # 1-gen only — 2-gen would have 12 (μ box also contributes).
         # Source: golden_masters/qed1/photon_photon_TO_photon_photon_1L.out
-        @test count_diagrams(qed, [:gamma, :gamma], [:gamma, :gamma]; loops=1) == 6
+        @test count_diagrams(qed1, [:gamma, :gamma], [:gamma, :gamma]; loops=1) == 6
     end
 
     # ─── QED 2-gen: e + μ (THE Feynfeld benchmark) ────────────────

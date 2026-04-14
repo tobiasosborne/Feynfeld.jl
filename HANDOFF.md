@@ -1,4 +1,4 @@
-# HANDOFF — 2026-04-14 (Session 24: BUG 2 fixed via GRIND METHOD — Phase 12e)
+# HANDOFF — 2026-04-14 (Session 24: BUG 2 + Phase 17c pipeline swap)
 
 ## DO NOT DELETE THIS FILE. Read it completely before working.
 
@@ -68,17 +68,26 @@ Total excess: 12+6 = **18** ✓.
 **Test-marker updates**:
 - `test_qg21_battery.jl`: φ³ 2L 465 case `@test_broken` → `@test`.
 
-**Pipeline swap (Phase 17c) status**: BOTH BUG 1 (Session 23) and BUG 2
-(this session) now resolved. `count_diagrams_qg21` matches qgraf on all
-test cases. Remaining blockers for Phase 17c (swap `count_diagrams` in
-`diagram_gen.jl` to wrap `count_diagrams_qg21`):
+**Phase 17c — PIPELINE SWAP COMPLETE**:
+- `src/v2/diagram_gen.jl::count_diagrams` now delegates to
+  `QgrafPort.count_diagrams_qg21`. Legacy implementation preserved as
+  `_count_diagrams_legacy` for regression testing.
+- Filter kwargs wired through: `onepi`, `nosbridge`, `notadpole`, `onshell`,
+  `nosnail` (= no self-loop + no sbridge per qgraf f08:2794-2798),
+  `onevi`, `noselfloop`, `nodiloop`, `noparallel`.
+- Golden master coverage jumped from **70/104 → 95/104 PASS** (0 FAIL, 0
+  ERROR, 9 SKIP). Remaining SKIPs: 2 qgraf FAIL cases, 4 nosigma, 3 floop.
+- Test fix: `test_diagram_gen.jl::"QED 1-gen 1-loop"` now correctly uses
+  `qed1_model()` instead of `qed_model()` (2-gen). The previous legacy
+  count_diagrams returned 6 for qed2 γγ→γγ 1L (a hidden bug) — the qg21
+  path correctly returns 12 (μ-loop included).
 
-1. Wire the Phase 14 filters (is_one_pi, has_no_snail, etc.) into
-   `count_diagrams_qg21` — currently only `onepi` is supported.
-2. Verify `count_diagrams_qg21` matches the legacy path on all
-   `test_diagram_gen.jl` cases (32 tests, currently green on legacy path).
-3. Re-run the full `qgraf_golden_master_report.jl` to confirm no regressions
-   on the 26 currently-SKIP cases.
+**Remaining work on the qg21 port**:
+1. Port `nosigma` filter (qgsig, f08:13669) — rejects self-energy insertions.
+2. Port `floop` flag (require ≥1 fermion loop).
+3. Port `onshellx` (qumvi(3)) and `cycli` filters.
+4. Phase 18: Diagram → AlgSum amplitude bridge (the actual payoff — emissions
+   carry (xg, ps1, pmap, fermion_sign), convert into Layer 4 AlgSum).
 
 **GRIND diagnostic artefacts** (per-case traces gitignored via
 `grind/grind_*.txt`, `grind/julia_*.txt`):
