@@ -8,14 +8,48 @@
 
 1. Read `CLAUDE.md` — rules, **pipeline principle**, anti-hallucination, Julia idioms.
 2. Run `bd ready` to see available work.
-3. Run `julia --project=. test/v2/test_diagram_gen.jl` → expect 32/32 green.
+3. Run `julia --project=. test/v2/test_diagram_gen.jl` → expect all green.
 4. Run all qgraf-port tests: `for f in test/v2/qgraf/*.jl; do julia --project=. "$f"; done`
-   → all green (only phase17 audition has `@test_broken` markers for B/C
-   dedup strategies — known, unrelated to BUG 1/2).
-5. Run full v2 suite: `grind/run_v2_tests.sh` → 25/25 files pass, 0 fail/error.
-6. Optional: `QGRAF_MAX_SECONDS=120 julia --project=. scripts/qgraf_golden_master_report.jl 2`
-   → legacy `count_diagrams` path still PASS=70/104 (unchanged by BUG 2 fix).
-   `count_diagrams_qg21` path now matches qgraf on all tested cases.
+   → 21/21 files green (only `test_phase17_audition.jl` has `@test_broken`
+   markers for Strategy-B/C dedup — known audition-verdict issue, unrelated).
+5. Run full v2 suite: `./grind/run_v2_tests.sh` → 25/25 files pass, 0 fail/error.
+6. Golden master report (loops ≤ 4):
+   - `QGRAF_MAX_SECONDS=300 julia --project=. scripts/qgraf_golden_master_report.jl 4`
+     → **PASS=95 / FAIL=0 / SKIP=9 / ERROR=0** (Session 24 result — up from 70 pre-swap).
+   - The 9 SKIPs are 2 genuine qgraf-FAIL cases + 4 nosigma + 3 floop (unported filters).
+7. See **"NEXT SESSION DECISION POINT"** at the bottom for the three
+   candidate directions (Phase 18 / filter ports / Spiral 8 mop-up).
+
+---
+
+## SESSION 24 TIMELINE
+
+1. Read `HANDOFF.md`, `Feynfeld_PRD.md`, `CLAUDE.md`. Internalized rules and open bugs.
+2. Investigated BUG 2 via GRIND METHOD (read Nogueira 1993, `ALGORITHM.md`,
+   qgraf `qgraf-4.0.6.f08:12001-14575`, Julia `src/v2/qgraf/*`).
+3. Built `grind/ctrl_phi3_2L.dat` + parsers, ran instrumented qgraf →
+   `grind_phi3_2L.txt` (465 emissions, 50 canonical topologies).
+4. Ran Julia per-topology dump → 52 topologies, 483 Burnside. Cross-tabbed
+   via `compare_topos.jl` → identified 2 excess iso-class forms (+12, +6 = +18).
+5. Identified root cause: Julia `step_c_enumerate!` lacks qgraf's post-fill
+   permutation canonicality check (f08:13156-13291).
+6. Spawned research agent (verified mechanism), implemented `is_canonical_qgraf!`
+   in `canonical.jl` + wired into `step_c_enumerate!`. Spawned review agent
+   (verified fix, 7/7 criteria).
+7. All tests green. Committed as `5e6ddac`. BUG 2 closed.
+8. Ran golden master against `count_diagrams_qg21` (the qg21 path):
+   loops≤4 → **95 PASS / 0 FAIL / 0 ERROR** (1 initial FAIL on `nosnail` isolated).
+9. Traced nosnail discrepancy (25 vs 22) to qgraf `f08:2794-2798`: `nosn>0`
+   sets both `intf(nsl)=1` AND `intf(nsb)=1` — nosnail = no-self-loop + no-sbridge.
+   Fixed in audition.jl.
+10. Phase 17c pipeline swap: `count_diagrams` → `QgrafPort.count_diagrams_qg21`;
+    wired all 9 filter kwargs (onepi, nosbridge, notadpole, onshell, nosnail,
+    onevi, noselfloop, nodiloop, noparallel).
+11. `test_diagram_gen.jl::"QED 1-gen 1-loop"` used `qed_model()` (2-gen) but
+    expected qed1's value of 6 for γγ→γγ 1L. Legacy bug was masking this; qg21
+    correctly returns 12 for qed2. Fixed to use `qed1_model()`.
+12. Full regression: v2 25/25 ✓, qgraf-port 21/21 ✓, golden master 95/104.
+    Committed as `d1fa8ee`.
 
 ---
 
@@ -477,6 +511,77 @@ The 474 → 465 phi3 2-loop canonicality fix from Session 21 is INTACT.
 `QgrafPort.is_canonical_feynman`.  Verified by `test/v2/qgraf/test_qg21_integration.jl`
 asserting `legacy_count(phi3, [:phi,:phi], [:phi,:phi], loops=2) == 465`.
 
-Note: BUG 2 above is on the NEW `count_diagrams_qg21` path (returns 483),
-not the legacy path (still returns 465 correctly).  The Session 21 fix is
-specific to the legacy enumerator and unaffected by the Strategy C work.
+Note: BUG 2 (fixed Session 24) was on the `count_diagrams_qg21` path (returned
+483), not the legacy path (always returned 465 correctly). Post Phase 17c,
+`count_diagrams` now delegates to `count_diagrams_qg21`, so both paths agree
+and reach 465 for this case.
+
+---
+
+## NEXT SESSION DECISION POINT
+
+Both BUG 1 and BUG 2 are fixed. Phase 17c pipeline swap is complete. The
+qg21 port is the default counting path. Three candidate directions for
+the next session, in rough order of payoff vs effort:
+
+### Option A — Phase 18: Diagram → AlgSum amplitude bridge (HIGHEST leverage)
+
+This is where the qg21 port actually **pays off**. Currently the pipeline
+only COUNTS diagrams; it doesn't produce amplitudes. Phase 18 bridges the
+gap: each emission `(xg, ps1, pmap, fermion_sign)` becomes an `AlgSum` in
+Layer 4, which Layer 5 (PaVe reduction) and Layer 6 (cross section) consume.
+
+**Estimated effort**: ~600 LOC total, ~2-3 sessions.
+
+| Subtask | LOC | Notes |
+|---|---|---|
+| A1. Complete momentum routing (Phase 16 partial) | ~120 | Spanning tree + leaf-peeling exist; need per-edge momentum assignment + sign normalization. Citation: ALGORITHM.md §5.1-5.2, qgraf f08 `flow[][]` array. |
+| A2. Emission → AlgSum builder | ~250 | For each emission, construct: propagator factors × vertex factors × ext spinors/pol × fermion sign × 1/S prefactor. |
+| A3. Wire into `cross_section.jl` | ~80 | Replace hand-built `tree_channels` / `loop_channels` with pipeline-generated input. |
+| A4. Validation tests | ~150 | Reproduce ee→μμ tree + 1L, Compton, Bhabha via pipeline, cross-check against existing hand-built AlgSums to machine precision. |
+
+**Risk factors (could 2x the estimate)**:
+1. Layer 4 AlgSum may need small extensions to accept pipeline-shaped inputs.
+2. `qdis_fermion_sign` returns only ±1; Phase 18 needs the full trace
+   ordering (directed traversal of fermion lines).
+3. Symmetry factor `1/S` — `S_local` exists (`qgen.jl::compute_local_sym_factor`),
+   but `S_nonlocal` is currently computed aggregate-only via Burnside
+   `|Stab|/|G|`; Phase 18 needs it per-emission.
+4. 1-loop cases force Layer 5 (PaVe) interaction — can defer as Phase 18b.
+
+**Suggested scoping**: **Phase 18a = tree-level only** first (~300 LOC,
+1 session): momentum routing + AlgSum builder + ee→μμ-tree validation.
+Defer 1-loop to Phase 18b. Visible physics payoff, bounded risk.
+
+### Option B — port remaining filters (modest payoff, small LOC)
+
+The 9 golden-master SKIPs break down as:
+- **2 qgraf FAIL cases** (not fixable — qgraf itself can't generate them).
+- **4 `nosigma` cases** — `qgsig` at qgraf f08:13669 rejects self-energy
+  insertions. Requires BFS-based 2-point subdiagram detection. **~80-120 LOC.**
+- **3 `floop` cases** — fermion-loop counter + filter. Infrastructure
+  partially exists in `qgen.jl` (`antiq` tracking at f08:13988-14034).
+  Expose count + compare. **~30 LOC.**
+
+`floop` is cheap and unlocks 3 cases. `nosigma` is moderate and unlocks 4.
+Pure counter-mode improvements; no new physics capability.
+
+### Option C — Spiral 8 remainder (chiral physics unblock)
+
+- γ5 traces (`feynfeld-qu1`): unblocks chiral EW.
+- Eps (Levi-Civita) contraction completion.
+- MUnit translation continues alongside (per revised PRD §3.3).
+
+This is Layer 4 work, independent of the qg21 port. Parallel track —
+could be picked up by any agent that has capacity.
+
+### Recommendation
+
+**Option A (Phase 18a — tree-level)**: highest payoff. The qg21 port is
+a diagram counter that doesn't do physics yet. Phase 18a ends with the
+pipeline producing ee→μμ tree-level amplitudes matching the existing
+hand-built implementation — a visible, bounded milestone that the rest
+of the architecture (Layers 5, 6) can consume.
+
+If the next session prefers a quick win first, knock off `floop` (~30
+LOC, unlocks 3 golden masters) as a warm-up, then Phase 18a.
