@@ -67,3 +67,6 @@ grind/out_tmp/
 grind/*_trace.txt
 grind/*_stdout.txt
 grind/v2_test_results.txt
+# Per-case trace dumps (regenerable by re-running qgraf-grind + dump_julia_*.jl).
+grind/grind_*.txt
+grind/julia_*.txt

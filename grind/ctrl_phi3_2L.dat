@@ -1,0 +1,12 @@
+ config = delete, flush ;
+ output_dir = 'out_tmp/' ;
+ style_dir = 'styles/' ;
+ model_dir = 'models/' ;
+ style = 'array.sty' ;
+ output = 'phi3_phiphi_phiphi_2L.out' ;
+ model = 'phi3' ;
+ in = phi[p1], phi[p2] ;
+ out = phi[q1], phi[q2] ;
+ loops = 2 ;
+ loop_momentum = k ;
+ options = ;

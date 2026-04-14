@@ -641,6 +641,14 @@ function step_c_enumerate!(callback::F, state::TopoState) where {F}
         if !_is_connected_internal(state)
             @goto row_decrement
         end
+        # qg21:13156-13291 — post-fill canonicality: reject if some
+        # class-respecting perm (with xp(n_ext) pinned) gives a lex-larger
+        # internal gam. Step C's cross-row/col checks (12911-12946) are
+        # necessary but not sufficient; without this check Julia over-counts
+        # by +18 on phi3 2L φφ→φφ (2 extra canonical topologies).
+        if !is_canonical_qgraf!(state)
+            @goto row_decrement
+        end
         callback(state)
         @goto row_decrement   # try next topology
 

@@ -27,12 +27,15 @@ using .FeynfeldX.QgrafPort: count_diagrams_qg21
         @test count_diagrams_qg21(m, [:phi], [:phi, :phi, :phi]; loops=1) == 39
     end
 
-    @testset "φ³ 2-loop — THE 465 regression case" begin
-        # Discrepancy: qg21 returns 483, legacy 465.  Diff = 18.  Likely
-        # a 2L topology with multi-edge / self-loop where the auto group
-        # double-counts.  Investigation: Phase 17c.
+    @testset "φ³ 2-loop — THE 465 regression case (fixed Phase 12e)" begin
+        # BUG 2 (Session 24): Julia qg21 emitted 52 canonical topologies for
+        # the 6-deg-3 partition; qgraf emits 50.  Root cause: Julia's
+        # step_c_enumerate! lacked qgraf's post-fill permutation canonicality
+        # check (qg21:13156-13291).  Step C's cross-row/col checks
+        # (qg21:12911-12946) are necessary but not sufficient.  Fix:
+        # is_canonical_qgraf! in canonical.jl + call from emit path.
         m = phi3_model()
-        @test_broken count_diagrams_qg21(m, [:phi, :phi], [:phi, :phi]; loops=2) == 465
+        @test count_diagrams_qg21(m, [:phi, :phi], [:phi, :phi]; loops=2) == 465
     end
 
     @testset "φ³ 2-loop — φ→φφ (single-incoming case agrees)" begin

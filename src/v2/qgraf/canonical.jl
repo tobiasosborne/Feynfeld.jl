@@ -222,6 +222,87 @@ function is_canonical_full!(state::TopoState)::Bool
 end
 
 """
+    _compare_internal_adjacency(state, perm, rhop1) → Int
+
+Compare `gam(π(i), π(j))` vs `gam(i, j)` in row-major order, restricted to
+**internal** vertex pairs (i ≥ rhop1). Returns `+1` on first strict increase,
+`-1` on first strict decrease, `0` if all equal.
+
+qgraf f08:13206-13212 — qg21's post-fill canonicality iteration only
+compares internal pairs (outer loop `do i1=rhop1,n-1`, inner `do i2=i1,n`).
+External-internal pairs are NOT compared because step A's greedy xn
+distribution has already canonicalised them.
+"""
+function _compare_internal_adjacency(state::TopoState, perm::Vector{Int8},
+                                     rhop1::Int)::Int
+    n = Int(state.n)
+    xg = state.xg
+    @inbounds for i in rhop1:(n - 1)
+        pi_ = Int(perm[i])
+        for j in i:n
+            pj_ = Int(perm[j])
+            g_perm = pi_ <= pj_ ? xg[pi_, pj_] : xg[pj_, pi_]
+            g_orig = xg[i, j]
+            if g_perm > g_orig
+                return +1
+            elseif g_perm < g_orig
+                return -1
+            end
+        end
+    end
+    0
+end
+
+"""
+    is_canonical_qgraf!(state) → Bool
+
+qgraf-faithful post-fill canonicality check. Returns `true` iff the current
+labelling of `state.xg` is the **lex-LARGEST** representative of its
+isomorphism class under class-respecting permutations that fix the last
+external (xp(n_ext) = n_ext).
+
+Source: qgraf f08:13156-13291 (labels 77/93/102/202/204/114/63).
+  • Iterates xp over class product space: externals {1..n_ext-1} (pinned)
+    × internal classes by (vdeg, xn, xg_diag).
+  • For each xp, compares `gam(xp(i), xp(j))` vs `gam(i, j)` at internal
+    pairs. If any perm gives `gam(xp) > gam` at the first-difference
+    position: REJECT (return false).
+
+This is MISSING from Julia's previous qg21 port — step C's cross-row/col
+checks (f08:12911-12946) are necessary but not sufficient. Without the
+post-fill perm check, Julia accepts 52 canonical topologies for phi3 2L
+φφ→φφ where qgraf accepts 50 (+18 over-count in count_diagrams_qg21).
+"""
+function is_canonical_qgraf!(state::TopoState)::Bool
+    n     = Int(state.n)
+    n_ext = Int(state.n_ext)
+    rhop1 = Int(state.rhop1)
+
+    # Build class product for canonicalisation: external class (with last
+    # pinned) + internal classes by (vdeg, xn, xg_diag).
+    compute_equiv_classes!(state)
+    classes = EquivClass[]
+    if n_ext >= 2
+        push!(classes, EquivClass(Int8[i for i in 1:(n_ext - 1)], Int8(1)))
+    end
+    append!(classes, state.classes)
+
+    perm = state.perm_buf
+    @inbounds for i in 1:n
+        perm[i] = Int8(i)
+    end
+    while next_class_perm!(perm, classes)
+        cmp = _compare_internal_adjacency(state, perm, rhop1)
+        # qgraf convention (f08:13209-13211): reject when some xp gives
+        # lex-LARGER internal gam — original is not the lex-largest rep.
+        if cmp > 0
+            return false
+        end
+    end
+    true
+end
+
+"""
     enumerate_topology_automorphisms(state) -> Vector{Vector{Int8}}
 
 Return every permutation π of [1..n] (from the FULL equivalence-class

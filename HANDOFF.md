@@ -1,4 +1,4 @@
-# HANDOFF — 2026-04-13 (Session 23: BUG 1 fixed via GRIND METHOD — Phase 12d)
+# HANDOFF — 2026-04-14 (Session 24: BUG 2 fixed via GRIND METHOD — Phase 12e)
 
 ## DO NOT DELETE THIS FILE. Read it completely before working.
 
@@ -10,16 +10,87 @@
 2. Run `bd ready` to see available work.
 3. Run `julia --project=. test/v2/test_diagram_gen.jl` → expect 32/32 green.
 4. Run all qgraf-port tests: `for f in test/v2/qgraf/*.jl; do julia --project=. "$f"; done`
-   → expect ~440 tests across 14 files, all green or `@test_broken` (only the
-   φ³ 2L 465 case = BUG 2 is still broken).
+   → all green (only phase17 audition has `@test_broken` markers for B/C
+   dedup strategies — known, unrelated to BUG 1/2).
 5. Run full v2 suite: `grind/run_v2_tests.sh` → 25/25 files pass, 0 fail/error.
 6. Optional: `QGRAF_MAX_SECONDS=120 julia --project=. scripts/qgraf_golden_master_report.jl 2`
-   → still PASS=70/104 (legacy `count_diagrams` path; BUG 1 fix only affects
-   the new `count_diagrams_qg21` path).
+   → legacy `count_diagrams` path still PASS=70/104 (unchanged by BUG 2 fix).
+   `count_diagrams_qg21` path now matches qgraf on all tested cases.
 
 ---
 
-## SESSION 23 ACCOMPLISHMENTS — BUG 1 FIXED
+## SESSION 24 ACCOMPLISHMENTS — BUG 2 FIXED
+
+**Root cause** (verified by GRIND METHOD with instrumented qgraf-grind in `grind/`):
+Julia's `step_c_enumerate!` lacked qgraf's post-fill permutation canonicality
+check (qgraf-4.0.6.f08:13156-13291, labels 77/93/102/202/204/114/63). Step C's
+cross-row/col checks (f08:12911-12946) are necessary but not sufficient —
+without the post-fill perm iteration, Julia emitted 52 canonical topologies
+for phi3 2L φφ→φφ (6-deg-3 internal partition) where qgraf emits 50, giving
++18 over-count in `count_diagrams_qg21` (483 vs 465).
+
+The 2 extras were iso-pairs where the rejection perm is INTERNAL-ONLY (not
+requiring external swap). qgraf iterates class-respecting perms with `xp(n_ext)`
+pinned and rejects when `gam(xp(i1), xp(i2)) > gam(i1, i2)` at any internal
+pair (i1 ≥ rhop1). Diagnostic via `grind/compare_topos.jl`:
+
+| Iso-class | qgraf keeps | Julia also kept (extra) | Burnside contrib |
+|-----------|------------|------------------------|------------------|
+| 1 | gam=(5,6)(5,9)(6,10)(7,8)(7,10)(8,10)(9,9)=2 | gam with (5,10)(6,10)(7,9) | +12 |
+| 2 | gam with (7,7)=2(7,8)(9,10)=2 | gam with (7,9)(8,10)=2 | +6 |
+
+Total excess: 12+6 = **18** ✓.
+
+**The fix** (~70 LOC):
+- `src/v2/qgraf/canonical.jl`: added `_compare_internal_adjacency(state, perm, rhop1)`
+  (internal-only pair comparison, matches f08:13206-13212) and `is_canonical_qgraf!(state)`
+  (qgraf-convention lex-LARGEST canonicality, class product with last-ext pinned,
+  matches f08:13156-13291).
+- `src/v2/qgraf/topology.jl`: `step_c_enumerate!` emit path now calls
+  `is_canonical_qgraf!(state)` after `_is_connected_internal` check; reject →
+  `@goto row_decrement` for backtrack.
+- `src/v2/qgraf/QgrafPort.jl`: export `is_canonical_qgraf!`.
+
+**Verification** (20/20 spot-checks + full test suite):
+
+| Test surface | Result |
+|---|---|
+| phi3 φφ→φφ 2L (THE bug case) | 483 → **465** ✓ |
+| phi3 φ→φφ 2L | 58 ✓ |
+| phi3 φφ→φφ 1L | 39 ✓ |
+| phi3 φφ→φφ tree | 3 ✓ |
+| QED1 15 cases vs golden masters | 15/15 ✓ |
+| QED2 ee→μμ 1L | 18 ✓ |
+| QCD tree (qq̄→gg, gg→gg, qg→qg) | 3/3 ✓ |
+| Full v2 suite (25 files) | 25/25 pass, 0 fail/error |
+| qgraf-port tests (21 files) | 21/21 pass (only phase17 B/C still broken) |
+
+**Test-marker updates**:
+- `test_qg21_battery.jl`: φ³ 2L 465 case `@test_broken` → `@test`.
+
+**Pipeline swap (Phase 17c) status**: BOTH BUG 1 (Session 23) and BUG 2
+(this session) now resolved. `count_diagrams_qg21` matches qgraf on all
+test cases. Remaining blockers for Phase 17c (swap `count_diagrams` in
+`diagram_gen.jl` to wrap `count_diagrams_qg21`):
+
+1. Wire the Phase 14 filters (is_one_pi, has_no_snail, etc.) into
+   `count_diagrams_qg21` — currently only `onepi` is supported.
+2. Verify `count_diagrams_qg21` matches the legacy path on all
+   `test_diagram_gen.jl` cases (32 tests, currently green on legacy path).
+3. Re-run the full `qgraf_golden_master_report.jl` to confirm no regressions
+   on the 26 currently-SKIP cases.
+
+**GRIND diagnostic artefacts** (per-case traces gitignored via
+`grind/grind_*.txt`, `grind/julia_*.txt`):
+- `grind/ctrl_phi3_2L.dat` — qgraf config for phi3 2L φφ→φφ.
+- `grind/parse_grind_trace.jl` — extract per-topology buckets from qgraf trace.
+- `grind/dump_julia_phi3_2L.jl` — Julia per-topology Burnside dump.
+- `grind/compare_topos.jl` — iso-class cross-tab between qgraf and Julia
+  with WL-like signature + per-topology excess detection.
+
+---
+
+## SESSION 23 ACCOMPLISHMENTS — BUG 1 FIXED (preserved for context)
 
 **Root cause** (verified by GRIND METHOD with instrumented qgraf-grind in `grind/`):
 qgraf's `dpntro` (rule lookup table built by `qrvi:22020-22090`) stores ALL
@@ -166,9 +237,11 @@ Pipeline: `qg21_enumerate!` → qg10 ext-perm loop → `qgen_enumerate_assignmen
 
 ---
 
-## KNOWN BUGS — BLOCKERS FOR PHASE 17c PIPELINE SWAP
+## KNOWN BUGS — BOTH BLOCKERS FIXED
 
-One remaining bug (BUG 2). BUG 1 fixed in Session 23.
+BUG 1 fixed Session 23. BUG 2 fixed Session 24. No blockers remaining for
+Phase 17c pipeline swap (only the Phase 14 filter wiring + golden-master
+re-verification, per "Pipeline swap (Phase 17c) status" above).
 
 ### BUG 1 — qgen flavor-loop under-count (QED multi-gen 1L) — **FIXED Session 23**
 
@@ -200,38 +273,36 @@ filters. See SESSION 23 ACCOMPLISHMENTS above.
 **Diagnostic infra**: see `grind/` (instrumented qgraf gitignored, our
 scripts and README committed).
 
-### BUG 2 — phi3 2-loop φφ→φφ over-count (+18)
+### BUG 2 — phi3 2-loop φφ→φφ over-count (+18) — **FIXED Session 24**
 
-**Symptom**:
+**Was**:
 ```
 count_diagrams_qg21(phi3_model(), [:phi,:phi], [:phi,:phi]; loops=2)  →  483  (legacy: 465, qgraf golden: 465)
 ```
 
-Discovered during Phase 17b battery testing.  This is the famous Session 21 regression case (was 474 before the canonicality fix; legacy now correct at 465).
-
-**Counterpart that PASSES**:
-- `phi3 2L φ→φφ` (different partition: 5 deg-3 internals): qg21 = 58 = legacy ✓
-
-So the bug is specific to the **6-deg-3-internals** partition that phi3 φφ→φφ 2L uses.
-
-**Hypotheses (untested)**:
-- Self-loop topology in this partition where my Burnside formula or my auto-group enumeration over-counts.
-- Multi-edge (parallel-edge) topology where `compute_local_sym_factor`'s self-loop branch (the Z_2 reversal factor) interacts wrongly with the joint (ps1, pmap) Burnside.
-- The `enumerate_topology_automorphisms` extension to include externals may over-generate for 2L topologies with rich symmetry.
-
-**Where to look**:
-- `src/v2/qgraf/canonical.jl::enumerate_topology_automorphisms` — the auto group
-- `src/v2/qgraf/audition.jl::count_diagrams_qg21` — the Burnside loop
-- `src/v2/qgraf/qgen.jl::compute_local_sym_factor` — currently NOT used by count_diagrams_qg21 (only the topology-auto |Stab|/|G| is used); maybe S_local must be incorporated for parallel-edge or self-loop topologies?
-
-**Diagnostic next step**: enumerate the 6-internal partition's qg21 topologies, compute per-topology contribution to the 483 sum, identify the over-counting class.
-
-**Audition test**:
-```julia
-@test_broken count_diagrams_qg21(phi3_model(), [:phi,:phi], [:phi,:phi]; loops=2) == 465
+**Now**:
+```
+count_diagrams_qg21(phi3_model(), [:phi,:phi], [:phi,:phi]; loops=2)  →  465 ✓
 ```
 
-**Commit context**: `b19d33b`.
+**Root cause** (verified by GRIND METHOD): Julia's `step_c_enumerate!` lacked
+qgraf's post-fill permutation canonicality check (qgraf-4.0.6.f08:13156-13291).
+Step C's cross-row/col checks (f08:12911-12946) are necessary but not sufficient.
+Julia emitted 52 canonical topologies for the 6-deg-3 partition where qgraf
+emits 50; the 2 extras contributed +12 and +6 to Burnside = **18**.
+
+**Fix**: `src/v2/qgraf/canonical.jl` + `topology.jl`. New function
+`is_canonical_qgraf!` implements qgraf's post-fill check: iterates xp over
+class product space (externals 1..n_ext-1 + internal (vdeg,xn,xg_diag) classes,
+with last-ext pinned), compares internal-pair `gam(xp)` vs `gam(orig)`, rejects
+when xp gives lex-LARGER at first-difference position. Called from
+`step_c_enumerate!` emit path. See SESSION 24 ACCOMPLISHMENTS above.
+
+**Verification**: 20/20 spot-checks against qgraf golden masters. Full v2
+suite 25/25 pass. qgraf-port suite 21/21 pass.
+
+**Diagnostic infra**: see `grind/` — `ctrl_phi3_2L.dat`, `parse_grind_trace.jl`,
+`dump_julia_phi3_2L.jl`, `compare_topos.jl`.
 
 ### BUG 3 (low priority) — vacuum n_ext=0 not supported by qg10 labels
 
@@ -273,9 +344,9 @@ So the bug is specific to the **6-deg-3-internals** partition that phi3 φφ→�
 | `test/v2/qgraf/test_sym_factor.jl` | 4 | 4/4 ✓ (Phase 15) |
 | `test/v2/qgraf/test_momentum.jl` | 5 | 5/5 ✓ (Phase 16) |
 | `test/v2/qgraf/test_automorphisms.jl` | 13 | 13/13 ✓ (Phase 17 prep) |
-| `test/v2/qgraf/test_phase17_audition.jl` | 16+5 broken | (Phase 17a) |
-| `test/v2/qgraf/test_count_diagrams_qg21.jl` | 9+1 broken | (Phase 17b) |
-| `test/v2/qgraf/test_qg21_battery.jl` | 23+1 broken | (Phase 17b) |
+| `test/v2/qgraf/test_phase17_audition.jl` | 17+4 broken | (Phase 17a — B/C dedup still broken) |
+| `test/v2/qgraf/test_count_diagrams_qg21.jl` | 10 | 10/10 ✓ (Phase 17b) |
+| `test/v2/qgraf/test_qg21_battery.jl` | 24 | 24/24 ✓ (Phase 17b, BUG 2 fixed Session 24) |
 
 Plus full v2 regression (test_ee_mumu_x, test_ee_ww, test_qqbar_gg, etc.) all green.
 
@@ -285,7 +356,7 @@ Plus full v2 regression (test_ee_mumu_x, test_ee_ww, test_qqbar_gg, etc.) all gr
 |------|----:|---------|
 | `QgrafPort.jl` | 25 | submodule wrapper + exports |
 | `types.jl` | 195 | Partition, EquivClass, FilterSet, TopoState |
-| `canonical.jl` | ~290 | is_canonical_full!, enumerate_topology_automorphisms |
+| `canonical.jl` | ~360 | is_canonical_full!, is_canonical_qgraf! (Session 24), enumerate_topology_automorphisms |
 | `topology.jl` | ~520 | step_b_enumerate!, step_c_enumerate!, qg10_enumerate!, _is_connected_internal |
 | `qgen.jl` | ~330 | build_dpntro, compute_qg10_labels, qgen_count_assignments, qgen_enumerate_assignments, qdis_fermion_sign, compute_local_sym_factor |
 | `filters.jl` | ~190 | has_no_*, is_one_pi, is_one_vi |
