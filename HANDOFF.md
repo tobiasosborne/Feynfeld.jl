@@ -1,4 +1,4 @@
-# HANDOFF — 2026-04-14 (Session 24: BUG 2 + Phase 17c pipeline swap)
+# HANDOFF — 2026-04-15 (Session 25: Phase 18a — Diagram → AlgSum bridge)
 
 ## DO NOT DELETE THIS FILE. Read it completely before working.
 
@@ -10,17 +10,122 @@
 2. Run `bd ready` to see available work.
 3. Run `julia --project=. test/v2/test_diagram_gen.jl` → expect all green.
 4. Run all qgraf-port tests: `for f in test/v2/qgraf/*.jl; do julia --project=. "$f"; done`
-   → 21/21 files green (only `test_phase17_audition.jl` has `@test_broken`
+   → 30/30 files green (only `test_phase17_audition.jl` has `@test_broken`
    markers for Strategy-B/C dedup — known audition-verdict issue, unrelated).
-5. Run full v2 suite: `./grind/run_v2_tests.sh` → 25/25 files pass, 0 fail/error.
+5. Run full v2 suite: `./grind/run_v2_tests.sh` → 26/26 files pass, 0 fail/error.
 6. Golden master report (loops ≤ 4):
    - `QGRAF_MAX_SECONDS=300 julia --project=. scripts/qgraf_golden_master_report.jl 4`
-     → **PASS=95 / FAIL=0 / SKIP=9 / ERROR=0** (Session 24 result — up from 70 pre-swap).
-   - The 9 SKIPs are 2 genuine qgraf-FAIL cases + 4 nosigma + 3 floop (unported filters).
-7. See **"NEXT SESSION DECISION POINT"** at the bottom for the three
-   candidate directions (Phase 18 / filter ports / Spiral 8 mop-up).
+     → **PASS=95 / FAIL=0 / SKIP=9 / ERROR=0** (unchanged from Session 24).
+7. **NEW**: Pipeline ≡ handbuilt validated for ee→μμ tree:
+   `julia --project=. test/v2/qgraf/test_phase18a_pipeline.jl` → 1/1 ✓.
+8. See **"NEXT SESSION DECISION POINT"** at the bottom for Phase 18b options.
 
 ---
+
+## SESSION 25 ACCOMPLISHMENTS — Phase 18a CLOSED
+
+The qg21 port is no longer just a diagram counter — it now produces
+evaluable AlgSum amplitudes. End milestone proven:
+**`solve_tree_pipeline(qed_model, ee→μμ massless) ==
+solve_tree(qed_model, ee→μμ massless)`** symbolically, after spin-sum
+/ contract / expand_sp.
+
+### Phase-by-phase (10 commits f4563bb..cdb0262)
+
+| Phase | What | LOC | Tests | Commit |
+|-------|------|----:|------:|--------|
+| 18a-1 | leaf-peel `route_momenta` (qgraf f08:13400-13559) | ~220 | 25 | `f4563bb` |
+| 18a-2 | half-edge `compute_amap` (f08:12133-12158) | ~80 | 57 | `85a325d` |
+| 18a-3 | per-edge `build_propagators` (Boson/Fermion/Scalar) | ~120 | 24 | `60acb42` |
+| 18a-4 | per-vertex `build_vertices` (γ^μ + index sharing) | ~120 | 7 | `149ba8a` |
+| 18a-5 | per-external `build_externals` (u/v/ubar/vbar) | ~80 | 19 | `1c64820` |
+| 18a-6 | fermion-line `walk_fermion_lines` (tree-only) | ~85 | 10 | `70739a2` |
+| 18a-7 | master `emission_to_amplitude` → AmplitudeBundle | ~135 | 9 | `eebf79f` |
+| 18a-8 | `solve_tree_pipeline` (cross_section.jl wiring) | ~55 | 3 | `40dc142` |
+| 18a-9 | symbolic equality test ee→μμ pipeline ≡ handbuilt | ~30 | 1 | `cdb0262` |
+
+Net: ~925 LOC source, 9 new test files, 155 new tests, 1 critical
+acceptance test passing.
+
+### Side fixes (bundled in phase commits, all triggered by Phase 18a)
+
+- `MomentumSum == / hash` (types.jl) — default Julia `==` was `===`
+  for Vector-bearing struct; added in 18a-1.
+- `vmap/lmap` allocation `n×n → n×MAX_V` (qgen.jl) — bug surfaced by
+  the φ³ tadpole test (vdeg can exceed n with self-loops); 18a-2.
+- `DiracChain == / hash` (dirac.jl) — same Vector-equality issue; 18a-4.
+- `DiracExpr == / hash` (dirac_expr.jl) — same; 18a-4.
+
+### New module structure (src/v2/qgraf/)
+
+| File | Purpose |
+|------|---------|
+| `momentum.jl` (extended) | Phase 16 spanning tree + Phase 18a-1 leaf-peel |
+| `halfedge.jl` (new) | compute_amap |
+| `propagator_assemble.jl` (new) | build_propagators |
+| `vertex_assemble.jl` (new) | build_vertices + build_externals |
+| `fermion_line.jl` (new) | walk_fermion_lines (tree-only) |
+| `emission_amplitude.jl` (new) | emission_to_amplitude (master assembler) |
+
+### Reviewer findings (post-18a-9)
+
+A read-only review agent flagged 3 caveats on the closed phase. Disposition:
+
+1. **Boson Lorentz index naming divergence** (vertex_assemble.jl:65):
+   pipeline uses `:mu_l_<edge_id>`, handbuilt uses `:mu_<channel>`.
+   Currently masked by contraction inside DiracChain dot products
+   (both produce the same final AlgSum). Will need unification before
+   Phase 18b's explicit metric / multi-orbit / polarisation work.
+   **Action**: in-source comment added at vertex_assemble.jl:65.
+2. **momentum.jl LOC (was 297)**: Split spanning_tree.jl off (69 LOC),
+   leaving momentum.jl at 230 LOC — closer to the ~200 rule. Route_momenta
+   itself is 150 LOC of dense leaf-peel logic and doesn't split cleanly.
+3. **Side-fix commits** (MomentumSum/DiracChain/DiracExpr ==/hash,
+   vmap/lmap allocation): each was bundled into the phase commit that
+   triggered it, with clear documentation in the commit message. Reviewer
+   suggested extracting via rebase. **Disposition**: leave as-is — the
+   commit messages are explicit and the changes were all symmetric to
+   existing patterns. A future cleanup pass can extract if desired.
+
+### What's still deferred to Phase 18b
+
+- **Internal fermion propagators** (Compton tree s+u): walk_fermion_lines
+  errors with a deferral message; propagator_num for fermion + composite
+  momentum errors deliberately. ~150 LOC to lift.
+- **Multi-orbit interference** (Bhabha s+t, multi-channel φ³):
+  solve_tree_pipeline currently picks `bundles[1]` as a Phase-18a
+  shortcut. Phase 18b sums Burnside-weighted across orbits. ~50 LOC.
+- **Boson polarisation** (QCD qq̄→gg with external gluons):
+  build_externals returns `(nothing, nothing)` for boson legs.
+  ~80 LOC including the polarisation_sum hookup.
+- **4-vertex** (gggg): build_vertices errors. ~60 LOC.
+- **Symbolic mass** support: external propagator denominators currently
+  use `1//1` placeholder for non-zero mass (matches amplitude.jl
+  convention). Symbolic mass arrives in 18b. ~40 LOC.
+- **Coupling assignment**: AmplitudeBundle.coupling = alg(1) placeholder.
+
+### NEXT SESSION DECISION POINT
+
+Phase 18a closure unlocks several directions:
+
+**Option A — Phase 18b: lift the deferrals (HIGHEST leverage)**
+- A1. Multi-orbit Burnside summation in solve_tree_pipeline (~50 LOC)
+- A2. Internal fermion propagators (Compton tree validation) (~150 LOC)
+- A3. Boson polarisation (QCD qq̄→gg) (~80 LOC)
+- A4. Symbolic mass support (~40 LOC)
+Estimated 1-2 sessions for a complete tree-level pipeline.
+
+**Option B — 1-loop bridge (Phase 18c)**
+After 18b: extend the bridge to 1-loop emissions (PaVe integrals via
+existing Layer 5). Phase 18c is the natural sequel and unlocks Spiral 10.
+
+**Option C — Filter ports + golden master push**
+nosigma (~120 LOC, +4 cases), floop (~30 LOC, +3 cases) per
+Session 24's NEXT SESSION block. Quick wins.
+
+**Recommendation**: A. The 18a milestone proves the bridge works;
+18b lifts the artificial scope restrictions to make it useful for
+the full tree-level Standard Model.
 
 ## SESSION 24 TIMELINE
 

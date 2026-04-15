@@ -59,6 +59,14 @@ function _vertex_factor_at(v::Int, fields::Vector{Symbol}, vdeg_v::Int,
     end
 
     # QED/QCD/EW chiral 3-vertex: 2 fermions + 1 boson.
+    # Boson Lorentz index naming convention: `:mu_l_<edge_id>` shared
+    # between the two endpoints. NOTE: differs from src/v2/amplitude.jl's
+    # `:mu_<channel>` naming (handbuilt path). Currently masked by
+    # contraction inside DiracChain dot products — both conventions
+    # collapse to the same |M|² after spin-sum/contract/expand_sp. This
+    # WILL need unification in Phase 18b when explicit metric tensors,
+    # multi-orbit interference, or polarisation sums make boson indices
+    # appear as free factors in the AlgSum.
     if length(boson_slots) == 1
         slot_b   = boson_slots[1]
         edge_id  = Int(amap[v, slot_b])

@@ -56,3 +56,4 @@
 {"id":"int-6107d465","kind":"field_change","created_at":"2026-04-15T18:12:09.09194086Z","actor":"tobiasosborne","issue_id":"feynfeld-8i77","extra":{"field":"status","new_value":"closed","old_value":"in_progress","reason":"Closed"}}
 {"id":"int-dbacdc01","kind":"field_change","created_at":"2026-04-15T18:17:18.450020314Z","actor":"tobiasosborne","issue_id":"feynfeld-biv4","extra":{"field":"status","new_value":"closed","old_value":"in_progress","reason":"Closed"}}
 {"id":"int-c3c0786a","kind":"field_change","created_at":"2026-04-15T18:21:39.014521021Z","actor":"tobiasosborne","issue_id":"feynfeld-gtgj","extra":{"field":"status","new_value":"closed","old_value":"in_progress","reason":"Closed"}}
+{"id":"int-1fb91cfe","kind":"field_change","created_at":"2026-04-15T18:22:51.769137467Z","actor":"tobiasosborne","issue_id":"feynfeld-06n8","extra":{"field":"status","new_value":"closed","old_value":"in_progress","reason":"Closed"}}
