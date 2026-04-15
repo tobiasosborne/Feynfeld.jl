@@ -22,6 +22,90 @@
 
 ---
 
+## SESSION 25 TIMELINE
+
+1. Read `HANDOFF.md`, `Feynfeld_PRD.md`, `CLAUDE.md`. Internalised the
+   THE PIPELINE PRINCIPLE, the 12 rules, the spiral methodology, and
+   the Session 24 NEXT SESSION DECISION POINT (Options A/B/C).
+2. Picked **Option A — Phase 18a tree-level Diagram → AlgSum bridge**
+   per the recommendation. The qg21 port was a diagram counter; this
+   phase makes it produce evaluable amplitudes.
+3. Drafted the granular plan: 10 sub-tasks (18a-1 through 18a-10),
+   created beads epic `feynfeld-otgb` + 10 task issues with explicit
+   dependency graph (`bd dep add` chain).
+4. Per Tobias Rule 5 (core code = 3 research + 1 review), spawned 3
+   parallel read-only research agents on qgraf f08:13400-13580 leaf-peel
+   (algorithm details), Nogueira 1993 paper (cross-check), and existing
+   Julia momentum API surface. Verified all three reports against my
+   own direct read of f08:13313-13491.
+5. **Phase 18a-1** (`f4563bb`): RED-GREEN TDD test by test. Built
+   `route_momenta(state, labels, ext_moms; loop_moms)` returning
+   `EdgeMomenta` (per-edge `MomentumSum` + edge-type tag). Tests
+   walked: φ→φφ tree, ee→μμ s-channel (p1+p2), ee→μμ t-channel
+   (p1+p3), φ³ 1L bubble (chord head-match flip), φ³ tadpole
+   (snb edge type), qg21_enumerate integration. Side-fix:
+   `MomentumSum == /hash` (default Julia struct == falls back to
+   === for Vector-bearing types). Commit ~220 LOC source + 25 tests.
+6. **Phase 18a-2** (`85a325d`): `compute_amap(state, labels)` —
+   half-edge labelling matrix. External back-write + internal triple-
+   case (single edge / self-loop integer division / parallel edge
+   backward scan), per qgraf f08:12133-12158 + 12342-12344. RED-GREEN
+   tests: φ→φφ, ee→μμ, φ³ bubble parallel edges, φ³ tadpole
+   self-loop, comprehensive pairing-invariant battery (4 topologies).
+   Side-fix: qgen.jl `vmap`/`lmap` allocation `n×n → n×MAX_V` (latent
+   self-loop bug — vdeg can exceed n, surfaced by tadpole test).
+   ~80 LOC source + 57 tests.
+7. **Phase 18a-3** (`60acb42`): `build_propagators` — per-edge
+   propagator factors (Boson `alg(1)` / Fermion `DiracExpr(p̸+m)` /
+   Scalar `alg(1)`). Denominator = `pair(mom, mom) − m²`. Tests:
+   ee→μμ photon, φ³ scalar, φ³ bubble (2 parallel propagators),
+   tadpole self-loop. ~120 LOC + 24 tests.
+8. **Phase 18a-4** (`149ba8a`): `build_vertices` — per-vertex
+   Lorentz factors. Boson edge index naming `:mu_l_<edge_id>` shared
+   between endpoints (Einstein summation auto-contracts at chain
+   product). Field canonicalisation strips `_bar` for model dict
+   lookup. Tests: ee→μμ γ^μ at both vertices with shared index, φ³
+   scalar (no Lorentz). Side-fix: `DiracChain` and `DiracExpr` ==
+   /hash methods (same Vector-equality root cause as 18a-1).
+   ~120 LOC + 7 tests.
+9. **Phase 18a-5** (`1c64820`): `build_externals` — per-external
+   spinor/polarisation. Mirrors amplitude.jl `_spinor_and_position`
+   dispatch (u/v/ubar/vbar from in/out + antiparticle flags). Boson
+   externals deferred (returns nothing). ~80 LOC + 19 tests.
+10. **Phase 18a-6** (`70739a2`): `walk_fermion_lines` — pairs each
+    internal vertex's 2 fermion half-edges by bar/plain end via
+    `build_externals`' position metadata. Tree-only: errors with a
+    Phase-18b deferral message if a fermion slot connects to another
+    internal vertex (Compton-style internal fermion propagator).
+    ~85 LOC + 10 tests.
+11. **Phase 18a-7** (`eebf79f`): `emission_to_amplitude` — master
+    assembler. Composes 18a-1..6 into `AmplitudeBundle(line_chains,
+    amplitude, denoms, fermion_sign, sym_factor, coupling)`. Per-line
+    chain construction mirrors amplitude.jl `_fermion_line_chain`.
+    Tests: ee→μμ s-channel bundle structure, φ³ scalar bundle (no
+    fermion lines → `DiracExpr(alg(1))`). ~135 LOC + 9 tests.
+12. **Phase 18a-8** (`40dc142`): `solve_tree_pipeline` — drives the
+    qg21 `_foreach_emission` stream into `emission_to_amplitude`,
+    picks the first emission's bundle (single-orbit Phase-18a
+    shortcut), runs `spin_sum_amplitude_squared` → `contract` →
+    `expand_scalar_product`. ~55 LOC + 3 smoke tests.
+13. **Phase 18a-9** (`cdb0262`): THE acceptance test —
+    `solve_tree_pipeline(qed_model, ee→μμ massless).amplitude_squared
+    == solve_tree(...).amplitude_squared` symbolically. PASS first
+    try. The pipeline produces the same |M|² as the hand-built path
+    after spin-sum/contract/expand_sp. **Phase 18a milestone
+    achieved.**
+14. **Phase 18a-10** (`cd39db4`): Spawned read-only reviewer agent
+    on commits `f4563bb..cdb0262`. Verdict: SHIP-READY with 3
+    caveats: (a) momentum.jl LOC limit (297 → split spanning_tree.jl
+    off, now 230); (b) boson Lorentz index naming divergence
+    (`:mu_l_<edge_id>` vs `:mu_<channel>` — masked by DiracChain
+    contraction but flagged for Phase 18b unification with in-source
+    comment at vertex_assemble.jl:65); (c) side-fix commits should
+    have been standalone (decided to leave bundled — explicit in
+    commit messages). HANDOFF updated, beads closed (epic feynfeld-otgb
+    + 10 tasks), `git push` + `bd dolt push` clean.
+
 ## SESSION 25 ACCOMPLISHMENTS — Phase 18a CLOSED
 
 The qg21 port is no longer just a diagram counter — it now produces
@@ -86,6 +170,119 @@ A read-only review agent flagged 3 caveats on the closed phase. Disposition:
    suggested extracting via rebase. **Disposition**: leave as-is — the
    commit messages are explicit and the changes were all symmetric to
    existing patterns. A future cleanup pass can extract if desired.
+
+### WHAT PHASE 18a ENABLES
+
+#### 1. Architectural — pipeline principle satisfied for tree QED 2→2 boson exchange
+
+Before 18a, every physics process bypassed Layers 1-3 and used
+hand-rolled amplitudes (channels.jl, amplitude.jl, build_amplitude
+per process). CLAUDE.md's THE PIPELINE PRINCIPLE was aspirational.
+After 18a, for the validated subset (ee→μμ tree massless), the full
+6-layer pipeline runs end-to-end: Model → Rules → Diagrams (qg21) →
+Algebra (AlgSum, DiracExpr) → Integrals (PaVe-ready) → Evaluate
+(spin-sum, contract, expand_sp). No bypass.
+
+#### 2. Concretely usable APIs
+
+```julia
+# Drop-in replacement for solve_tree (validated symbolic equivalence):
+prob = CrossSectionProblem(qed_model(m_e=:zero, m_mu=:zero),
+                           [ExternalLeg(:e, p1, true,  false),
+                            ExternalLeg(:e, p2, true,  true)],
+                           [ExternalLeg(:mu, k1, false, false),
+                            ExternalLeg(:mu, k2, false, true)],
+                           10.0)
+result = solve_tree_pipeline(prob)
+result.amplitude_squared isa AlgSum   # spin-summed |M|²
+result.n_emissions                    # qg21 emission count
+```
+
+```julia
+# One-shot "give me the amplitude bundle for this emission":
+bundle = emission_to_amplitude(state, labels, ps1, pmap, model;
+                                physical_moms, n_inco)
+bundle.line_chains   # Vector{DiracExpr}, one per fermion line
+bundle.amplitude     # convenience: product of line_chains
+bundle.denoms        # Vector{AlgSum} — (p²-m²) per internal propagator
+bundle.fermion_sign  # ±1 from qdis_fermion_sign
+bundle.sym_factor    # 1/S_local (Rational)
+```
+
+The 6 sub-builders (`route_momenta`, `compute_amap`,
+`build_propagators`, `build_vertices`, `build_externals`,
+`walk_fermion_lines`) are independently usable for diagnostics,
+partial assembly, or alternative amplitude conventions.
+
+#### 3. Validation pattern established
+
+`pipeline ≡ handbuilt symbolic AlgSum equality` is now a template
+test pattern (`test/v2/qgraf/test_phase18a_pipeline.jl`). Each
+hand-built process (Compton, Bhabha, qq̄→gg, vertex_g2, etc.) can
+get an analogous test once the relevant 18b deferral is lifted. The
+hand-built code becomes a "ground-truth oracle" while the pipeline
+catches up — and once oracular tests pass, the hand-built path can
+eventually be retired.
+
+#### 4. Downstream pipelines unblocked
+
+- **Layer 5 (PaVe)**: `AmplitudeBundle.denoms` is the list of
+  `(p²−m²)` factors a 1-loop variant feeds into Passarino–Veltman
+  reduction. Phase 18c (1-loop) becomes a structural extension, not
+  a redesign.
+- **Layer 6 (cross section, observables)** already consumes AlgSum
+  via `evaluate_m_squared`, `dsigma_domega`, `evaluate_numeric` —
+  these now work transparently on pipeline output. Tree-level
+  cross sections via the pipeline work end-to-end (modulo what's
+  deferred to 18b).
+
+#### 5. Agent-facing value (PRD §1.2 endgame)
+
+The PRD vision: "Claude reads Lagrangian → returns σ_NLO". Until
+18a, every spoke required Claude to write custom Layer-3 code. Now:
+for any process whose deferrals 18b lifts, the agent invokes
+`solve_tree_pipeline(CrossSectionProblem(...))` and the rest is
+automatic. This is the first session where the bridge to
+"agent-driven physics" exists in code, not just documentation.
+
+#### 6. Module surface added (src/v2/qgraf/)
+
+Exported via QgrafPort:
+- Types: `EdgeMomenta`, `InternalEdge`, `Propagator`, `ExternalFactor`,
+  `FermionLine`, `AmplitudeBundle`
+- Functions: `route_momenta`, `compute_amap`, `build_propagators`,
+  `build_vertices`, `build_externals`, `walk_fermion_lines`,
+  `emission_to_amplitude`, `_foreach_emission` (re-export of audition.jl)
+
+Exported via FeynfeldX (Layer 6):
+- `solve_tree_pipeline`
+
+### Phase 18b roadmap (concrete)
+
+To complete tree-level Standard Model coverage:
+
+| Sub-task | What to lift | Where | Est. LOC |
+|----------|--------------|-------|---------:|
+| 18b-1 | Multi-orbit Burnside summation | cross_section.jl:155 | ~50 |
+| 18b-2 | Fermion propagator with composite momentum | propagator_assemble.jl:88 | ~30 |
+| 18b-3 | Multi-vertex fermion-line traversal | fermion_line.jl:55 | ~120 |
+| 18b-4 | Boson polarisation (external gluons) | vertex_assemble.jl ext branch | ~80 |
+| 18b-5 | 4-vertex (gggg) Lorentz factor | vertex_assemble.jl:30 | ~60 |
+| 18b-6 | Symbolic mass placeholders | propagator_assemble.jl:75 | ~40 |
+| 18b-7 | Coupling assignment (e², g_s², etc.) | emission_amplitude.jl:140 | ~30 |
+| 18b-8 | Validation: Compton, Bhabha, qq̄→gg, ee→W+W- | test/v2/qgraf/ | ~150 |
+
+Total estimate: ~560 LOC, 1-2 sessions. Each unlocks one or more
+hand-built processes for symbolic-equivalence cross-validation.
+
+### Phase 18c sketch (1-loop)
+
+Once 18b closes:
+- `loops=1` argument to `solve_tree_pipeline` → `solve_loop_pipeline`
+- Per-emission propagator denoms → PaVe scalar functions via Layer 5
+- Tensor reduction (TID/OPP) for non-trivial loop integrals
+- Cross-validation against existing `vertex_g2`, `self_energy_1loop`,
+  `running_alpha`, `nlo_box` paths
 
 ### What's still deferred to Phase 18b
 
