@@ -4,6 +4,8 @@
 # Ref: refs/papers/Nogueira1993_JCompPhys105_279.pdf
 module QgrafPort
 
+import ..FeynfeldX: Momentum, MomentumSum, momentum_sum
+
 include("types.jl")
 include("canonical.jl")
 include("topology.jl")
@@ -31,6 +33,7 @@ export Partition, EquivClass, FilterSet, TopoState,
        is_one_pi, has_no_sbridge, has_no_tadpole, has_no_onshell,
        has_no_snail, is_one_vi,
        build_spanning_tree, count_chords,
+       InternalEdge, EdgeMomenta, route_momenta,
        qgen_enumerate_assignments,
        count_dedup_burnside, count_dedup_canonical, count_dedup_prefilter,
        count_diagrams_qg21,

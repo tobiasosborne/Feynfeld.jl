@@ -71,6 +71,8 @@ function momentum_sum(terms_raw::Vector{Tuple{Rational{Int}, Momentum}})
 end
 
 Base.show(io::IO, ms::MomentumSum) = join(io, ["$(c)*$(m)" for (c,m) in ms.terms], " + ")
+Base.:(==)(a::MomentumSum, b::MomentumSum) = a.terms == b.terms
+Base.hash(a::MomentumSum, h::UInt) = hash(a.terms, hash(:MomentumSum, h))
 
 # Arithmetic on momenta (use factory for simplification)
 Base.:+(a::Momentum, b::Momentum) = momentum_sum([(1//1, a), (1//1, b)])
