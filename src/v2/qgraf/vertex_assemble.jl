@@ -92,3 +92,83 @@ end
 function _field_species(model, name::Symbol)
     Main.FeynfeldX.species(Main.FeynfeldX.get_field(model, _canonical_field_name(name)))
 end
+
+# ── Phase 18a-5: per-external spinor / polarisation factors ─────────────
+
+"""
+    ExternalFactor
+
+One per external leg. Carries the spinor / polarisation factor and the
+in/out + antiparticle metadata Phase 18a-6 (fermion-line traversal)
+needs to chain spinors into Dirac chains.
+
+For boson externals: `spinor === nothing` and `position === nothing`.
+Polarisation handling is deferred to a future spin-sum stage; if the
+boson is internal-only (e.g. tree QED ee→μμ) we never need it.
+"""
+struct ExternalFactor
+    leg_idx::Int
+    field::Symbol
+    momentum::Momentum
+    incoming::Bool
+    antiparticle::Bool
+    spinor::Union{Nothing, Main.FeynfeldX.Spinor}
+    position::Union{Nothing, Symbol}    # :left | :right for fermion
+end
+
+"""
+    build_externals(state, pmap, physical_moms, n_inco, model) -> Vector{ExternalFactor}
+
+For each external leg i (1..n_ext), construct ExternalFactor:
+  - field      = pmap[i, 1]
+  - momentum   = physical_moms[i] (PHYSICAL — not qgraf "all incoming")
+  - incoming   = i ≤ n_inco
+  - antiparticle = field name ends with `_bar`
+  - spinor / position via the standard u/v/ubar/vbar dispatch
+
+Mass: read from the model field (e.g. `:zero` or `:m_e`); for `:zero`
+spinors get mass=0, otherwise mass=1//1 placeholder (matches
+amplitude.jl:115 convention; symbolic masses arrive in 18b).
+"""
+function build_externals(state::TopoState,
+                          pmap::AbstractMatrix{Symbol},
+                          physical_moms::Vector{Momentum},
+                          n_inco::Int,
+                          model::AbstractModel)
+    n_ext = Int(state.n_ext)
+    length(physical_moms) == n_ext ||
+        error("build_externals: physical_moms length $(length(physical_moms)) ≠ n_ext $n_ext")
+
+    out = ExternalFactor[]
+    for i in 1:n_ext
+        field    = pmap[i, 1]
+        mom      = physical_moms[i]
+        incoming = i <= n_inco
+        anti     = _is_antiparticle_field(field)
+        species  = _field_species(model, field)
+        spin, pos = _spinor_dispatch(species, incoming, anti, mom,
+                                       _ext_mass(model, field))
+        push!(out, ExternalFactor(i, field, mom, incoming, anti, spin, pos))
+    end
+    out
+end
+
+_is_antiparticle_field(f::Symbol) = endswith(String(f), "_bar")
+
+function _ext_mass(model, name::Symbol)
+    f = Main.FeynfeldX.get_field(model, _canonical_field_name(name))
+    f.mass == :zero ? 0//1 : 1//1
+end
+
+# Mirror of src/v2/amplitude.jl:167-179 dispatch table for fermions.
+function _spinor_dispatch(::Fermion, incoming::Bool, anti::Bool,
+                            p::Momentum, m::Rational{Int})
+    if      incoming &&  !anti;  (Main.FeynfeldX.u(p, m),    :right)
+    elseif  incoming &&   anti;  (Main.FeynfeldX.vbar(p, m), :left)
+    elseif !incoming &&  !anti;  (Main.FeynfeldX.ubar(p, m), :left)
+    else                          (Main.FeynfeldX.v(p, m),    :right)
+    end
+end
+
+# Boson externals: polarisation handled at spin-sum stage (deferred).
+_spinor_dispatch(::Union{Boson, Scalar}, _, _, _, _) = (nothing, nothing)
