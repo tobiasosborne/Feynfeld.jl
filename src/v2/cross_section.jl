@@ -132,3 +132,60 @@ end
 function sigma_total_tree_ee_mumu(s::Float64; alpha::Float64=1/137.036)
     4π * alpha^2 / (3 * s)
 end
+
+# ---- Phase 18a-8: pipeline-driven tree solver ----
+#
+# solve_tree_pipeline drives the qg21 → qgen emission stream, builds an
+# AmplitudeBundle per emission, picks the canonical orbit
+# representative, and runs the standard spin-sum/contract/expand_sp
+# pipeline. Existing solve_tree is preserved unchanged for back-compat.
+
+"""
+    solve_tree_pipeline(prob::CrossSectionProblem)
+
+Build the tree-level |M|² for the given process by routing through the
+qg21 diagram-emission pipeline (Phase 18a-7's emission_to_amplitude),
+then running the existing spin-sum/contract/expand machinery.
+
+Phase 18a scope: takes the FIRST emission's bundle (one canonical
+diagram per orbit; multi-orbit interference is Phase 18b). Returns a
+NamedTuple `(amplitude_squared, n_emissions)`.
+"""
+function solve_tree_pipeline(prob::CrossSectionProblem)
+    in_fields  = [leg.field_name for leg in prob.incoming]
+    out_fields = [leg.field_name for leg in prob.outgoing]
+    n_inco     = length(prob.incoming)
+    physical_moms = vcat([leg.momentum for leg in prob.incoming],
+                         [leg.momentum for leg in prob.outgoing])
+
+    bundles = QgrafPort.AmplitudeBundle[]
+    weights = Rational{Int}[]
+    QgrafPort._foreach_emission(prob.model, in_fields, out_fields; loops=0) do state, labels, ps1, pmap
+        autos   = QgrafPort.enumerate_topology_automorphisms(state)
+        g_size  = length(autos)
+        n_stab  = QgrafPort.emission_stabilizer(state, labels, autos, ps1, pmap)
+        bundle  = QgrafPort.emission_to_amplitude(state, labels, ps1, pmap,
+                                                    prob.model;
+                                                    physical_moms, n_inco)
+        push!(bundles, bundle)
+        push!(weights, Rational{Int}(n_stab) // g_size)
+    end
+    isempty(bundles) && error("solve_tree_pipeline: no emissions for this process")
+
+    # Phase 18a single-orbit shortcut: pick the first emission's bundle.
+    # Burnside-weighted multi-orbit summation arrives in Phase 18b.
+    bundle = bundles[1]
+    m_sq = if length(bundle.line_chains) == 2
+        spin_sum_amplitude_squared(bundle.line_chains[1], bundle.line_chains[2])
+    elseif isempty(bundle.line_chains)
+        # All-scalar (φ³) — amplitude is alg(1), |M|² is also alg(1) before
+        # propagator denominators.
+        alg(1)
+    else
+        error("solve_tree_pipeline: $(length(bundle.line_chains))-line bundles deferred to Phase 18b")
+    end
+    contracted = contract(m_sq)
+    expanded   = expand_scalar_product(contracted)
+
+    (amplitude_squared=expanded, n_emissions=length(bundles))
+end

@@ -150,7 +150,7 @@ export sigma_ee_ww
 # ---- Exports: Evaluate (Layer 6) ----
 export evaluate_single_box_channel, evaluate_box_channels, born_virtual_box
 export Mandelstam, sp_context_from_mandelstam
-export CrossSectionProblem, solve_tree, evaluate_m_squared
+export CrossSectionProblem, solve_tree, solve_tree_pipeline, evaluate_m_squared
 export evaluate_numeric, sp_values_2to2
 export dsigma_domega, sigma_total_tree_ee_mumu
 

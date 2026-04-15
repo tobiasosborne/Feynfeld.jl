@@ -13,9 +13,11 @@
 Per-emission amplitude bundle.
 
 Fields:
-- `amplitude`: DiracExpr — product of the per-fermion-line chains
-  (with shared Lorentz indices on boson edges → Einstein summation
-  happens at downstream contract).
+- `line_chains`: Vector{DiracExpr} — one per fermion line. For the
+  existing `spin_sum_amplitude_squared(de1, de2)` interface (Layer
+  4b) we keep them separate; tree QED 2→2 has 2 lines, φ³ has 0.
+- `amplitude`: DiracExpr — convenience: product of `line_chains`
+  (or `DiracExpr(alg(1))` when there are no lines).
 - `denoms`: Vector{AlgSum} — one (p² − m²) factor per internal
   propagator, to be inverted by the cross-section evaluator.
 - `fermion_sign`: ±1 from qdis_fermion_sign.
@@ -24,6 +26,7 @@ Fields:
   Phase 18a fills with alg(1), full coupling assignment is 18b.
 """
 struct AmplitudeBundle
+    line_chains::Vector{DiracExpr}
     amplitude::DiracExpr
     denoms::Vector{AlgSum}
     fermion_sign::Int
@@ -97,7 +100,8 @@ function emission_to_amplitude(state::TopoState, labels,
     sym_factor   = Rational{Int}(Main.FeynfeldX.QgrafPort.compute_local_sym_factor(
         state, labels, pmap, _conjugate_dict(model)))
 
-    AmplitudeBundle(amplitude, denoms, fermion_sign, 1 // sym_factor, alg(1))
+    AmplitudeBundle(line_chains, amplitude, denoms,
+                    fermion_sign, 1 // sym_factor, alg(1))
 end
 
 # Build conjugate dict on demand from the model (mirrors
