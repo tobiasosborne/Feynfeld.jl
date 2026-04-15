@@ -5,8 +5,8 @@
 module QgrafPort
 
 import ..FeynfeldX: Momentum, MomentumSum, momentum_sum,
-                     AlgSum, alg, pair, DiracExpr,
-                     AbstractModel, get_field, species,
+                     AlgSum, alg, pair, DiracExpr, DiracChain, dot,
+                     AbstractModel, model_fields, get_field, species, Field,
                      Boson, Fermion, Scalar
 
 include("types.jl")
@@ -19,6 +19,7 @@ include("halfedge.jl")
 include("propagator_assemble.jl")
 include("vertex_assemble.jl")
 include("fermion_line.jl")
+include("emission_amplitude.jl")
 include("audition.jl")
 
 export Partition, EquivClass, FilterSet, TopoState,
@@ -46,6 +47,7 @@ export Partition, EquivClass, FilterSet, TopoState,
        build_vertices,
        ExternalFactor, build_externals,
        FermionLine, walk_fermion_lines,
+       AmplitudeBundle, emission_to_amplitude,
        qgen_enumerate_assignments,
        count_dedup_burnside, count_dedup_canonical, count_dedup_prefilter,
        count_diagrams_qg21,
