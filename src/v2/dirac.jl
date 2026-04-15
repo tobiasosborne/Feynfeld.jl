@@ -91,6 +91,9 @@ end
 
 Base.:*(a::DiracChain, b::DiracChain) = DiracChain(vcat(a.elements, b.elements))
 
+Base.:(==)(a::DiracChain, b::DiracChain) = a.elements == b.elements
+Base.hash(c::DiracChain, h::UInt) = hash(c.elements, hash(:DiracChain, h))
+
 function Base.show(io::IO, c::DiracChain)
     join(io, c.elements, " . ")
 end

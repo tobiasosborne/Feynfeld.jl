@@ -17,6 +17,7 @@ include("filters.jl")
 include("momentum.jl")
 include("halfedge.jl")
 include("propagator_assemble.jl")
+include("vertex_assemble.jl")
 include("audition.jl")
 
 export Partition, EquivClass, FilterSet, TopoState,
@@ -41,6 +42,7 @@ export Partition, EquivClass, FilterSet, TopoState,
        InternalEdge, EdgeMomenta, route_momenta,
        compute_amap,
        Propagator, build_propagators,
+       build_vertices,
        qgen_enumerate_assignments,
        count_dedup_burnside, count_dedup_canonical, count_dedup_prefilter,
        count_diagrams_qg21,

@@ -10,6 +10,9 @@ end
 
 DiracExpr() = DiracExpr(Tuple{AlgSum, DiracChain}[])
 
+Base.:(==)(a::DiracExpr, b::DiracExpr) = a.terms == b.terms
+Base.hash(d::DiracExpr, h::UInt) = hash(d.terms, hash(:DiracExpr, h))
+
 # Lift a scalar (AlgSum) to DiracExpr (scalar * identity)
 DiracExpr(s::AlgSum) = DiracExpr([(s, DiracChain(DiracGamma[]))])
 DiracExpr(n::Number) = DiracExpr(alg(n))
