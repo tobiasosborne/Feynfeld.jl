@@ -18,6 +18,7 @@ include("momentum.jl")
 include("halfedge.jl")
 include("propagator_assemble.jl")
 include("vertex_assemble.jl")
+include("fermion_line.jl")
 include("audition.jl")
 
 export Partition, EquivClass, FilterSet, TopoState,
@@ -44,6 +45,7 @@ export Partition, EquivClass, FilterSet, TopoState,
        Propagator, build_propagators,
        build_vertices,
        ExternalFactor, build_externals,
+       FermionLine, walk_fermion_lines,
        qgen_enumerate_assignments,
        count_dedup_burnside, count_dedup_canonical, count_dedup_prefilter,
        count_diagrams_qg21,
