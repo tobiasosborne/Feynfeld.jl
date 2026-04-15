@@ -1,4 +1,4 @@
-# HANDOFF — 2026-04-15 (Session 25: Phase 18a — Diagram → AlgSum bridge)
+# HANDOFF — 2026-04-15 (Session 26: FeynCalc/wolframscript golden-master scoping)
 
 ## DO NOT DELETE THIS FILE. Read it completely before working.
 
@@ -16,11 +16,155 @@
 6. Golden master report (loops ≤ 4):
    - `QGRAF_MAX_SECONDS=300 julia --project=. scripts/qgraf_golden_master_report.jl 4`
      → **PASS=95 / FAIL=0 / SKIP=9 / ERROR=0** (unchanged from Session 24).
-7. **NEW**: Pipeline ≡ handbuilt validated for ee→μμ tree:
+7. Pipeline ≡ handbuilt validated for ee→μμ tree (Session 25):
    `julia --project=. test/v2/qgraf/test_phase18a_pipeline.jl` → 1/1 ✓.
-8. See **"NEXT SESSION DECISION POINT"** at the bottom for Phase 18b options.
+8. **NEW (Session 26)**: wolframscript + FeynCalc 10.2.0 verified usable.
+   Sanity probe: `wolframscript -code 'PrependTo[$Path, "/home/tobiasosborne/Projects/Feynfeld.jl/refs/FeynCalc"]; Needs["FeynCalc\`"]; Print[DiracTrace[GA[mu].GA[nu]]]'`
+   → `4 Pair[LorentzIndex[mu], LorentzIndex[nu]]` ✓.
+9. See **"NEXT SESSION DECISION POINT"** at the bottom — **new Option D**
+   (FeynCalc golden-master infrastructure) joins Phase 18b (A) and 18c (B).
 
 ---
+
+## SESSION 26 TIMELINE (exploration only — no code shipped)
+
+1. Read `HANDOFF.md`, `Feynfeld_PRD.md`, `CLAUDE.md`. Internalised THE
+   PIPELINE PRINCIPLE, the 12 rules, the spiral methodology, and the
+   Session 25 NEXT SESSION DECISION POINT (Phase 18b vs 18c vs filter ports).
+2. Tobias: "I just installed Mathematica, and hence wolframscript. Can you
+   gently explore the capabilities and whether you can use wolframscript
+   and FeynCalc etc. to generate golden masters for other parts of the
+   pipeline." Shifted from the pending Phase 18b to an exploratory scoping
+   session (no Julia code touched — safe read-only exercise).
+3. Environment verification (all green):
+   - `/usr/bin/wolframscript`, WolframScript 1.13.0 for Linux x86 (64-bit)
+   - Mathematica 14.3.0 for Linux x86 (July 2025 build)
+   - Install: `/usr/local/Wolfram/Wolfram/14.3`; user base: `~/.Wolfram`
+   - FeynCalc source tree: `refs/FeynCalc/FeynCalc/` (entry `FeynCalc.m`)
+4. Load-pattern established (**no paclet install required**):
+   ```bash
+   wolframscript -code 'PrependTo[$Path, "/home/tobiasosborne/Projects/Feynfeld.jl/refs/FeynCalc"]; Needs["FeynCalc`"]; ...'
+   ```
+   Confirmed: FeynCalc 10.2.0 (dev version, 22cc5e08, 2026-03-25) loads in
+   ~5 s. The `$FCTraceNames` multi-context shadow warning is cosmetic.
+5. Capability probe #1 — Dirac traces:
+   - `DiracTrace[GA[μ].GA[ν]]` → `4 Pair[LorentzIndex[μ], LorentzIndex[ν]]`
+   - `DiracTrace[GA[μ].GA[ν].GA[ρ].GA[σ]]` → canonical 3-term g·g·g form
+   - `DiracTrace[GA[μ].GA[ν].GA[ρ].GA[σ].GA[5]]` → `-4I Eps[LorentzIndex[...]]`
+6. Capability probe #2 — PaVe reduction (Layer 5 hole):
+   - `PaVeReduce[B1[p², m0², m1²]]` → full Denner Fortschr. Phys. 41 (1993)
+     Eq. (4.18) analytically, in `PaVe[0, ..., {...}]` form.
+   - `Tdec[{{q, μ}}, {p}]` → tensor decomposition basis (symbolic
+     Passarino-Veltman invariants).
+7. Scoped 5 golden-master surfaces ranked by leverage:
+   1. **PaVe reduction library** (Layer 5) — B/C/D ij, D ijk — direct oracle
+      for the PV reduction layer. Highest physics ROI; narrow symbolic
+      surface. **Recommended first surface.**
+   2. **γ5 / Eps golden suite** — unblocks Spiral 8 (the pending spiral).
+      HVBM vs NDR selectable via `$BreitMaison`.
+   3. **Dirac trace battery** — up to 10-gamma traces, direct oracle for v2
+      `dirac_trace`; comparable to FeynCalc `Tests/Dirac/DiracTrace.test`.
+   4. **End-to-end |M|²** — FeynArts + FCFAConvert + FeynCalc for
+      ee→μμ, Compton, Bhabha, qq̄→gg (cross-validates Phase 18a bridge).
+   5. **SUN color golden** — `SUNSimplify` traces for QCD (Spiral 3+).
+8. Proposed workflow (documented, not implemented):
+   ```
+   scripts/golden_master_<surface>.wls   (wolframscript generator)
+       ↓ emits
+   test/v2/golden/test_<surface>.jl      (Julia @testset, citations)
+   ```
+   Each `.wls` emits FeynCalc `InputForm` + hand-mapped Feynfeld expression,
+   tagged with FeynCalc MUnit test IDs where applicable. Both the generator
+   and its output are checked in so results are reproducible.
+   Estimated per-surface cost: ~150 LOC Wolfram + ~100 LOC Julia translator
+   + ~40 golden tests. ~50 LOC of symbolic-normalisation per surface for
+   the `Pair[LorentzIndex[μ],...]` ↔ `pair(μ,ν)` mapping.
+9. Tobias: "yea give it a go". Kicked off parallel research per Rule 5:
+   - Read `src/v2/pave.jl` (v2 PaVe type: `PaVe{N}` parametric, named
+     constructors A0/B0/B1/B00/B11/C0/C1/C2/D0/D1/D2/D3, canonical field
+     ordering `sort(indices)`).
+   - Attempted `ls refs/FeynCalc/FeynCalc/Tests/LoopIntegrals/` → **path
+     wrong**, no `Tests/` directory exists under the FeynCalc paclet.
+     The real FeynCalc MUnit tests live at top level `refs/FeynCalc/Tests/`
+     (parallel to `FeynCalc/`); NOT yet confirmed this session.
+   - Listed `test/v2/` — 27 test files + `munit/` + `qgraf/` + `runtests.jl`.
+     No `golden/` directory yet; existing `test_pave.jl` is the neighbour.
+10. **Interrupted before** creating the beads epic or drafting the
+    wolframscript generator or the translator. Session ended here at
+    Tobias's request. No code changes; only `.beads/backup/backup_state.json`
+    was touched by `bd remember` at session end.
+
+## SESSION 26 ACCOMPLISHMENTS — scoping complete, implementation not started
+
+- **Environment verified**: wolframscript 1.13 + Mathematica 14.3 + FeynCalc
+  10.2.0 load via `PrependTo[$Path, ...] + Needs["FeynCalc\`"]` with no
+  install step. 5 capability probes all green.
+- **Strategic landscape mapped**: 5 golden-master surfaces ranked by ROI;
+  PaVe reduction (Layer 5) chosen as recommended first surface on leverage
+  and narrow symbolic surface grounds.
+- **Workflow template drafted** (documented in this HANDOFF, not yet
+  committed as code): `scripts/golden_master_<surface>.wls` → `test/v2/golden/`.
+- **Persistent memory saved** via `bd remember --key feyncalc-wolframscript-setup`
+  so the next session loads the verified probe outputs and the load pattern.
+
+## WHAT SESSION 26 ENABLES (when the generator is built)
+
+- **Layer 5 closes faster**: v2 currently has only A0, B0, B1, C0, C1, C2
+  hand-coded (plus B00/B11/D tensor stubs per pave.jl:34-66). FeynCalc can
+  emit the full Passarino-Veltman set (B_ij, C_ij, C_ijk, D_ij, D_ijk, D_ijkl)
+  with textbook-matching analytical reduction. Cuts Phase 18c (1-loop bridge)
+  prep work significantly.
+- **γ5 convention locked**: Spiral 8 needs HVBM vs NDR choice made and
+  frozen. FeynCalc exposes `$BreitMaison` as a single-flag switch; a golden
+  suite in both schemes documents the choice unambiguously.
+- **Cross-validation target**: Phase 18a ≡ handbuilt is one test. Phase
+  18a ≡ FeynCalc FCFAConvert output is a second, independent witness —
+  much stronger evidence the bridge is right.
+- **Anti-hallucination hardening**: MUnit tests in `refs/FeynCalc/Tests/`
+  become mechanically reproducible via the generator, removing the manual
+  translation step for the routine-permutation tier (CLAUDE.md §MUnit
+  translation protocol 4b).
+
+## NEXT SESSION CONCRETE STEPS (if continuing Option D)
+
+1. **Scout** the actual FeynCalc `Tests/` layout (this session's path guess
+   was wrong; the tests almost certainly live at `refs/FeynCalc/Tests/` with
+   subdirs `Dirac/`, `LoopIntegrals/`, `Lorentz/`, `SUN/`, …).
+2. **Create beads epic** `feynfeld-PHASE19-feyncalc-goldens` with sub-tasks:
+   - 19-1: Scout Tests/ layout + pick a first handful of PaVe tests to port.
+   - 19-2: Draft `scripts/golden_master_pave.wls` — emits the B1, B00, B11,
+     C_ij, D_ij reductions in `InputForm`.
+   - 19-3: Draft Julia translator (`PaVe[0, {p²}, {m0², m1²}]` →
+     `B0(p2, m02, m12)`; `PaVe[1, ...]` → `B1(...)`; etc.). Round-trip
+     test: translator(generator output) should equal Feynfeld's pave.jl
+     constructors.
+   - 19-4: Emit `test/v2/golden/test_pave_reduction.jl` with first ~20 goldens.
+   - 19-5: Wire into `./grind/run_v2_tests.sh`.
+   - 19-6: Per Rule 6, rigorous reviewer agent on the generator + translator.
+3. **Do not start 19-2 without Rule 5 tiered research** — this is core
+   infrastructure (crosses two languages, affects how every future Layer 4/5
+   test is validated). Tiered workflow: 3 research + 1 review.
+4. Estimated session size: 1 full session for PaVe surface (~300 LOC
+   Wolfram + Julia + ~40 goldens), not counting review iteration.
+
+## KNOWN GAPS / RISKS for Option D
+
+- **Symbolic normalisation is per-surface work**. FeynCalc emits
+  `Pair[LorentzIndex[μ], LorentzIndex[ν]]`, `SPD[p,q]`, `FVD[p,μ]`,
+  `DiracGamma[LorentzIndex[μ]]`, `PaVe[i, {invs}, {masses}]`. Feynfeld
+  uses `pair(μ,ν)`, `SP(p,q)`, own `DiracChain`, `PaVe{N}` parametric.
+  The translator is not a one-liner; expect ~50-100 LOC per surface.
+- **γ5 convention**: FeynCalc defaults to `$BreitMaison=False` (NDR).
+  Feynfeld has not yet committed to a scheme. **Decision required**
+  before γ5 golden suite lands. Not blocking for PaVe (first surface).
+- **Rule 1 still rules**: even with a FeynCalc golden, the test must cite
+  the textbook equation that validates it. FeynCalc is an oracle, not a
+  primary source. Routine-permutation tier (§MUnit protocol 4b) is ok
+  with FeynCalc-only citation.
+- **No `JuliaForm`**. Wolfram has `CForm`, `FortranForm`, `TeXForm`, but
+  no Julia emitter. Output is via `InputForm` + Julia-side parser, or
+  structural walk of the Mathematica expression. The latter is cleaner
+  for non-trivial trees.
 
 ## SESSION 25 TIMELINE
 
