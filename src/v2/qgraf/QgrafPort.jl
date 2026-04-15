@@ -12,6 +12,7 @@ include("topology.jl")
 include("qgen.jl")
 include("filters.jl")
 include("momentum.jl")
+include("halfedge.jl")
 include("audition.jl")
 
 export Partition, EquivClass, FilterSet, TopoState,
@@ -34,6 +35,7 @@ export Partition, EquivClass, FilterSet, TopoState,
        has_no_snail, is_one_vi,
        build_spanning_tree, count_chords,
        InternalEdge, EdgeMomenta, route_momenta,
+       compute_amap,
        qgen_enumerate_assignments,
        count_dedup_burnside, count_dedup_canonical, count_dedup_prefilter,
        count_diagrams_qg21,

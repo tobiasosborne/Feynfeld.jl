@@ -67,8 +67,11 @@ function compute_qg10_labels(state::TopoState)
     invlis = zeros(Int8, n)
     rdeg   = zeros(Int8, n)
     sdeg   = zeros(Int8, n)
-    vmap   = zeros(Int8, n, n)
-    lmap   = zeros(Int8, n, n)
+    # vmap/lmap slot dimension MUST be at least vdeg[v], which can exceed
+    # n when self-loops are present (one self-loop = 2 half-edges = 2 slots).
+    # Use MAX_V to match pmap and the qgraf convention (maxn × maxleg+maxrho).
+    vmap   = zeros(Int8, n, MAX_V)
+    lmap   = zeros(Int8, n, MAX_V)
     vaux   = zeros(Int8, n)
 
     # ── qg10:12028-12030 — vaux[i] = xn[i]
