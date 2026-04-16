@@ -21,6 +21,7 @@ include("propagator_assemble.jl")
 include("vertex_assemble.jl")
 include("fermion_line.jl")
 include("emission_amplitude.jl")
+include("burnside_combine.jl")
 include("audition.jl")
 
 export Partition, EquivClass, FilterSet, TopoState,
@@ -49,6 +50,7 @@ export Partition, EquivClass, FilterSet, TopoState,
        ExternalFactor, build_externals,
        FermionLine, walk_fermion_lines,
        AmplitudeBundle, emission_to_amplitude,
+       combine_m_squared_burnside,
        _foreach_emission,
        qgen_enumerate_assignments,
        count_dedup_burnside, count_dedup_canonical, count_dedup_prefilter,

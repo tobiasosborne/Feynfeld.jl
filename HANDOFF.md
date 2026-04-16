@@ -1,28 +1,230 @@
-# HANDOFF — 2026-04-15 (Session 26: FeynCalc/wolframscript golden-master scoping)
+# HANDOFF — 2026-04-16 (Session 27: Phase 18b kickoff — 18b-1 skeleton + Bhabha blocker)
 
 ## DO NOT DELETE THIS FILE. Read it completely before working.
 
 ---
 
-## START HERE
+## START HERE (Session 27 updates)
 
 1. Read `CLAUDE.md` — rules, **pipeline principle**, anti-hallucination, Julia idioms.
-2. Run `bd ready` to see available work.
-3. Run `julia --project=. test/v2/test_diagram_gen.jl` → expect all green.
-4. Run all qgraf-port tests: `for f in test/v2/qgraf/*.jl; do julia --project=. "$f"; done`
-   → 30/30 files green (only `test_phase17_audition.jl` has `@test_broken`
-   markers for Strategy-B/C dedup — known audition-verdict issue, unrelated).
-5. Run full v2 suite: `./grind/run_v2_tests.sh` → 26/26 files pass, 0 fail/error.
-6. Golden master report (loops ≤ 4):
-   - `QGRAF_MAX_SECONDS=300 julia --project=. scripts/qgraf_golden_master_report.jl 4`
-     → **PASS=95 / FAIL=0 / SKIP=9 / ERROR=0** (unchanged from Session 24).
-7. Pipeline ≡ handbuilt validated for ee→μμ tree (Session 25):
-   `julia --project=. test/v2/qgraf/test_phase18a_pipeline.jl` → 1/1 ✓.
-8. **NEW (Session 26)**: wolframscript + FeynCalc 10.2.0 verified usable.
-   Sanity probe: `wolframscript -code 'PrependTo[$Path, "/home/tobiasosborne/Projects/Feynfeld.jl/refs/FeynCalc"]; Needs["FeynCalc\`"]; Print[DiracTrace[GA[mu].GA[nu]]]'`
-   → `4 Pair[LorentzIndex[mu], LorentzIndex[nu]]` ✓.
-9. See **"NEXT SESSION DECISION POINT"** at the bottom — **new Option D**
-   (FeynCalc golden-master infrastructure) joins Phase 18b (A) and 18c (B).
+   **Rule 5 note**: 3-research-agents is for older Claude models; Opus 4.7 does
+   research by direct reading. Reviewer agent at the end stays mandatory.
+2. Run `bd ready` to see available work. **Top priority this session**: `feynfeld-vjw9`
+   (Phase 18b-1a orbit-rep dedup, blocker for Bhabha acceptance).
+3. Phase 18a regression still green:
+   `julia --project=. test/v2/qgraf/test_phase18a_pipeline.jl` → 1/1 ✓
+   `julia --project=. test/v2/qgraf/test_solve_tree_pipeline.jl` → 3/3 ✓
+4. Phase 18b-1 **skeleton landed** (Session 27) — `burnside_combine.jl` +
+   `solve_tree_pipeline` now uses Burnside combine with canonical filter.
+   Works for ee→μμ; fails for Bhabha (see blocker below).
+5. **Beads created this session**:
+   - Epic `feynfeld-xa7s` = Phase 18b umbrella (8 sub-tasks wired with deps)
+   - `feynfeld-ewgw` = 18b-1 (claimed, in_progress, blocked by vjw9)
+   - `feynfeld-h3pb`, `feynfeld-a7f2`, `feynfeld-m4o8`, `feynfeld-awtt`,
+     `feynfeld-feen`, `feynfeld-5d1k`, `feynfeld-4xrh` = 18b-2..8 (open)
+   - `feynfeld-rj1l` = Option B best-in-class `InverseSP` factor (future)
+   - `feynfeld-vjw9` = 18b-1a orbit-rep dedup (**NEXT AGENT STARTS HERE**)
+6. If continuing Phase 18b: start with `feynfeld-vjw9`, unblock 18b-1, then
+   write `test/v2/qgraf/test_phase18b1_multi_orbit.jl` (Bhabha acceptance).
+
+---
+
+## SESSION 27 TIMELINE — Phase 18b kickoff
+
+1. Onboarding: read CLAUDE.md, HANDOFF.md, Feynfeld_PRD.md. Internalised the
+   pipeline principle, the 12 rules, Session 26 DECISION POINT (A/B/C/D).
+2. Recommended **Option A (Phase 18b — tree deferrals)** per HANDOFF Session 25
+   rationale: 18a-9 proved the bridge; 18b lifts the artificial scope
+   restrictions to make it useful for the full tree-level Standard Model.
+3. Tobias: "proceed as you suggest, phase 18b". Created the beads planning
+   layer:
+   - Epic `feynfeld-xa7s` (Phase 18b umbrella)
+   - 8 sub-tasks `ewgw` (18b-1 Burnside), `h3pb` (18b-2 composite-mom fermion
+     prop), `a7f2` (18b-3 multi-vertex fermion line, deps on h3pb),
+     `m4o8` (18b-4 boson polarisation), `awtt` (18b-5 4-vertex gggg),
+     `feen` (18b-6 symbolic mass), `5d1k` (18b-7 coupling assignment),
+     `4xrh` (18b-8 validation, deps on all).
+4. Rule-5 check: Tobias clarified **"3 agent rule is for older models of
+   Claude"**. Saved to memory (feedback_core_rules_discipline.md updated).
+   Opus 4.7: read source directly + reviewer agent at end.
+5. Read handbuilt path to scope 18b-1: `interference.jl` (spin_sum_interference,
+   _cross_line_trace), `spin_sum.jl` (spin_sum_amplitude_squared, _single_line_trace,
+   _conjugate_gammas with :mu → :mu_ relabel), `amplitude.jl`
+   (:mu_<channel> naming, _fermion_line_chain), `test/v2/test_bhabha.jl`
+   (|M|² = (1/4)(T_tt/t² + T_ss/s² − 2·T_int/(s·t)) handbuilt).
+6. **Open question surfaced**: AlgSum has no inverse-denom factor — cannot
+   symbolically represent 1/pair(q,q). Proposed **Option A** (return trace-only
+   AlgSum; caller applies 1/denom) vs **Option B** (introduce `InverseSP` factor).
+   Tobias: "sounds good, but I do want best in class solutions eventually, so
+   make sure option B is recorded as a bead". Created `feynfeld-rj1l`.
+7. **Implemented Phase 18b-1 skeleton** (Option A scope):
+   - New file `src/v2/qgraf/burnside_combine.jl` (~80 LOC) —
+     `combine_m_squared_burnside(bundles, weights)` + `_pair_trace` helper.
+     Uses `spin_sum_amplitude_squared` for diagonal, `spin_sum_interference`
+     for off-diagonal, Burnside weights w_i·w_j, and fermion signs
+     bi.fermion_sign · bj.fermion_sign.
+   - `src/v2/qgraf/QgrafPort.jl` — include + export `combine_m_squared_burnside`.
+   - `src/v2/cross_section.jl::solve_tree_pipeline` — replaced the Phase 18a
+     `bundles[1]` single-orbit shortcut with the Burnside combine. Added
+     canonical-rep filter (`is_emission_canonical`) to the emission loop so
+     weights collapse to 1 per orbit (see Session 27 blocker below).
+     Return tuple extended: `(amplitude_squared, n_emissions, orbit_denoms)`.
+     196 LOC total — under Rule 11 ~200 ceiling.
+8. **Phase 18a regression verified green** after wiring:
+   `test_phase18a_pipeline.jl` 1/1 ✓; `test_solve_tree_pipeline.jl` 3/3 ✓.
+9. **Bhabha blocker surfaced** — Session 27 key finding:
+   `solve_tree_pipeline(Bhabha ee→ee tree)` reports `n_emissions=1`, but
+   `count_diagrams_qg21(qed_model, [:e,:e_bar], [:e,:e_bar])` correctly
+   returns 2 (s + t orbits). The canonical filter rejects one of the two
+   orbits — exactly the Strategy-C under-count bug documented in HANDOFF
+   Session 22 Phase 17a VERDICT: "the canonical orbit-rep may be INVALID
+   for qgen, so the orbit yields 0 emissions instead of 1 (under-count)."
+   Filed as blocker `feynfeld-vjw9` (Phase 18b-1a).
+10. Updated `feynfeld-ewgw` (18b-1) notes with current status and dep on vjw9.
+11. Stopped here at Tobias's request ("stop at the next most convenient place").
+    Machinery in place; Phase 18a still green; Bhabha validation blocked on
+    orbit-rep dedup.
+
+## SESSION 27 ACCOMPLISHMENTS
+
+- Phase 18b planning: 9 beads (epic + 8 sub-tasks + Option B retrofit), full
+  dependency graph wired (`bd dep add` chain). +1 blocker bead post-debug.
+- Phase 18b-1 implementation skeleton: ~80 LOC new, ~10 LOC delta in
+  cross_section.jl, QgrafPort exports extended.
+- Phase 18a regression stays green (ee→μμ canonical-filter-compatible).
+- Memory update: `feedback_core_rules_discipline.md` now reflects Opus 4.7
+  relaxation of the 3-agent rule.
+
+## NEXT AGENT: START WITH `feynfeld-vjw9` (Phase 18b-1a)
+
+### What's broken and why
+
+`solve_tree_pipeline(Bhabha)` returns `n_emissions=1`. Bhabha has 2 orbits
+(s-channel photon annihilation + t-channel photon exchange). My canonical
+filter via `is_emission_canonical` (audition.jl:69-95) discards one of them.
+This is the **Strategy-C under-count bug** documented in
+HANDOFF Session 22 Phase 17a VERDICT: Strategy C "pre-filters ps1 to
+orbit-reps assuming the rep is qgen-valid, which it may not be."
+
+Evidence reproducible in ~10s:
+```julia
+julia --project=. -e '
+include("src/v2/FeynfeldX.jl"); using .FeynfeldX
+using .FeynfeldX.QgrafPort: count_diagrams_qg21
+p1=Momentum(:p1); p2=Momentum(:p2); k1=Momentum(:k1); k2=Momentum(:k2)
+prob = CrossSectionProblem(
+    qed_model(m_e=:zero, m_mu=:zero),
+    [ExternalLeg(:e, p1, true,  false), ExternalLeg(:e, p2, true,  true)],
+    [ExternalLeg(:e, k1, false, false), ExternalLeg(:e, k2, false, true)],
+    10.0,
+)
+println("count_diagrams_qg21 (Strategy A Burnside) = ",
+        count_diagrams_qg21(qed_model(), [:e,:e_bar], [:e,:e_bar]; loops=0))
+println("solve_tree_pipeline n_emissions (canonical filter) = ",
+        solve_tree_pipeline(prob).n_emissions)
+'
+```
+Expected: 2 vs 1.
+
+### Why I used the canonical filter instead of Burnside-all
+
+Burnside-all (sum every orbit member with weight 1/|Orbit|) is robust for
+COUNTING (Strategy A chose this) but breaks multi-orbit amplitude summation:
+`spin_sum_interference` (interference.jl:102 `_find_line_by_bar_mom`) keys
+matching on bar-momentum names. Within one orbit, different members have
+automorphic momentum relabelings (build_externals at vertex_assemble.jl:141
+binds field → physical_moms[i] via pmap[i,1], and pmap varies across orbit
+members) → loop-close fails. Canonical filter sidestepped this by keeping
+one rep per orbit, but hits the Strategy-C validity bug.
+
+### Three resolution options (documented in feynfeld-vjw9)
+
+**(A) Fix is_emission_canonical** to fall back to lex-next-smallest when
+lex-smallest is qgen-invalid. Narrow fix to the Strategy-C bug; preserves
+my current solve_tree_pipeline wiring. ~20-30 LOC in audition.jl.
+
+**(B) Switch to Burnside-all + canonical relabeling** — sum every orbit
+member with weights 1/|Orbit| (removes Strategy-C bug), but canonicalise
+bar_mom per bundle before calling `spin_sum_interference`. Requires
+writing a per-bundle momentum relabeler. ~80-120 LOC, more general.
+
+**(C) Hybrid** — use Strategy-A counting to enumerate orbits, then use
+a signature (hash of canonical pmap) to group and pick one qgen-valid
+member per orbit. ~50 LOC, moderate complexity.
+
+**Recommendation**: start with (A) — it's the targeted fix for a known
+bug and unblocks 18b-1 fastest. If (A) reveals deeper issues with the
+lex ordering, escalate to (C). (B) is worth doing eventually but is
+18b-3-adjacent (when internal fermion propagators need relabeling anyway).
+
+### After vjw9 closes
+
+1. Write `test/v2/qgraf/test_phase18b1_multi_orbit.jl` — Bhabha acceptance:
+   - `result.n_emissions == 2`
+   - `result.amplitude_squared == handbuilt_trace_only` where
+     `handbuilt_trace_only = T_tt + T_ss − 2·T_int` (NO denoms, trace only —
+     Option A scope per feynfeld-rj1l). Indices: handbuilt uses `:alpha`/`:alpha_`
+     for t-channel and `:beta`/`:beta_` for s-channel. Pipeline uses
+     `:mu_l_<edge_id>` naming. If symbolic `==` fails due to index-label
+     differences, first try contract+expand on both sides (indices are dummy,
+     should normalise away). If it STILL fails, unify naming per
+     vertex_assemble.jl:62-69 comment.
+   - Reference handbuilt derivation in `test/v2/test_bhabha.jl:63-94`.
+2. Once green: close feynfeld-ewgw (18b-1), move to next 18b sub-task.
+   Recommend `feynfeld-h3pb` (18b-2 composite-mom fermion prop) next since
+   it unblocks 18b-3 (multi-vertex fermion line = Compton tree validation).
+
+### Potential traps
+
+- `emission_amplitude.jl:64-68` comment says "negate outgoing" but the loop
+  just copies physical → qgraf_ext_moms. Masked by ee→μμ symmetry. Bhabha
+  may surface this. Flag if discrepancies appear.
+- Boson Lorentz index divergence (`vertex_assemble.jl:62-69`): pipeline's
+  `:mu_l_<edge_id>` vs handbuilt's `:mu_<channel>`. Currently masked by
+  in-chain contraction. Bhabha cross-terms may or may not tolerate this.
+  In-source comment flags the unification task.
+- `spin_sum_interference` (interference.jl:44-45) currently errors on
+  multi-term DiracExpr (chiral vertices). QED Bhabha has single-term γ^μ
+  vertex — fine. EW will need extension later (18b-4 territory).
+
+## FILES TOUCHED THIS SESSION
+
+| Path | Change | LOC |
+|------|--------|----:|
+| `src/v2/qgraf/burnside_combine.jl` | NEW | 82 |
+| `src/v2/qgraf/QgrafPort.jl` | include + export | +2 |
+| `src/v2/cross_section.jl` | solve_tree_pipeline Burnside + canonical filter + 3-field return | ~+10/-20 |
+| `HANDOFF.md` | this session | (you're reading it) |
+
+No test files added (18b-1 acceptance test deferred until vjw9 unblocks it).
+No regressions in existing tests.
+
+## QUICK COMMANDS
+
+```bash
+# Phase 18a regression (should stay green):
+julia --project=. test/v2/qgraf/test_phase18a_pipeline.jl
+julia --project=. test/v2/qgraf/test_solve_tree_pipeline.jl
+
+# Bhabha blocker reproduction:
+julia --project=. -e 'include("src/v2/FeynfeldX.jl"); using .FeynfeldX;
+using .FeynfeldX.QgrafPort: count_diagrams_qg21;
+p1,p2,k1,k2 = Momentum.((:p1,:p2,:k1,:k2));
+prob = CrossSectionProblem(qed_model(m_e=:zero,m_mu=:zero),
+  [ExternalLeg(:e,p1,true,false), ExternalLeg(:e,p2,true,true)],
+  [ExternalLeg(:e,k1,false,false), ExternalLeg(:e,k2,false,true)], 10.0);
+println("orbits: ", count_diagrams_qg21(qed_model(),[:e,:e_bar],[:e,:e_bar]));
+println("emissions: ", solve_tree_pipeline(prob).n_emissions)'
+
+# Beads status:
+bd ready                # pick up feynfeld-vjw9 first
+bd show feynfeld-vjw9   # read the blocker
+bd show feynfeld-ewgw   # read 18b-1 current state
+
+# Pre-existing green suites (before touching anything):
+julia --project=. test/v2/test_diagram_gen.jl      # 32/32 ✓
+./grind/run_v2_tests.sh                            # 26/26 files
+```
 
 ---
 

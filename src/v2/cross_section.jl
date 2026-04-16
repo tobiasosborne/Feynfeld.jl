@@ -144,12 +144,20 @@ end
     solve_tree_pipeline(prob::CrossSectionProblem)
 
 Build the tree-level |M|² for the given process by routing through the
-qg21 diagram-emission pipeline (Phase 18a-7's emission_to_amplitude),
-then running the existing spin-sum/contract/expand machinery.
+qg21 diagram-emission pipeline (Phase 18a-7's emission_to_amplitude +
+Phase 18b-1's Burnside combine), then running contract / expand_sp.
 
-Phase 18a scope: takes the FIRST emission's bundle (one canonical
-diagram per orbit; multi-orbit interference is Phase 18b). Returns a
-NamedTuple `(amplitude_squared, n_emissions)`.
+Returns a NamedTuple `(amplitude_squared, n_emissions, orbit_denoms)`.
+`amplitude_squared` is the trace-only |M|² — sum of per-orbit diagonal
+and per-orbit-pair interference traces, Burnside-weighted, with
+fermion-sign factors (see src/v2/qgraf/burnside_combine.jl).
+Per-orbit propagator denominators live in `orbit_denoms`; applying
+the 1/denom factors is the caller's responsibility until bead
+feynfeld-rj1l lands a symbolic-inverse factor (Option B retrofit).
+
+Phase 18b-1 scope: 2-fermion-line bundles (QED/QCD tree 2→2 via boson
+exchange) + 0-line bundles (φ³). Multi-vertex fermion lines are
+deferred to Phase 18b-3.
 """
 function solve_tree_pipeline(prob::CrossSectionProblem)
     in_fields  = [leg.field_name for leg in prob.incoming]
@@ -158,34 +166,31 @@ function solve_tree_pipeline(prob::CrossSectionProblem)
     physical_moms = vcat([leg.momentum for leg in prob.incoming],
                          [leg.momentum for leg in prob.outgoing])
 
+    # Phase 18b-1: keep one canonical representative per orbit.  Retaining
+    # all orbit-members would require inter-bundle momentum-label matching
+    # inside spin_sum_interference (interference.jl:102 `_find_line_by_bar_mom`
+    # keys on bar momentum names), which breaks for automorphic relabelings
+    # within the same orbit.  With canonical reps only, weights collapse to
+    # 1 per orbit and the double-sum in combine_m_squared_burnside gives
+    # each (orbit_i, orbit_j) pair exactly once.
     bundles = QgrafPort.AmplitudeBundle[]
     weights = Rational{Int}[]
     QgrafPort._foreach_emission(prob.model, in_fields, out_fields; loops=0) do state, labels, ps1, pmap
-        autos   = QgrafPort.enumerate_topology_automorphisms(state)
-        g_size  = length(autos)
-        n_stab  = QgrafPort.emission_stabilizer(state, labels, autos, ps1, pmap)
-        bundle  = QgrafPort.emission_to_amplitude(state, labels, ps1, pmap,
-                                                    prob.model;
-                                                    physical_moms, n_inco)
+        autos = QgrafPort.enumerate_topology_automorphisms(state)
+        QgrafPort.is_emission_canonical(state, labels, autos, ps1, pmap) || return
+        bundle = QgrafPort.emission_to_amplitude(state, labels, ps1, pmap,
+                                                   prob.model;
+                                                   physical_moms, n_inco)
         push!(bundles, bundle)
-        push!(weights, Rational{Int}(n_stab) // g_size)
+        push!(weights, 1//1)
     end
     isempty(bundles) && error("solve_tree_pipeline: no emissions for this process")
 
-    # Phase 18a single-orbit shortcut: pick the first emission's bundle.
-    # Burnside-weighted multi-orbit summation arrives in Phase 18b.
-    bundle = bundles[1]
-    m_sq = if length(bundle.line_chains) == 2
-        spin_sum_amplitude_squared(bundle.line_chains[1], bundle.line_chains[2])
-    elseif isempty(bundle.line_chains)
-        # All-scalar (φ³) — amplitude is alg(1), |M|² is also alg(1) before
-        # propagator denominators.
-        alg(1)
-    else
-        error("solve_tree_pipeline: $(length(bundle.line_chains))-line bundles deferred to Phase 18b")
-    end
+    m_sq       = QgrafPort.combine_m_squared_burnside(bundles, weights)
     contracted = contract(m_sq)
     expanded   = expand_scalar_product(contracted)
 
-    (amplitude_squared=expanded, n_emissions=length(bundles))
+    (amplitude_squared=expanded,
+     n_emissions=length(bundles),
+     orbit_denoms=[b.denoms for b in bundles])
 end
