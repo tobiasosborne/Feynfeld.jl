@@ -54,8 +54,11 @@ Thumbs.db
 # Local run outputs
 output/
 
-# Agent-review markdown dumps
-reviews/
+# Agent-review markdown dumps — exclude the loose files and the research notes,
+# but keep the stocktake_* subdirectories (deliberate long-form snapshots of
+# repo state that future agents need after a fresh clone).
+reviews/*
+!reviews/stocktake_*/
 
 # GRIND METHOD diagnostic scratch — keep our scripts but not qgraf-derived
 # files (qgraf is externally licensed and the binary is not redistributable).

@@ -1,6 +1,191 @@
-# HANDOFF — 2026-04-16 (Session 27: Phase 18b kickoff — 18b-1 skeleton + Bhabha blocker)
+# HANDOFF — 2026-04-17 (Session 28: Full-repo stocktake)
 
 ## DO NOT DELETE THIS FILE. Read it completely before working.
+
+---
+
+## START HERE (Session 28 updates)
+
+1. Read `CLAUDE.md` first. Then this Session 28 block. Then if working code, read
+   `reviews/stocktake_2026-04-17/` — six summaries covering every file in the repo:
+   - `01_algebra.md` — Layer 4 (20 files, ~2,040 LOC)
+   - `02_model_rules_diagrams.md` — Layers 1-3 (15 files, ~1,307 LOC)
+   - `03_integrals_evaluate.md` — Layers 5-6 (18 files, ~1,403 LOC)
+   - `04_qgraf_port.md` — qgraf port (15 files, 3,583 LOC)
+   - `05_tests.md` — 62 test files, 301 @test, 5 @test_broken
+   - `06_periphery.md` — v1 frozen, scripts, grind, reviews, refs
+2. Current blocker unchanged: `feynfeld-vjw9` (Phase 18b-1a orbit-rep dedup,
+   `audition.jl:69` rejects one Bhabha orbit). Next agent starts there unless
+   Tobias redirects. See Session 27 block below for full debugging context.
+3. No code shipped Session 28. Scope was strictly read-only survey +
+   documentation. `bd ready` / `bd list --status=in_progress` unchanged.
+
+## SESSION 28 TIMELINE — full-repo stocktake, no code
+
+1. Tobias: "time to do a stocktake … read the *entire* codebase, generate
+   complete documentation of current state … then select files to look at more
+   closely … once you truly understand the project report back". Goal stated:
+   afterwards we reevaluate which beads to retain.
+2. Orchestrated 6 parallel read-only Explore agents (per memory
+   `feedback_parallel_agents`: Rule 9 is Julia-only; research agents parallel-OK).
+   Each wrote one summary `.md` to `reviews/stocktake_2026-04-17/`. Central-
+   summaries pattern to avoid flooding the main context.
+3. One agent (periphery) couldn't write because Explore is read-only;
+   re-dispatched as general-purpose agent with the same scope. All six landed.
+4. Agent 3 (integrals/evaluate) wrote to a top-level mis-path;
+   moved into the stocktake dir.
+5. Read all six summaries myself to build a complete picture.
+6. Drilled directly into 9 high-signal files to verify the agent summaries:
+   `src/v2/FeynfeldX.jl` (module entry, 158 LOC, 53 includes, 120+ exports),
+   `src/v2/cross_section.jl` (solve_tree + solve_tree_pipeline, 196 LOC),
+   `src/v2/qgraf/audition.jl` (the vjw9 blocker file — is_emission_canonical at
+   line 69-86), `src/v2/qgraf/burnside_combine.jl` (Session 27's new file, 82 LOC),
+   `Project.toml` (5 deps: Combinatorics / LinearAlgebra / PolyLog / QuadGK /
+   TensorGR), `src/v2/DESIGN.md`, `src/v2/VERTICAL_PLAN.md`, `SPIRAL_9_PLAN.md`,
+   `test/v2/runtests.jl` (20/25 core tests orchestrated).
+7. Queried beads state directly (not via summaries, for current truth):
+   264 total, 67 open, 7 in-progress, 12 blocked, 190 closed.
+8. Reported back; Tobias approved and asked for handoff + commit + push.
+9. Wrote this Session 28 block. Added allow-list entry for
+   `reviews/stocktake_*/` in `.gitignore` so stocktake snapshots survive
+   future fresh clones (pattern changed from `reviews/` to `reviews/*` +
+   `!reviews/stocktake_*/` — the bare `reviews/` form blocked re-inclusion
+   per git's gitignore rules).
+
+## SESSION 28 ACCOMPLISHMENTS — repo-wide understanding, zero code
+
+- **Every file in the repo accounted for** across the six stocktake summaries.
+  v2 source: 53 `.jl` in `src/v2/` (20 algebra + 15 model/rules/diagrams +
+  18 integrals/evaluate) + 15 `.jl` in `src/v2/qgraf/` + `FeynfeldX.jl` +
+  two in-tree design docs (DESIGN.md, VERTICAL_PLAN.md). v2 tests: 27 main
+  + 5 munit + 30 qgraf + runtests.jl. v1 frozen: 28 src + 21 test. Periphery:
+  4 scripts, 15+ grind files, 6 architecture reviews + 14 research/ids notes,
+  7 refs/ subdirs, 21 papers, 7 top-level docs.
+- **Stocktake directory committed** (~70 KB of summaries) so future agents can
+  pick up these learnings after a fresh clone instead of re-running six agents.
+- **Beads decision layer ready**: with this overview in hand we can walk the
+  67 open + 7 in-progress beads category by category and decide keep/defer/close.
+
+## STOCKTAKE FINDINGS — the shape of the repo
+
+### Size and language
+
+**Active (v2):** ~10,300 LOC source across 69 `.jl` files in one module
+(`FeynfeldX`); ~7,600 LOC tests across 62 files with 301 @test assertions and
+5 @test_broken. 5 Julia deps (Combinatorics, LinearAlgebra, PolyLog, QuadGK,
+TensorGR — the last is declared but unused). Package name is still `Feynfeld`
+but the module loaded is `FeynfeldX` (bead feynfeld-qyu tracks the rename).
+
+**Frozen (v1):** 28 source files ~3,005 LOC + 21 test files ~2,344 LOC in
+`src/algebra/`, `src/integrals/`, `test/algebra/`, `test/integrals/`. Every v1
+file has a v2 counterpart except 6 deliberate non-ports (dirac_equation,
+dirac_order, dirac_simplify, dirac_scheme, minkowski TensorGR bridge,
+feynamp_denominator). `src/{model,rules,diagrams,evaluate}/` and their test
+counterparts are empty — dead module scaffolds. `JULIA_PATTERNS.md` (88 LOC)
+is a verbatim duplicate of CLAUDE.md §6 / PRD §6.
+
+### What's strong
+
+- **Layer 4 (Algebra) is excellent.** Parametric `Pair{A,B}`, `DiracGamma{S}`,
+  `Spinor{K}`, Dict-based AlgSum, `DimPoly` coefficients, all dispatch-based.
+  The core architecture validated by the Session 8 six-agent review and by
+  Phase 18a's acceptance test: `solve_tree_pipeline(ee→μμ tree massless)` ≡
+  `solve_tree(...)` symbolically. The "coefficient type IS the architecture"
+  insight in DESIGN.md stays correct — DimPoly eliminated ~150 LOC of v1 glue.
+- **Layer 5 (Integrals) is feature-complete for ee→μμ NLO box.** PaVe types,
+  B₀ QuadGK, C₀ COLLIER / C0p0 analytical / QuadGK fallback chain, D₀ COLLIER-
+  only (triple-nested closure causes JIT explosion, justified), TID rank 0-2.
+  50 PaVe tests + 23 D₀ tests cross-validated against LoopTools.
+- **qgraf port is deep and faithful.** Phase 17 dedup bug fixed
+  (474 → 465 topologies for φ³ 2L via full-permutation Knuth Alg L per equiv
+  class). Golden master 95/104 (9 remaining are filter ports + 2 known FAIL).
+  Cleanroom `ALGORITHM.md` + per-function `qgraf-4.0.6.f08:XXXX` citations.
+  Grind infrastructure in `grind/` allows direct qgraf ↔ Julia trace diffing.
+
+### What's wobbly
+
+- **Pipeline coverage is thin.** Only ee→μμ tree runs end-to-end through
+  Layers 1-6. Compton / Bhabha / qq̄→gg / ee→W+W- are hand-built in test files
+  (exactly the PIPELINE PRINCIPLE violation the PRD + SPIRAL_9_PLAN.md flag).
+  Phase 18b is the fix — 8 sub-tasks wired under epic `feynfeld-xa7s`.
+- **Current blocker unchanged from Session 27:** `feynfeld-vjw9`.
+  `is_emission_canonical` at `audition.jl:69` rejects one of Bhabha's two
+  orbits — canonical-pmap invariant doesn't hold under qgen's flavor
+  assignment. HANDOFF Session 22 Phase 17a VERDICT called this the
+  Strategy-C under-count. Blocks Phase 18b-1 Bhabha validation.
+- **Type instabilities from Session 8 review all still open.**
+  `momentum_sum()`, `gamma_pair()`, `pair()` factories return unions;
+  `spin_sum.jl:117` + `expand_sp.jl:41,55,69` have `Tuple{Any,...}`;
+  `QEDModel.params::Dict{Symbol,Any}` unused; `_COLOUR_DUMMY_COUNTER` global
+  mutable. Listed in `reviews/ids_types.txt` (7 beads).
+- **MUnit coverage 9 %** (5/60 FeynCalc functions at ≥5 tests). γ5 algebra,
+  Eps contraction, DiracEquation, DiracSimplify missing → blocks chiral/EW.
+  Spiral 8 was rescoped Session 24 away from "MUnit mop-up"; the MUnit backlog
+  (9 P1/P2 beads: DiracTrick 5 batches, DiracTrace 58 tests, EpsContract
+  41 tests, SUNTrace, SUNSimplify, ExpandScalarProduct, PolarizationSum,
+  Contract) remains.
+- **`test/v2/runtests.jl` is incomplete.** 20/25 core tests orchestrated;
+  the 30 qgraf tests aren't wired in. `grind/run_v2_tests.sh` covers the main
+  25 via separate julia invocations but still skips qgraf. Missing from
+  runtests.jl: test_diagram_gen, test_vertex_arity, test_qcd_4gluon,
+  test_qcd_ghost, test_ee_ww_grozin.
+
+### Deferrals explicitly marked in code
+
+Phase 18b — 8 sub-tasks, ~560 LOC estimated (see HANDOFF Session 25 table):
+18b-1 Burnside multi-orbit (skeleton landed Session 27, needs vjw9 fix),
+18b-2 composite-mom fermion propagators, 18b-3 multi-vertex fermion lines
+(Compton tree, fermion loops), 18b-4 4-vertex gggg Lorentz, 18b-5 boson
+polarisation, 18b-6 symbolic mass, 18b-7 coupling assignment, 18b-8 validation
+(Compton, Bhabha, qq̄→gg, ee→W+W-).  Phase 18c (1-loop bridge) blocked on 18b.
+Spiral 10 (`feynfeld-4q5`, ee→μμ NLO box via pipeline) blocked on 18c.
+
+### Beads landscape (264 total)
+
+- **67 open** — 19 P1 (Phase 18b sub-tasks + vjw9 + MUnit DiracTrick batches
+  + Eps contraction bug + Spiral 10), 31 P2 (MUnit, architectural cleanups,
+  golden-master gaps, performance, 2 epics), 8 P3 (ULDM application epic,
+  registry, FF library C₀ port), 3 P4 (world-class diagram gen epic, ghost
+  fields, native C₀).
+- **7 in-progress** — 5 P1 (Phase 14 filters, Phase 17 pipeline swap,
+  Phase 18b-1 Burnside, MUnit DiracTrace 58 tests, EpsContract 41 tests),
+  2 P2 (Klein-Nishina, Phase 15 symmetry factor).
+- **12 blocked**, **190 closed** — the history of Spirals 0-7, Phases 10-18a.
+
+### Periphery findings (recommendations from 06_periphery.md)
+
+Safe to delete when Tobias wants (~5,400 LOC, zero capability loss):
+`src/algebra/` (23 files, 2,930 LOC), `src/integrals/` (4 files, 347 LOC),
+`src/Feynfeld.jl` (75 LOC), empty `src/{model,rules,diagrams,evaluate}/`,
+`test/algebra/` (18 files) + `test/integrals/` (2 files) +
+`test/test_ee_mumu.jl` + `test/runtests.jl`, empty
+`test/{model,rules,diagrams,evaluate,references}/`, `JULIA_PATTERNS.md`.
+Migration sequence in `reviews/stocktake_2026-04-17/06_periphery.md` §10.
+**Open question for next session:** re-point `Pkg.test()` at
+`test/v2/runtests.jl` and promote `FeynfeldX` → `Feynfeld` (bead feynfeld-qyu).
+
+## SESSION 28 HANDOFF — what the next agent should do
+
+1. **Read the stocktake** (`reviews/stocktake_2026-04-17/01..06`) + this block
+   + the Session 27 block below. You will have a complete repo-wide picture.
+2. **Then pick a direction:**
+   - **Default (unchanged from Session 27):** start on `feynfeld-vjw9` orbit-
+     rep dedup. File is `src/v2/qgraf/audition.jl:69-86`. See Session 27
+     "Three resolution options" below (A/B/C). Fastest path to unblocking
+     Phase 18b-1.
+   - **Alt A (beads hygiene):** Tobias may want to walk the 67 open + 7
+     in-progress beads and decide keep / defer / close. The stocktake enables
+     this — every bead can be evaluated against current-code reality. Do this
+     BEFORE starting new 18b work if Tobias asks.
+   - **Alt B (v1 deletion):** execute the migration in §10 of
+     `06_periphery.md`. ~5,400 LOC removed, `Pkg.test()` re-pointed at
+     `test/v2/runtests.jl`, FeynfeldX → Feynfeld rename (bead feynfeld-qyu).
+     Single-session job. Close 6+ stale beads that reference v1.
+   - **Alt C (type-instability cleanup):** work through
+     `reviews/ids_types.txt` — 7 beads from the 2026-03-29 Session 8 review
+     still open. Low-risk, high-leverage; removes the CLAUDE.md "MUST FIX"
+     list. Each fix is ~10-20 LOC.
+3. **Session close protocol** as always: `bd dolt push` + `git push`.
 
 ---
 
