@@ -17,10 +17,14 @@ The Algebra layer is the type system. Development follows the spiral methodology
 coverage) progress.
 
 ## Active code
-- **v2** (`src/v2/`, branch `experimental/rebuild-v2`): Active development. 301 tests,
-  28 source files (~3,400 LOC), 16 test files. Spirals 0-7 complete.
-- **v1** (`src/algebra/`, `src/integrals/`): FROZEN. Will be deleted. Do not extend.
-  Do not import patterns from. v1 used Mathematica-shaped anti-patterns.
+- **v2** (`src/v2/`, branch `experimental/rebuild-v2`): Sole codebase. Active development.
+  Module name is `FeynfeldX` (package still `Feynfeld` — rename tracked by bead feynfeld-qyu).
+  605 test assertions via `test/v2/runtests.jl` (single-process), ~10,300 LOC source across
+  69 `.jl` files. Spirals 0-7 complete; Phase 18b in progress.
+- **v1 deleted Session 29 (2026-04-18).** `src/algebra/`, `src/integrals/`,
+  `src/Feynfeld.jl`, `test/algebra/`, `test/integrals/`, `test/runtests.jl`,
+  `test/test_ee_mumu.jl`, and empty scaffold dirs removed (~5,400 LOC, zero
+  capability lost). History preserved in git. Do not resurrect v1 patterns.
 
 ## Architectural review findings (Session 8, 2026-03-29)
 

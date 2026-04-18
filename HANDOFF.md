@@ -1,3 +1,109 @@
+# HANDOFF — 2026-04-18 (Session 29: v1 deletion committed after Session 28.5 OOM crash)
+
+## DO NOT DELETE THIS FILE. Read it completely before working.
+
+---
+
+## START HERE (Session 29 updates)
+
+1. Read `CLAUDE.md` first — the v1 paragraph was rewritten Session 29 to reflect
+   that `src/algebra/`, `src/integrals/`, `src/Feynfeld.jl`, `test/algebra/`,
+   `test/integrals/`, `test/runtests.jl`, `test/test_ee_mumu.jl`, and the empty
+   `src/{model,rules,diagrams,evaluate}/` + `test/{model,rules,diagrams,evaluate,references}/`
+   scaffolds are **deleted**, not "will be deleted".
+2. `test/v2/runtests.jl` is the canonical aggregate entry point — single-process,
+   605 assertions, ~5 min. Use this, NOT `grind/run_v2_tests.sh` (fork-per-file).
+3. Phase 18b blocker unchanged: `feynfeld-vjw9` (orbit-rep dedup, `audition.jl:69`).
+   Pick this up next unless Tobias redirects.
+
+## SESSION 28.5 CRASH SUMMARY (what happened, for forensics)
+
+An unnamed Session 28.5 agent was executing bead `feynfeld-tzgc` (Move 1.1,
+v1 deletion per Session 28 stocktake §10). Sequence before crash:
+1. Created beads `tzgc` / `8cgv` / `4206`; claimed `tzgc`.
+2. Pre-flight grep: zero cross-deps from `src/v2/` or `test/v2/` on `src/algebra/`
+   or `src/integrals/`. Confirmed safe.
+3. Baseline snapshot: ran `bash grind/run_v2_tests.sh > /tmp/pre_delete.log`.
+4. `git rm` executed: the full v1 file set staged for deletion.
+5. Post-delete regression: re-ran `bash grind/run_v2_tests.sh` — **exit 137
+   (OOM SIGKILL) from the kernel**. WSL2 crashed.
+
+**Root cause assessment** (Session 29, Tobias): concurrent load from a separate
+project on the same WSL2 instance, not `grind/run_v2_tests.sh` per se. But the
+script DOES fork N Julia processes (~300-500 MB each) and compounds pressure.
+**Recommendation:** prefer `test/v2/runtests.jl` for aggregate runs — it loads
+`FeynfeldX` once and reuses the JIT across all files, bounded memory.
+
+Staged deletions survived the crash (git index is durable). `/tmp/pre_delete.log`
+did not.
+
+## SESSION 29 TIMELINE — pick up the staged deletion, verify, commit
+
+1. Forensic reconstruction: dispatched a Sonnet subagent to read the crashed
+   session JSONL (`~/.claude/projects/.../f136a661-....jsonl`, ~964 KB) and
+   summarise the trajectory + OOM root cause + what was staged and why.
+   Kept the raw JSONL out of the main context.
+2. Confirmed `feynfeld-tzgc` still in-progress and matched the stocktake plan.
+   Confirmed staged deletions correspond exactly to stocktake §10.
+3. Verified acceptance grep: zero references to `src/algebra` / `src/integrals`
+   in `src/v2/` or `test/v2/`. Only docs (CLAUDE.md, HANDOFF.md, Feynfeld_PRD.md)
+   mention them historically — correct.
+4. Ran `julia --project=. test/v2/runtests.jl` in a single process.
+   **Result: 605 / 605 pass, 5m04.6s.** All green post-deletion.
+5. Updated CLAUDE.md §"Active code" — v1 paragraph rewritten to past tense
+   with Session 29 date and the exact deleted paths. Updated test/LOC numbers
+   (301 → 605, 28 files → 69 files, 3,400 LOC → 10,300 LOC) to match the
+   stocktake. Kept the "do not resurrect v1 patterns" directive.
+6. Wrote this Session 29 block.
+7. Committed staged deletions + doc updates as a single commit for bisectability.
+8. `bd close feynfeld-tzgc` (acceptance met).
+9. `bd dolt push` + `git push`.
+
+## SESSION 29 ACCOMPLISHMENTS
+
+- v1 deletion landed cleanly: ~5,400 LOC removed, 605/605 v2 tests green.
+- `feynfeld-tzgc` closed. Staged work from the crashed Session 28.5 recovered
+  with zero loss.
+- CLAUDE.md §"Active code" resynced with stocktake reality.
+- Forensic reconstruction process documented (Sonnet subagent on crashed
+  JSONL) so future agents have a pattern for WSL-crash recovery.
+
+## OPEN FOLLOW-UPS SURFACED SESSION 29
+
+- **`grind/run_v2_tests.sh` is now memory-risky** under concurrent WSL load.
+  It pre-dates `test/v2/runtests.jl`. Options: (a) deprecate and document
+  `runtests.jl` as canonical, (b) rewrite grind script to reuse one Julia
+  process (`julia -e 'include("test/v2/runtests.jl")'`), (c) leave as-is
+  and add a banner. No bead filed yet — Tobias to decide.
+- **`Pkg.test()` still points at the deleted `test/runtests.jl`.** The
+  package's `test/runtests.jl` entry is gone; `Pkg.test()` will now fail.
+  Needs either a new top-level `test/runtests.jl` that forwards to
+  `test/v2/runtests.jl`, or re-point via `Project.toml`. Part of bead
+  `feynfeld-qyu` (FeynfeldX → Feynfeld rename) — the two should land together.
+- **qgraf tests (30 files in `test/v2/qgraf/`) still not wired into
+  `test/v2/runtests.jl`.** Pre-existing gap, noted in Session 28 stocktake.
+- **Previously planned deletions NOT executed this session** (were in the
+  original tzgc scope but low-priority):
+  - `JULIA_PATTERNS.md` (verbatim duplicate of CLAUDE.md §6) — kept for now.
+
+## SESSION 29 HANDOFF — what the next agent should do
+
+1. **Default next work**: `feynfeld-vjw9` (Phase 18b-1a orbit-rep dedup,
+   blocker for Bhabha acceptance). See Session 27 block below for full context.
+   File: `src/v2/qgraf/audition.jl:69-95`.
+2. **Or tidy the deletion tail**: close `feynfeld-qyu` (FeynfeldX → Feynfeld
+   rename) and restore a working `Pkg.test()` entry point. Single-session job.
+3. **Or beads hygiene**: walk the 67 open + 6 in-progress beads and decide
+   keep/defer/close using the stocktake.
+4. **Aggregate test command** (use this, not the grind script):
+   `julia --project=. test/v2/runtests.jl`
+5. **WSL OOM safety**: if the system feels heavy, check for other WSL Julia
+   processes before running large test loops. Single-process runtests.jl is
+   the safe default.
+6. **Session close protocol**: `bd dolt push` + `git push`.
+
+---
+
 # HANDOFF — 2026-04-17 (Session 28: Full-repo stocktake)
 
 ## DO NOT DELETE THIS FILE. Read it completely before working.
