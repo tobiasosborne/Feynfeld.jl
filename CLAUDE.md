@@ -17,14 +17,19 @@ The Algebra layer is the type system. Development follows the spiral methodology
 coverage) progress.
 
 ## Active code
-- **v2** (`src/v2/`, branch `experimental/rebuild-v2`): Sole codebase. Active development.
-  Module name is `FeynfeldX` (package still `Feynfeld` — rename tracked by bead feynfeld-qyu).
-  605 test assertions via `test/v2/runtests.jl` (single-process), ~10,300 LOC source across
-  69 `.jl` files. Spirals 0-7 complete; Phase 18b in progress.
+- **Package `Feynfeld`**: sole codebase, active development. Entry point `src/Feynfeld.jl`
+  (module `Feynfeld`) includes the v2 implementation files under `src/v2/`. qgraf port
+  is submodule `Feynfeld.QgrafPort`. 1323 test assertions + 4 `@test_broken`
+  (canonical/prefilter dedup) via `julia --project=. test/v2/runtests.jl` (single-process,
+  ~6 min) OR `Pkg.test()` which forwards through `test/runtests.jl`. Spirals 0-7
+  complete; Phase 18b in progress.
 - **v1 deleted Session 29 (2026-04-18).** `src/algebra/`, `src/integrals/`,
-  `src/Feynfeld.jl`, `test/algebra/`, `test/integrals/`, `test/runtests.jl`,
-  `test/test_ee_mumu.jl`, and empty scaffold dirs removed (~5,400 LOC, zero
-  capability lost). History preserved in git. Do not resurrect v1 patterns.
+  `src/Feynfeld.jl` (v1 entry), `test/algebra/`, `test/integrals/`, `test/runtests.jl` (v1),
+  `test/test_ee_mumu.jl`, and empty scaffold dirs removed (~5,400 LOC). History in git.
+  Do not resurrect v1 patterns.
+- **FeynfeldX → Feynfeld rename** also Session 29: module renamed, package entry moved
+  to `src/Feynfeld.jl`, qgraf submodule's `Main.FeynfeldX.X` references collapsed into
+  a proper `import ..Feynfeld: ...` list. Tests use `using Feynfeld` (no manual include).
 
 ## Architectural review findings (Session 8, 2026-03-29)
 

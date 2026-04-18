@@ -8,8 +8,7 @@
 # Method: Golden master TDD — qgraf is the oracle, Julia must match.
 
 using Test
-include("../../src/v2/FeynfeldX.jl")
-using .FeynfeldX
+using Feynfeld
 
 @testset "Diagram generation" begin
 

@@ -11,11 +11,10 @@
 #  drop-in replacement for the legacy adjacency-matrix backtracker.
 
 using Test
-include("../../../src/v2/FeynfeldX.jl")
-using .FeynfeldX
-using .FeynfeldX: _enumerate_topologies, _degree_partitions,
+using Feynfeld
+using Feynfeld: _enumerate_topologies, _degree_partitions,
                   _model_vertex_degrees, DegreePartition
-using .FeynfeldX.QgrafPort: Partition, TopoState, qg21_enumerate!
+using Feynfeld.QgrafPort: Partition, TopoState, qg21_enumerate!
 
 "Convert a legacy DegreePartition to a qgraf Partition."
 function _legacy_to_qgraf(n_ext::Int, dp::DegreePartition, nloop::Int)

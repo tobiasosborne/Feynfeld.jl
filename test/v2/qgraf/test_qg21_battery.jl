@@ -3,9 +3,8 @@
 #  master tests; if Strategy C is ready to ship, both must agree.
 
 using Test
-include("../../../src/v2/FeynfeldX.jl")
-using .FeynfeldX
-using .FeynfeldX.QgrafPort: count_diagrams_qg21
+using Feynfeld
+using Feynfeld.QgrafPort: count_diagrams_qg21
 
 @testset "Phase 17b: qg21 path vs legacy on diagram_gen battery" begin
 

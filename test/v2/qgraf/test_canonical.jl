@@ -2,9 +2,8 @@
 # Beads: feynfeld-xjc
 
 using Test
-include("../../../src/v2/FeynfeldX.jl")
-using .FeynfeldX.QgrafPort
-using .FeynfeldX.QgrafPort: _lex_next!, _compare_permuted_adjacency
+using Feynfeld.QgrafPort
+using Feynfeld.QgrafPort: _lex_next!, _compare_permuted_adjacency
 
 # ─── Helper: build a bare TopoState for unit tests ────────────────────────
 function _bare_state(n_ext, n, vdeg_internal)

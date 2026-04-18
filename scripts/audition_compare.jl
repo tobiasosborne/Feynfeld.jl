@@ -1,7 +1,6 @@
 # Compare audition (A/B/C) vs legacy on a battery of cases.
-include("../src/v2/FeynfeldX.jl")
-using .FeynfeldX
-using .FeynfeldX.QgrafPort: count_dedup_burnside, count_dedup_canonical,
+using Feynfeld
+using Feynfeld.QgrafPort: count_dedup_burnside, count_dedup_canonical,
                               count_dedup_prefilter
 
 cases = [

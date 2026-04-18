@@ -11,8 +11,7 @@
 
 using Test
 
-include("../../../src/v2/FeynfeldX.jl")
-using .FeynfeldX
+using Feynfeld
 
 @testset "Phase 18a-9: pipeline ≡ handbuilt symbolic equality" begin
 

@@ -11,9 +11,8 @@
 #  Lorentz-scalar treatment is a Layer-4 concern (TBD).
 
 using Test
-include("../../src/v2/FeynfeldX.jl")
-using .FeynfeldX
-using .FeynfeldX: model_fields, feynman_rules
+using Feynfeld
+using Feynfeld: model_fields, feynman_rules
 
 @testset "QCD ghost field + ghost-gluon vertex" begin
 

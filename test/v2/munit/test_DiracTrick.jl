@@ -10,8 +10,7 @@
 # BMHV mixed-dimension decomposition are deferred pending those constructors.
 
 using Test
-@isdefined(FeynfeldX) || include(joinpath(@__DIR__, "..", "..", "..", "src", "v2", "FeynfeldX.jl"))
-using .FeynfeldX
+using Feynfeld
 
 @testset "MUnit DiracTrick" begin
 

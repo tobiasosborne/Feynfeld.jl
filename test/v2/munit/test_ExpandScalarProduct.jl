@@ -8,8 +8,7 @@
 # ID13-18 (CartesianPair), ID19-21 (selective expansion).
 
 using Test
-@isdefined(FeynfeldX) || include(joinpath(@__DIR__, "..", "..", "..", "src", "v2", "FeynfeldX.jl"))
-using .FeynfeldX
+using Feynfeld
 
 @testset "MUnit ExpandScalarProduct" begin
 

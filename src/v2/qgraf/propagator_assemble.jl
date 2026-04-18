@@ -91,7 +91,7 @@ end
 _propagator_numerator(::Boson,  _mom, _mass) = alg(1)
 _propagator_numerator(::Scalar, _mom, _mass) = alg(1)
 function _propagator_numerator(::Fermion, mom::Momentum, mass)
-    Main.FeynfeldX.propagator_num(Fermion(), mom, mass)
+    propagator_num(Fermion(), mom, mass)
 end
 _propagator_numerator(::Fermion, ::Union{Nothing, MomentumSum}, _mass) =
     error("Fermion propagator with composite/zero momentum deferred to Phase 18b")

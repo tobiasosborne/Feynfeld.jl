@@ -3,8 +3,7 @@
 # Convention: all trace identities verified symbolically (exact AlgSum equality).
 
 using Test
-@isdefined(FeynfeldX) || include(joinpath(@__DIR__, "..", "..", "..", "src", "v2", "FeynfeldX.jl"))
-using .FeynfeldX
+using Feynfeld
 
 @testset "MUnit DiracTrace" begin
 

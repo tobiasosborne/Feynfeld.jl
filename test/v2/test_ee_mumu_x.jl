@@ -1,16 +1,15 @@
 # Tracer bullet: e+e- → mu+mu- at tree level
 # Validates Peskin & Schroeder Eq (5.10): |M|^2 = 8(t^2 + u^2) (massless, unpolarised)
 #
-# This is the same physics as test/test_ee_mumu.jl but using FeynfeldX's
+# This is the same physics as test/test_ee_mumu.jl but using Feynfeld's
 # Julia-idiomatic design: parametric types, dispatch, SymDim coefficients.
 
 using Test
 
-# Load FeynfeldX module
-@isdefined(FeynfeldX) || include(joinpath(@__DIR__, "..", "..", "src", "v2", "FeynfeldX.jl"))
-using .FeynfeldX
+# Load Feynfeld module
+using Feynfeld
 
-@testset "FeynfeldX: e+e- → mu+mu- tracer bullet" begin
+@testset "Feynfeld: e+e- → mu+mu- tracer bullet" begin
 
     # ---- Step 1: Define momenta ----
     p1 = Momentum(:p1)  # incoming e-

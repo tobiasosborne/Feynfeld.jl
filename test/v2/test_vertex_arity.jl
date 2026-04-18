@@ -11,9 +11,8 @@
 #  ghost-gluon, and any future higher-arity coupling can be expressed.
 
 using Test
-include("../../src/v2/FeynfeldX.jl")
-using .FeynfeldX
-using .FeynfeldX: VertexRule, FeynmanRules, feynman_rules
+using Feynfeld
+using Feynfeld: VertexRule, FeynmanRules, feynman_rules
 
 @testset "VertexRule variable arity" begin
 

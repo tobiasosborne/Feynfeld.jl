@@ -48,7 +48,7 @@ function combine_m_squared_burnside(bundles::Vector{AmplitudeBundle},
     length(bundles) == length(weights) ||
         error("combine_m_squared_burnside: length(bundles)=$(length(bundles)) " *
               "≠ length(weights)=$(length(weights))")
-    m_sq = Main.FeynfeldX.AlgSum()
+    m_sq = AlgSum()
     for i in 1:length(bundles), j in 1:length(bundles)
         bi, bj = bundles[i], bundles[j]
         T_ij   = _pair_trace(bi, bj, i == j)
@@ -67,16 +67,16 @@ end
 function _pair_trace(bi::AmplitudeBundle, bj::AmplitudeBundle, is_diagonal::Bool)
     n_i, n_j = length(bi.line_chains), length(bj.line_chains)
     if n_i == 0 && n_j == 0
-        return Main.FeynfeldX.alg(1)
+        return alg(1)
     end
     (n_i == 2 && n_j == 2) ||
         error("_pair_trace: Phase 18b-1 supports 0- and 2-line bundles only " *
               "(got $n_i × $n_j lines); multi-vertex fermion lines deferred " *
               "to Phase 18b-3")
     if is_diagonal
-        Main.FeynfeldX.spin_sum_amplitude_squared(bi.line_chains[1], bi.line_chains[2])
+        spin_sum_amplitude_squared(bi.line_chains[1], bi.line_chains[2])
     else
-        Main.FeynfeldX.spin_sum_interference((bi.line_chains[1], bi.line_chains[2]),
+        spin_sum_interference((bi.line_chains[1], bi.line_chains[2]),
                                              (bj.line_chains[1], bj.line_chains[2]))
     end
 end

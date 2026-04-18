@@ -61,12 +61,44 @@ did not.
 
 ## SESSION 29 ACCOMPLISHMENTS
 
-- v1 deletion landed cleanly: ~5,400 LOC removed, 605/605 v2 tests green.
-- `feynfeld-tzgc` closed. Staged work from the crashed Session 28.5 recovered
-  with zero loss.
+- v1 deletion landed cleanly: ~5,400 LOC removed, 605/605 v2 tests green (commit `db3399d`).
+- `feynfeld-tzgc` closed. Staged work from the crashed Session 28.5 recovered with zero loss.
 - CLAUDE.md §"Active code" resynced with stocktake reality.
-- Forensic reconstruction process documented (Sonnet subagent on crashed
-  JSONL) so future agents have a pattern for WSL-crash recovery.
+- Forensic reconstruction process documented (Sonnet subagent on crashed JSONL) so future
+  agents have a pattern for WSL-crash recovery.
+
+### Session 29 addendum (later in same session): Moves 1.2 + 1.3 landed
+
+- **Move 1.2 (`feynfeld-qyu`, FeynfeldX → Feynfeld rename).** Module renamed to `Feynfeld`;
+  package entry moved from `src/v2/FeynfeldX.jl` to `src/Feynfeld.jl` with `v2/`-prefixed
+  includes; 71 source/test/script files updated; qgraf submodule's `Main.FeynfeldX.X`
+  references collapsed into a proper `import ..Feynfeld: ...` import list (15 new names
+  added: `DimD`, `LorentzIndex`, `Spinor`, `feynman_rules`, `propagator_num`,
+  `vertex_factor`, `u`/`v`/`ubar`/`vbar`, `spin_sum_amplitude_squared`,
+  `spin_sum_interference`, `_degree_partitions`, `_expand_external_fields`,
+  `_expand_model_for_diagen`). Tests use `using Feynfeld` (no manual `include`).
+- **Move 1.3 (`feynfeld-8cgv`, test orchestration).** `test/v2/runtests.jl` now wires:
+  20 original + 5 missing core (`test_diagram_gen`, `test_vertex_arity`,
+  `test_qcd_4gluon`, `test_qcd_ghost`, `test_ee_ww_grozin`) + loop-include all 30
+  `test/v2/qgraf/test_*.jl` + loop-include `test/v2/munit/test_*.jl` (was run separately
+  before). Added thin `test/runtests.jl` top-level forwarder so `Pkg.test()` works.
+- **Test count:** 605 → **1327 (1323 pass + 4 `@test_broken` pre-existing dedup bugs)**,
+  single-process run ~6 min. `Pkg.test()` verified.
+- **Planning info preserved.** Created bd memory `session-28-master-plan` (Move 1/2/3
+  structure recovered from the crashed JSONL via Sonnet subagent), epic `feynfeld-8jmm`
+  (Move 1 umbrella), epic `feynfeld-0e1t` (Move 3 deferred — "Tobias: I don't care about
+  public API yet"). Bead `feynfeld-4206` notes updated with the Move 1.4a-e ambiguity
+  (Session 8 closures stand unless user says otherwise).
+
+### Session 29 remaining / out of scope
+
+- **Move 1.4a-e** (5 factory refixes) — NOT executed. Original beads (60n/6mf/blz/3b3/023)
+  closed Session 8 with concrete resolution notes; current code's factories still return
+  Unions but that may be by-design trade-off. See bead `4206` notes before touching.
+- **Move 1.4f** (@inferred regression test file) — still open.
+- **Move 1.6** tutorial (`lj1`) — still open.
+- **Move 2** (Phase 18b completion) — unchanged. Start at `feynfeld-vjw9`.
+- **Move 3** (Process abstraction) — deferred (epic `0e1t`, P4).
 
 ## OPEN FOLLOW-UPS SURFACED SESSION 29
 

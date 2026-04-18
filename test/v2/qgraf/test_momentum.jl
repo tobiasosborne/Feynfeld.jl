@@ -3,8 +3,7 @@
 #  Layer-4 concern handled when the new pipeline drives amplitude eval.
 
 using Test
-include("../../../src/v2/FeynfeldX.jl")
-using .FeynfeldX.QgrafPort: Partition, TopoState, MAX_V,
+using Feynfeld.QgrafPort: Partition, TopoState, MAX_V,
                               qg21_enumerate!, build_spanning_tree, count_chords
 
 @testset "Phase 16: spanning tree + chord count" begin

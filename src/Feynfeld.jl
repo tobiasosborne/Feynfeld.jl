@@ -1,92 +1,91 @@
-# FeynfeldX: experimental Julia-idiomatic rebuild of Feynfeld.jl
-# Key design choices: see DESIGN.md
-# Six-layer pipeline: Model → Rules → Diagrams → Algebra → Integrals → Evaluate
-module FeynfeldX
+# Feynfeld: Julia-native, agent-facing, full-stack physics computation suite.
+# Six-layer pipeline: Model → Rules → Diagrams → Algebra → Integrals → Evaluate.
+# Design choices: see src/v2/DESIGN.md. Rules + vision: see CLAUDE.md + Feynfeld_PRD.md.
+module Feynfeld
 
 # ---- Layer 4: Algebra (core) ----
-include("coeff.jl")
-include("types.jl")
-include("colour_types.jl")
-include("pair.jl")
-include("expr.jl")
-include("sp_context.jl")
-include("contract.jl")
-include("eps_contract.jl")
-include("expand_sp.jl")
-include("dirac.jl")
-include("dirac_trace.jl")
-include("dirac_expr.jl")
-include("spin_sum.jl")
-include("interference.jl")
-include("dirac_trick.jl")
-include("colour_trace.jl")
-include("colour_simplify.jl")
+include("v2/coeff.jl")
+include("v2/types.jl")
+include("v2/colour_types.jl")
+include("v2/pair.jl")
+include("v2/expr.jl")
+include("v2/sp_context.jl")
+include("v2/contract.jl")
+include("v2/eps_contract.jl")
+include("v2/expand_sp.jl")
+include("v2/dirac.jl")
+include("v2/dirac_trace.jl")
+include("v2/dirac_expr.jl")
+include("v2/spin_sum.jl")
+include("v2/interference.jl")
+include("v2/dirac_trick.jl")
+include("v2/colour_trace.jl")
+include("v2/colour_simplify.jl")
 
 # ---- Layer 1: Model ----
-include("model.jl")
+include("v2/model.jl")
 
 # ---- Layer 2: Rules ----
-include("rules.jl")
+include("v2/rules.jl")
 
 # ---- Layer 3: Diagrams / Channels / Amplitudes ----
-include("diagrams.jl")
-include("channels.jl")
-include("amplitude.jl")
-include("gauge_exchange.jl")
+include("v2/diagrams.jl")
+include("v2/channels.jl")
+include("v2/amplitude.jl")
+include("v2/gauge_exchange.jl")
 
 # ---- Layer 1d: φ³ Model ----
-include("phi3_model.jl")
+include("v2/phi3_model.jl")
 
 # ---- Layer 3d: qgraf-faithful topology generator (Strategy C port) ----
 # Submodule included FIRST so the legacy canonicality filter can delegate
 # to `QgrafPort.is_canonical_feynman` (full per-class lex-next-permutation).
-# Beads: feynfeld-ney (master), feynfeld-5hr (skeleton).
-include("qgraf/QgrafPort.jl")
+include("v2/qgraf/QgrafPort.jl")
 
 # ---- Layer 3c: Algorithmic diagram generation ----
-include("degree_partition.jl")
-include("topology_types.jl")
-include("topology_filter.jl")
-include("topology_enum.jl")
-include("vertex_check.jl")
-include("field_assign.jl")
-include("diagram_gen.jl")
+include("v2/degree_partition.jl")
+include("v2/topology_types.jl")
+include("v2/topology_filter.jl")
+include("v2/topology_enum.jl")
+include("v2/vertex_check.jl")
+include("v2/field_assign.jl")
+include("v2/diagram_gen.jl")
 
 # ---- Layer 3b: Loop diagrams ----
-include("loop_channels.jl")
-include("loop_amplitude.jl")
-include("loop_interference.jl")
+include("v2/loop_channels.jl")
+include("v2/loop_amplitude.jl")
+include("v2/loop_interference.jl")
 
 # ---- Layer 1b: QCD Model ----
-include("qcd_model.jl")
+include("v2/qcd_model.jl")
 
 # ---- Layer 1c: EW Model ----
-include("ew_model.jl")
+include("v2/ew_model.jl")
 
 # ---- Layer 4b: Polarization sums ----
-include("polarization_sum.jl")
+include("v2/polarization_sum.jl")
 
 # ---- Layer 5: Integrals ----
-include("pave.jl")
-include("c0_analytical.jl")
-include("d0_collier.jl")
-include("b0_eval.jl")
-include("pave_eval.jl")
-include("d_tensor.jl")
-include("sp_lookup.jl")
-include("tid.jl")
-include("schwinger.jl")
-include("vertex.jl")
-include("running_alpha.jl")
-include("ew_parameters.jl")
-include("ew_cross_section.jl")
+include("v2/pave.jl")
+include("v2/c0_analytical.jl")
+include("v2/d0_collier.jl")
+include("v2/b0_eval.jl")
+include("v2/pave_eval.jl")
+include("v2/d_tensor.jl")
+include("v2/sp_lookup.jl")
+include("v2/tid.jl")
+include("v2/schwinger.jl")
+include("v2/vertex.jl")
+include("v2/running_alpha.jl")
+include("v2/ew_parameters.jl")
+include("v2/ew_cross_section.jl")
 
 # ---- Layer 6: Evaluate ----
-include("eps_evaluate.jl")
-include("cross_section.jl")
+include("v2/eps_evaluate.jl")
+include("v2/cross_section.jl")
 
 # ---- Layer 6b: NLO assembly (depends on cross_section.jl) ----
-include("nlo_box.jl")
+include("v2/nlo_box.jl")
 
 # ---- Exports: Algebra ----
 export DimPoly, DIM, DIM_MINUS_4, Coeff, evaluate_dim, normalise_coeff, mul_coeff, add_coeff
@@ -154,4 +153,4 @@ export CrossSectionProblem, solve_tree, solve_tree_pipeline, evaluate_m_squared
 export evaluate_numeric, sp_values_2to2
 export dsigma_domega, sigma_total_tree_ee_mumu
 
-end # module FeynfeldX
+end # module Feynfeld

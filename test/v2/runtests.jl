@@ -1,15 +1,16 @@
-# Single-process test runner for Feynfeld v2.
-# Loads FeynfeldX once, then runs all test files in the same Julia process.
-# Individual test files still work standalone via @isdefined guard.
+# Single-process test runner for Feynfeld.
+# Loads Feynfeld once, then runs all test files in the same Julia process.
 #
-# Usage: julia --project=. test/v2/runtests.jl
+# Usage:
+#   julia --project=. test/v2/runtests.jl
+#   julia --project=. -e 'using Pkg; Pkg.test()'  (via test/runtests.jl forwarder)
 
 using Test
 
-include(joinpath(@__DIR__, "..", "..", "src", "v2", "FeynfeldX.jl"))
-using .FeynfeldX
+using Feynfeld
 
-@testset "Feynfeld v2" begin
+@testset "Feynfeld" begin
+    # ---- Core pipeline / algebra / integrals ----
     include("test_coeff.jl")
     include("test_colour.jl")
     include("test_ee_mumu_x.jl")
@@ -30,4 +31,20 @@ using .FeynfeldX
     include("test_vertex_g2.jl")
     include("test_box_ee_mumu.jl")
     include("test_nlo_box_validation.jl")
+    # ---- Move 1.3: formerly missing from orchestration ----
+    include("test_diagram_gen.jl")
+    include("test_vertex_arity.jl")
+    include("test_qcd_4gluon.jl")
+    include("test_qcd_ghost.jl")
+    include("test_ee_ww_grozin.jl")
+    # ---- MUnit translations (FeynCalc port) ----
+    for f in sort(readdir(joinpath(@__DIR__, "munit")))
+        startswith(f, "test_") && endswith(f, ".jl") || continue
+        include(joinpath("munit", f))
+    end
+    # ---- qgraf Strategy C port integration tests ----
+    for f in sort(readdir(joinpath(@__DIR__, "qgraf")))
+        startswith(f, "test_") && endswith(f, ".jl") || continue
+        include(joinpath("qgraf", f))
+    end
 end

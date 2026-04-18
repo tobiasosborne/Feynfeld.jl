@@ -2,8 +2,7 @@
 #  Foundation for the dedup audition (Burnside / canonical-pmap / pre-filter).
 
 using Test
-include("../../../src/v2/FeynfeldX.jl")
-using .FeynfeldX.QgrafPort: Partition, TopoState, qg21_enumerate!,
+using Feynfeld.QgrafPort: Partition, TopoState, qg21_enumerate!,
                               enumerate_topology_automorphisms
 
 @testset "enumerate_topology_automorphisms" begin

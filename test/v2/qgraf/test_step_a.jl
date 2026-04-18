@@ -24,8 +24,7 @@
 #  L = P − V + 1 on every partition shape that downstream phases will use.
 
 using Test
-include("../../../src/v2/FeynfeldX.jl")
-using .FeynfeldX.QgrafPort: Partition, TopoState, n_vertices, n_internal,
+using Feynfeld.QgrafPort: Partition, TopoState, n_vertices, n_internal,
                               n_edges, rho_k
 
 @testset "qg21 Step A: degree-seq init (audit)" begin

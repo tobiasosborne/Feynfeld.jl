@@ -5,8 +5,7 @@
 #  pair-cancelling logic on simple topologies.
 
 using Test
-include("../../../src/v2/FeynfeldX.jl")
-using .FeynfeldX.QgrafPort: Partition, TopoState, MAX_V, qdis_fermion_sign
+using Feynfeld.QgrafPort: Partition, TopoState, MAX_V, qdis_fermion_sign
 
 @testset "qdis fermion sign" begin
 

@@ -8,8 +8,7 @@
 
 using Test
 
-include("../../../src/v2/FeynfeldX.jl")
-using .FeynfeldX
+using Feynfeld
 
 @testset "Phase 18a-8: solve_tree_pipeline" begin
 

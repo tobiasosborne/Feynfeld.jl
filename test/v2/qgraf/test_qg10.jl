@@ -2,8 +2,7 @@
 #  Source: qgraf-4.0.6.f08:12001-12200.
 
 using Test
-include("../../../src/v2/FeynfeldX.jl")
-using .FeynfeldX.QgrafPort: Partition, TopoState, qg10_enumerate!, _lex_next_perm!
+using Feynfeld.QgrafPort: Partition, TopoState, qg10_enumerate!, _lex_next_perm!
 
 @testset "qg10: external-leg permutation enumeration" begin
 

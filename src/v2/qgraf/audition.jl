@@ -125,12 +125,12 @@ function _foreach_emission(callback::F, model, in_fields::Vector{Symbol},
                             out_fields::Vector{Symbol}; loops::Int) where {F}
     n_ext   = length(in_fields) + length(out_fields)
     ext_raw = vcat(in_fields, out_fields)
-    exp     = Main.FeynfeldX._expand_model_for_diagen(model)
-    ext_exp = Main.FeynfeldX._expand_external_fields(ext_raw, exp)
+    exp     = _expand_model_for_diagen(model)
+    ext_exp = _expand_external_fields(ext_raw, exp)
     dpntro  = build_dpntro(exp.vertex_rules)
-    rules   = Main.FeynfeldX.feynman_rules(model)
+    rules   = feynman_rules(model)
     vd      = Set(length(k) for k in keys(rules.vertices))
-    for dp in Main.FeynfeldX._degree_partitions(n_ext, loops, vd)
+    for dp in _degree_partitions(n_ext, loops, vd)
         degs = sort([d for (d, c) in dp.counts if c > 0])
         if isempty(degs); continue; end
         mrho = degs[1]
@@ -230,14 +230,14 @@ function count_diagrams_qg21(model, in_fields::Vector{Symbol},
                               noparallel::Bool=false)
     n_ext   = length(in_fields) + length(out_fields)
     ext_raw = vcat(in_fields, out_fields)
-    exp     = Main.FeynfeldX._expand_model_for_diagen(model)
-    ext_exp = Main.FeynfeldX._expand_external_fields(ext_raw, exp)
+    exp     = _expand_model_for_diagen(model)
+    ext_exp = _expand_external_fields(ext_raw, exp)
     dpntro  = build_dpntro(exp.vertex_rules)
-    rules   = Main.FeynfeldX.feynman_rules(model)
+    rules   = feynman_rules(model)
     vd      = Set(length(k) for k in keys(rules.vertices))
 
     total = Rational{Int}(0)
-    for dp in Main.FeynfeldX._degree_partitions(n_ext, loops, vd)
+    for dp in _degree_partitions(n_ext, loops, vd)
         degs = sort([d for (d, c) in dp.counts if c > 0])
         isempty(degs) && continue
         cv = Int8[get(dp.counts, d, 0) for d in degs[1]:degs[end]]
@@ -295,13 +295,13 @@ function count_dedup_prefilter(model, in_fields::Vector{Symbol},
                                  out_fields::Vector{Symbol}; loops::Int)
     n_ext   = length(in_fields) + length(out_fields)
     ext_raw = vcat(in_fields, out_fields)
-    exp     = Main.FeynfeldX._expand_model_for_diagen(model)
-    ext_exp = Main.FeynfeldX._expand_external_fields(ext_raw, exp)
+    exp     = _expand_model_for_diagen(model)
+    ext_exp = _expand_external_fields(ext_raw, exp)
     dpntro  = build_dpntro(exp.vertex_rules)
-    rules   = Main.FeynfeldX.feynman_rules(model)
+    rules   = feynman_rules(model)
     vd      = Set(length(k) for k in keys(rules.vertices))
     total   = 0
-    for dp in Main.FeynfeldX._degree_partitions(n_ext, loops, vd)
+    for dp in _degree_partitions(n_ext, loops, vd)
         degs = sort([d for (d, c) in dp.counts if c > 0])
         isempty(degs) && continue
         mrho = degs[1]

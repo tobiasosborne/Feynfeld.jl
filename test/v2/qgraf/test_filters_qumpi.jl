@@ -2,8 +2,7 @@
 #  Source: refs/qgraf/v4.0.6/qgraf-4.0.6.dir/qgraf-4.0.6.f08:3690-3776.
 
 using Test
-include("../../../src/v2/FeynfeldX.jl")
-using .FeynfeldX.QgrafPort: Partition, TopoState, MAX_V,
+using Feynfeld.QgrafPort: Partition, TopoState, MAX_V,
                               is_one_pi, has_no_sbridge, has_no_tadpole,
                               has_no_onshell
 

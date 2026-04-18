@@ -10,8 +10,7 @@
 
 using Test
 
-include("../../../src/v2/FeynfeldX.jl")
-using .FeynfeldX.QgrafPort: Partition, TopoState, MAX_V,
+using Feynfeld.QgrafPort: Partition, TopoState, MAX_V,
                             compute_qg10_labels, compute_amap
 
 @testset "Phase 18a-2: half-edge labelling (amap)" begin

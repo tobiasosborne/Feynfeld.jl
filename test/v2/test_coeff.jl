@@ -1,7 +1,6 @@
 # Tests for DimPoly coefficient algebra
 
-@isdefined(FeynfeldX) || include(joinpath(@__DIR__, "..", "..", "src", "v2", "FeynfeldX.jl"))
-using .FeynfeldX
+using Feynfeld
 using Test
 
 @testset "DimPoly" begin

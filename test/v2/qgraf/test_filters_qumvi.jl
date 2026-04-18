@@ -3,8 +3,7 @@
 #  qgsig (nosigma) and qcyc (cycli) depend on flow[][] — deferred to Phase 16.
 
 using Test
-include("../../../src/v2/FeynfeldX.jl")
-using .FeynfeldX.QgrafPort: Partition, TopoState, MAX_V,
+using Feynfeld.QgrafPort: Partition, TopoState, MAX_V,
                               has_no_snail, is_one_vi
 
 @testset "Phase 14c: qumvi vertex filters" begin

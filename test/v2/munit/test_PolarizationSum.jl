@@ -8,8 +8,7 @@
 # Skipped: ID2/4/6/7 (symbolic k^2 or MomentumSum), ID9-15 (CartesianIndex).
 
 using Test
-@isdefined(FeynfeldX) || include(joinpath(@__DIR__, "..", "..", "..", "src", "v2", "FeynfeldX.jl"))
-using .FeynfeldX
+using Feynfeld
 
 @testset "MUnit PolarizationSum" begin
 

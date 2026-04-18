@@ -15,8 +15,7 @@
 # The relative phase matters for s×t and γ×Z interference terms.
 
 using Test
-@isdefined(FeynfeldX) || include("../../src/v2/FeynfeldX.jl")
-using .FeynfeldX
+using Feynfeld
 using QuadGK: quadgk
 
 @testset "ee→WW Grozin validation" begin
@@ -60,7 +59,7 @@ end
 
 # ── Helper: fully contract gauge exchange expression ──
 function gauge_contract(chain_de::DiracExpr, vtx::AlgSum)
-    tr = FeynfeldX._single_line_trace(chain_de)
+    tr = Feynfeld._single_line_trace(chain_de)
     neg_q = MomentumSum([(-1//1, p1), (-1//1, p2)])
     vtx_c = triple_gauge_vertex(LorentzIndex(:rho_s_, DimD()),
         LorentzIndex(:mu_k1_, DimD()), LorentzIndex(:mu_k2_, DimD()), neg_q, k1, k2)
@@ -71,7 +70,7 @@ function gauge_contract(chain_de::DiracExpr, vtx::AlgSum)
     e = tr * vtx * vtx_c * P1 * P2
     for _ in 1:10  # multi-pass until all factors are SP or Eps(all-Momentum)
         e = expand_scalar_product(contract(e))
-        all(all(f isa FeynfeldX.Pair{Momentum,Momentum} || (f isa Eps && FeynfeldX._eps_all_momentum(f))
+        all(all(f isa Feynfeld.Pair{Momentum,Momentum} || (f isa Eps && Feynfeld._eps_all_momentum(f))
                 for f in fk.factors) for (fk,_) in e.terms) && break
     end
     e
@@ -79,7 +78,7 @@ end
 
 # ── Helper: fully contract fermion exchange (m_ν = 0) ──
 function fermion_contract(chain_mom::DiracChain)
-    tr = FeynfeldX._single_line_trace(DiracExpr(chain_mom))
+    tr = Feynfeld._single_line_trace(DiracExpr(chain_mom))
     mi = LorentzIndex(:mu_k1, DimD()); mp = LorentzIndex(:mu_k1_, DimD())
     ni = LorentzIndex(:mu_k2, DimD()); np = LorentzIndex(:mu_k2_, DimD())
     P1 = polarization_sum_massive(mi, mp, k1, 1//1)
@@ -87,7 +86,7 @@ function fermion_contract(chain_mom::DiracChain)
     e = tr * P1 * P2
     for _ in 1:10
         e = expand_scalar_product(contract(e))
-        all(all(f isa FeynfeldX.Pair{Momentum,Momentum} || (f isa Eps && FeynfeldX._eps_all_momentum(f))
+        all(all(f isa Feynfeld.Pair{Momentum,Momentum} || (f isa Eps && Feynfeld._eps_all_momentum(f))
                 for f in fk.factors) for (fk,_) in e.terms) && break
     end
     e
@@ -99,16 +98,16 @@ end
 function cross_trace_one_way(de_fwd::DiracExpr, de_conj::DiracExpr)
     sp_L = first(de_fwd.terms[1][2].elements)::Spinor
     sp_R = last(de_fwd.terms[1][2].elements)::Spinor
-    _, mass_R, mom_R = FeynfeldX._completeness(sp_R)
-    _, mass_L, mom_L = FeynfeldX._completeness(sp_L)
+    _, mass_R, mom_R = Feynfeld._completeness(sp_R)
+    _, mass_L, mom_L = Feynfeld._completeness(sp_L)
     result = AlgSum()
     for (ci, chain_i) in de_fwd.terms
         gammas_i = DiracGamma[e for e in chain_i.elements[2:end-1]]
         for (cj, chain_j) in de_conj.terms
             gammas_j = DiracGamma[e for e in chain_j.elements[2:end-1]]
-            sign_j = FeynfeldX._conj_gamma5_sign(gammas_j)
-            gammas_conj_j = FeynfeldX._conjugate_gammas(gammas_j)
-            tr = FeynfeldX._build_and_trace(mom_R, mass_R, gammas_conj_j,
+            sign_j = Feynfeld._conj_gamma5_sign(gammas_j)
+            gammas_conj_j = Feynfeld._conjugate_gammas(gammas_j)
+            tr = Feynfeld._build_and_trace(mom_R, mass_R, gammas_conj_j,
                                             mom_L, mass_L, gammas_i)
             result = result + ci * cj * sign_j * tr
         end
@@ -120,8 +119,8 @@ end
 function full_contract(e::AlgSum)
     for _ in 1:10
         e = expand_scalar_product(contract(e))
-        all(all(f isa FeynfeldX.Pair{Momentum,Momentum} ||
-               (f isa Eps && FeynfeldX._eps_all_momentum(f))
+        all(all(f isa Feynfeld.Pair{Momentum,Momentum} ||
+               (f isa Eps && Feynfeld._eps_all_momentum(f))
             for f in fk.factors) for (fk,_) in e.terms) && break
     end
     e

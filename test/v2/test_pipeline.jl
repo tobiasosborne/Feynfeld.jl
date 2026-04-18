@@ -4,8 +4,7 @@
 # Each test uses tree_channels + build_amplitude instead of direct chain construction.
 
 using Test
-@isdefined(FeynfeldX) || include("../../src/v2/FeynfeldX.jl")
-using .FeynfeldX
+using Feynfeld
 
 @testset "Pipeline: all processes" begin
 
@@ -145,7 +144,7 @@ using .FeynfeldX
         # Helper: compute Tr for a pair of diagram components
         # chain_fwd provides Gamma_j, chain_conj provides Gamma_i (conjugated)
         function trace_pair(chain_fwd, chain_conj)
-            _cross_trace = FeynfeldX._cross_line_trace(chain_fwd, chain_conj)
+            _cross_trace = Feynfeld._cross_line_trace(chain_fwd, chain_conj)
         end
 
         # For each (i,j) diagram pair, compute the full trace
@@ -244,7 +243,7 @@ using .FeynfeldX
 
         # For massless quarks, only chain_mom contributes
         function fermion_trace(amp_fwd, amp_conj)
-            FeynfeldX._cross_line_trace(amp_fwd[1], amp_conj[1])
+            Feynfeld._cross_line_trace(amp_fwd[1], amp_conj[1])
         end
 
         D_tt = eval_D(fermion_trace(amp_t, amp_t))
@@ -342,7 +341,7 @@ using .FeynfeldX
         chain_sg, vtx_sg = amp_sg
         tr_sg = spin_sum_amplitude_squared(chain_sg, chain_sg)  # single line → trace²? no...
         # Actually: gauge exchange has one fermion line → single trace
-        tr_sg = FeynfeldX._single_line_trace(chain_sg)
+        tr_sg = Feynfeld._single_line_trace(chain_sg)
 
         # Contract gauge vertex squared with W polarization sums
         rho_s = LorentzIndex(:rho_s, DimD())

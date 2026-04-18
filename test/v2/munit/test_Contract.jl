@@ -10,8 +10,7 @@
 # Already in batch1: ID4-7 (metric/FV basics). New here: ID1-3 (eps×eps), ID8, ID10.
 
 using Test
-@isdefined(FeynfeldX) || include(joinpath(@__DIR__, "..", "..", "..", "src", "v2", "FeynfeldX.jl"))
-using .FeynfeldX
+using Feynfeld
 
 @testset "MUnit Contract" begin
 

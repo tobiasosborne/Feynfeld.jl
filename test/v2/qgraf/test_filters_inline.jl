@@ -1,8 +1,7 @@
 #  Phase 14a: inline-simple xg-pattern filters.
 
 using Test
-include("../../../src/v2/FeynfeldX.jl")
-using .FeynfeldX.QgrafPort: Partition, TopoState, MAX_V,
+using Feynfeld.QgrafPort: Partition, TopoState, MAX_V,
                               has_no_selfloop, has_no_diloop, has_no_parallel
 
 @testset "Phase 14a: inline xg filters" begin

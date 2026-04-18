@@ -8,9 +8,8 @@
 
 using Test
 
-include("../../../src/v2/FeynfeldX.jl")
-using .FeynfeldX
-using .FeynfeldX.QgrafPort: Partition, TopoState, MAX_V,
+using Feynfeld
+using Feynfeld.QgrafPort: Partition, TopoState, MAX_V,
                             compute_qg10_labels,
                             walk_fermion_lines, FermionLine
 

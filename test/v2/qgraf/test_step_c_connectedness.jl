@@ -2,8 +2,7 @@
 #  Source: qgraf-4.0.6.f08:12980-13038 (labels 220, 21).
 
 using Test
-include("../../../src/v2/FeynfeldX.jl")
-using .FeynfeldX.QgrafPort: Partition, TopoState, qg21_enumerate!,
+using Feynfeld.QgrafPort: Partition, TopoState, qg21_enumerate!,
                               _is_connected_internal, MAX_V
 
 @testset "qg21 Step C: connectedness BFS" begin

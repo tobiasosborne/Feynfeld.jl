@@ -7,9 +7,8 @@
 #
 # Env: QGRAF_MAX_SECONDS (default 60) — per-case time budget.
 
-include("../src/v2/FeynfeldX.jl")
-using .FeynfeldX
-using .FeynfeldX.QgrafPort: count_diagrams_qg21
+using Feynfeld
+using Feynfeld.QgrafPort: count_diagrams_qg21
 
 const SUMMARY = joinpath(@__DIR__, "..", "refs", "qgraf", "v4.0.6",
                          "qgraf-4.0.6.dir", "golden_masters", "SUMMARY.md")

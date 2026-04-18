@@ -2,8 +2,7 @@
 # Beads: feynfeld-5hr
 
 using Test
-include("../../../src/v2/FeynfeldX.jl")
-using .FeynfeldX.QgrafPort
+using Feynfeld.QgrafPort
 
 @testset "qgraf port: types.jl" begin
 

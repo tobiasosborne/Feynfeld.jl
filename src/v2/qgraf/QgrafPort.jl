@@ -4,10 +4,16 @@
 # Ref: refs/papers/Nogueira1993_JCompPhys105_279.pdf
 module QgrafPort
 
-import ..FeynfeldX: Momentum, MomentumSum, momentum_sum,
+import ..Feynfeld: Momentum, MomentumSum, momentum_sum,
                      AlgSum, alg, pair, DiracExpr, DiracChain, dot,
                      AbstractModel, model_fields, get_field, species, Field,
-                     Boson, Fermion, Scalar
+                     Boson, Fermion, Scalar,
+                     DimD, LorentzIndex, Spinor,
+                     feynman_rules, propagator_num, vertex_factor,
+                     u, v, ubar, vbar,
+                     spin_sum_amplitude_squared, spin_sum_interference,
+                     _degree_partitions, _expand_external_fields,
+                     _expand_model_for_diagen
 
 include("types.jl")
 include("canonical.jl")

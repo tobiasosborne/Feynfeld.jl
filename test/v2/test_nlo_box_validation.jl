@@ -16,8 +16,7 @@
 # Ref: refs/papers/Denner1993_FortschrPhys41.pdf, Section 4 (TID)
 
 using Test
-@isdefined(FeynfeldX) || include("../../src/v2/FeynfeldX.jl")
-using .FeynfeldX
+using Feynfeld
 
 # ---- Setup: ee→μμ process ----
 const _p1 = Momentum(:p1)

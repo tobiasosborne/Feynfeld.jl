@@ -13,10 +13,9 @@
 #  the nested form when we measure a hot path.
 
 using Test
-include("../../../src/v2/FeynfeldX.jl")
-using .FeynfeldX
-using .FeynfeldX: _expand_model_for_diagen
-using .FeynfeldX.QgrafPort: build_dpntro
+using Feynfeld
+using Feynfeld: _expand_model_for_diagen
+using Feynfeld.QgrafPort: build_dpntro
 
 @testset "Phase 12a: dpntro lookup table" begin
 

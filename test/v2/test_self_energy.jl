@@ -7,8 +7,7 @@
 # MomentumSum expansion in traces, and DimPoly coefficients.
 
 using Test
-@isdefined(FeynfeldX) || include(joinpath(@__DIR__, "..", "..", "src", "v2", "FeynfeldX.jl"))
-using .FeynfeldX
+using Feynfeld
 
 @testset "1-loop self-energy" begin
 

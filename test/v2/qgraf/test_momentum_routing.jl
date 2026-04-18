@@ -8,9 +8,8 @@
 
 using Test
 
-include("../../../src/v2/FeynfeldX.jl")
-using .FeynfeldX: Momentum, MomentumSum, momentum_sum
-using .FeynfeldX.QgrafPort: Partition, TopoState, qg21_enumerate!,
+using Feynfeld: Momentum, MomentumSum, momentum_sum
+using Feynfeld.QgrafPort: Partition, TopoState, qg21_enumerate!,
                             compute_qg10_labels, route_momenta, InternalEdge
 
 @testset "Phase 18a-1: leaf-peel momentum routing" begin

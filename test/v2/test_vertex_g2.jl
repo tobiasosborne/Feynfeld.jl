@@ -13,8 +13,7 @@
 # Ref: refs/papers/Denner1993_FortschrPhys41.pdf, Eqs. (4.6)-(4.8)
 
 using Test
-@isdefined(FeynfeldX) || include("../../src/v2/FeynfeldX.jl")
-using .FeynfeldX
+using Feynfeld
 
 @testset "Spiral 5: QED vertex correction (g-2)" begin
 

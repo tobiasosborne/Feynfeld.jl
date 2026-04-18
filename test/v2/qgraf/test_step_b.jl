@@ -10,9 +10,8 @@
 #    Test 5: xn within each class is non-increasing (canonicalisation)
 
 using Test
-include("../../../src/v2/FeynfeldX.jl")
-using .FeynfeldX.QgrafPort: Partition, TopoState, MAX_V, step_b_enumerate!
-using .FeynfeldX.QgrafPort: _degree_class_bounds   # internal helper
+using Feynfeld.QgrafPort: Partition, TopoState, MAX_V, step_b_enumerate!
+using Feynfeld.QgrafPort: _degree_class_bounds   # internal helper
 
 @testset "qg21 Step B: external-leg distribution" begin
 

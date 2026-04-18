@@ -9,8 +9,7 @@
 #  Tests are added incrementally as each sub-phase lands.
 
 using Test
-include("../../../src/v2/FeynfeldX.jl")
-using .FeynfeldX.QgrafPort: Partition, TopoState, qg21_enumerate!
+using Feynfeld.QgrafPort: Partition, TopoState, qg21_enumerate!
 
 @testset "qg21 Step C" begin
 

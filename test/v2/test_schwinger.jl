@@ -3,8 +3,7 @@
 # Ground truth: analytical formula from P&S Ch. 6-7.
 
 using Test
-@isdefined(FeynfeldX) || include("../../src/v2/FeynfeldX.jl")
-using .FeynfeldX
+using Feynfeld
 
 const α = 1 / 137.036
 

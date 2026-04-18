@@ -14,8 +14,7 @@
 #   α(q²) = α / (1 - Δα(q²)),  Δα = -Σ_f Π̂_f
 
 using Test
-@isdefined(FeynfeldX) || include("../../src/v2/FeynfeldX.jl")
-using .FeynfeldX
+using Feynfeld
 
 const α = 1.0 / 137.036
 const M_Z = 91.1876  # Z boson mass in GeV (PDG)

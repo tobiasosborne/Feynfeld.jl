@@ -13,8 +13,7 @@
 #  Source: refs/qgraf/v4.0.6/qgraf-4.0.6.dir/qgraf-4.0.6.f08:12028-12102.
 
 using Test
-include("../../../src/v2/FeynfeldX.jl")
-using .FeynfeldX.QgrafPort: Partition, TopoState, qg21_enumerate!,
+using Feynfeld.QgrafPort: Partition, TopoState, qg21_enumerate!,
                               compute_qg10_labels
 
 @testset "Phase 12b: qg10 labels (vlis/vmap/lmap)" begin

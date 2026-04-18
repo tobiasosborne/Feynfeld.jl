@@ -28,7 +28,7 @@ function build_vertices(state::TopoState, labels,
                          pmap::AbstractMatrix{Symbol},
                          edge_mom::EdgeMomenta,
                          model::AbstractModel)
-    rules = Main.FeynfeldX.feynman_rules(model)
+    rules = feynman_rules(model)
     amap  = compute_amap(state, labels)
     rhop1 = Int(state.rhop1)
     n     = Int(state.n)
@@ -70,11 +70,11 @@ function _vertex_factor_at(v::Int, fields::Vector{Symbol}, vdeg_v::Int,
     if length(boson_slots) == 1
         slot_b   = boson_slots[1]
         edge_id  = Int(amap[v, slot_b])
-        mu       = Main.FeynfeldX.LorentzIndex(Symbol(:mu_l_, edge_id), Main.FeynfeldX.DimD())
+        mu       = LorentzIndex(Symbol(:mu_l_, edge_id), DimD())
         key      = _vertex_rule_key(fields, model)
         haskey(rules.vertices, key) ||
             error("build_vertices: no rule for $key (canonicalised from $fields at v=$v)")
-        return Main.FeynfeldX.vertex_factor(rules, key, mu)
+        return vertex_factor(rules, key, mu)
     end
 
     error("build_vertices: 3-vertex at v=$v has $(length(boson_slots)) bosons (only 0 or 1 supported)")
@@ -98,7 +98,7 @@ end
 # Look up species for a pmap field; canonicalises _bar suffixes since
 # the model dict only stores particles, not antiparticles.
 function _field_species(model, name::Symbol)
-    Main.FeynfeldX.species(Main.FeynfeldX.get_field(model, _canonical_field_name(name)))
+    species(get_field(model, _canonical_field_name(name)))
 end
 
 # ── Phase 18a-5: per-external spinor / polarisation factors ─────────────
@@ -120,7 +120,7 @@ struct ExternalFactor
     momentum::Momentum
     incoming::Bool
     antiparticle::Bool
-    spinor::Union{Nothing, Main.FeynfeldX.Spinor}
+    spinor::Union{Nothing, Spinor}
     position::Union{Nothing, Symbol}    # :left | :right for fermion
 end
 
@@ -164,17 +164,17 @@ end
 _is_antiparticle_field(f::Symbol) = endswith(String(f), "_bar")
 
 function _ext_mass(model, name::Symbol)
-    f = Main.FeynfeldX.get_field(model, _canonical_field_name(name))
+    f = get_field(model, _canonical_field_name(name))
     f.mass == :zero ? 0//1 : 1//1
 end
 
 # Mirror of src/v2/amplitude.jl:167-179 dispatch table for fermions.
 function _spinor_dispatch(::Fermion, incoming::Bool, anti::Bool,
                             p::Momentum, m::Rational{Int})
-    if      incoming &&  !anti;  (Main.FeynfeldX.u(p, m),    :right)
-    elseif  incoming &&   anti;  (Main.FeynfeldX.vbar(p, m), :left)
-    elseif !incoming &&  !anti;  (Main.FeynfeldX.ubar(p, m), :left)
-    else                          (Main.FeynfeldX.v(p, m),    :right)
+    if      incoming &&  !anti;  (u(p, m),    :right)
+    elseif  incoming &&   anti;  (vbar(p, m), :left)
+    elseif !incoming &&  !anti;  (ubar(p, m), :left)
+    else                          (v(p, m),    :right)
     end
 end
 

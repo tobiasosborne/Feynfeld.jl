@@ -81,9 +81,9 @@ function emission_to_amplitude(state::TopoState, labels,
         bar_sp   = externals[line.bar_leg].spinor
         plain_sp = externals[line.plain_leg].spinor
         vtx      = vertices[line.vertex]
-        chain_terms = Tuple{AlgSum, Main.FeynfeldX.DiracChain}[]
+        chain_terms = Tuple{AlgSum, DiracChain}[]
         for (coeff, chain) in vtx.terms
-            full = Main.FeynfeldX.dot(bar_sp, chain.elements..., plain_sp)
+            full = dot(bar_sp, chain.elements..., plain_sp)
             push!(chain_terms, (coeff, full))
         end
         push!(line_chains, DiracExpr(chain_terms))
@@ -97,7 +97,7 @@ function emission_to_amplitude(state::TopoState, labels,
     denoms = AlgSum[p.denom for p in propagators]
 
     fermion_sign = _emission_fermion_sign(state, labels, pmap, ps1, n_inco, model)
-    sym_factor   = Rational{Int}(Main.FeynfeldX.QgrafPort.compute_local_sym_factor(
+    sym_factor   = Rational{Int}(compute_local_sym_factor(
         state, labels, pmap, _conjugate_dict(model)))
 
     AmplitudeBundle(line_chains, amplitude, denoms,
@@ -108,7 +108,7 @@ end
 # diagram_gen.jl::_expand_model_for_diagen).
 function _conjugate_dict(model::AbstractModel)
     d = Dict{Symbol, Symbol}()
-    for f in Main.FeynfeldX.model_fields(model)
+    for f in model_fields(model)
         if f.self_conjugate
             d[f.name] = f.name
         else
@@ -122,8 +122,8 @@ end
 
 function _antiq_dict(model::AbstractModel)
     d = Dict{Symbol, Int}()
-    for f in Main.FeynfeldX.model_fields(model)
-        v = f isa Main.FeynfeldX.Field{Fermion} ? 1 : 0
+    for f in model_fields(model)
+        v = f isa Field{Fermion} ? 1 : 0
         d[f.name] = v
         f.self_conjugate || (d[Symbol(f.name, :_bar)] = v)
     end

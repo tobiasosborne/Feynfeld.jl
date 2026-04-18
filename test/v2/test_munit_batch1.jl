@@ -3,8 +3,7 @@
 # Translated per protocol: CLAUDE.md §MUnit translation protocol.
 
 using Test
-@isdefined(FeynfeldX) || include("../../src/v2/FeynfeldX.jl")
-using .FeynfeldX
+using Feynfeld
 
 # ---- Helpers for concise test writing ----
 li(s) = LorentzIndex(s, DimD())   # D-dimensional Lorentz index

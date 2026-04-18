@@ -11,8 +11,7 @@
 #  the previously-missing 1 + 1 + 10 diagrams across these three processes.
 
 using Test
-include("../../src/v2/FeynfeldX.jl")
-using .FeynfeldX
+using Feynfeld
 
 @testset "QCD 4-gluon vertex (golden master)" begin
 

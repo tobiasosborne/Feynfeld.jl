@@ -11,9 +11,8 @@
 #  Each of (A) Burnside, (B) canonical-pmap, (C) pre-filter must agree.
 
 using Test
-include("../../../src/v2/FeynfeldX.jl")
-using .FeynfeldX
-using .FeynfeldX.QgrafPort: count_dedup_burnside, count_dedup_canonical,
+using Feynfeld
+using Feynfeld.QgrafPort: count_dedup_burnside, count_dedup_canonical,
                               count_dedup_prefilter
 
 @testset "Phase 17 audition: dedup approaches agree" begin

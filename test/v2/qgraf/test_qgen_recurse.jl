@@ -7,10 +7,9 @@
 #  1/S weighting that gives the true distinct-diagram count is Phase 15.
 
 using Test
-include("../../../src/v2/FeynfeldX.jl")
-using .FeynfeldX
-using .FeynfeldX: _expand_model_for_diagen, _expand_external_fields
-using .FeynfeldX.QgrafPort: Partition, TopoState, qg21_enumerate!,
+using Feynfeld
+using Feynfeld: _expand_model_for_diagen, _expand_external_fields
+using Feynfeld.QgrafPort: Partition, TopoState, qg21_enumerate!,
                               compute_qg10_labels, build_dpntro,
                               qgen_count_assignments
 
@@ -32,7 +31,7 @@ using .FeynfeldX.QgrafPort: Partition, TopoState, qg21_enumerate!,
         vd = Set(length(k) for k in keys(rules.vertices))
         total = 0
         # Use the legacy partition enumerator (Phase 10 not yet ported).
-        for dp in FeynfeldX._degree_partitions(n_ext, loops, vd)
+        for dp in Feynfeld._degree_partitions(n_ext, loops, vd)
             degs = sort([d for (d, c) in dp.counts if c > 0])
             mrho = isempty(degs) ? 0 : degs[1]
             counts_vec = isempty(degs) ? Int8[] :

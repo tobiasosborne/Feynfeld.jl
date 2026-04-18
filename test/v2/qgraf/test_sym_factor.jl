@@ -3,8 +3,7 @@
 #  Cross-ref: Nogueira J.Comp.Phys 105 (1993) 279, p. 281 §3.
 
 using Test
-include("../../../src/v2/FeynfeldX.jl")
-using .FeynfeldX.QgrafPort: Partition, TopoState, MAX_V,
+using Feynfeld.QgrafPort: Partition, TopoState, MAX_V,
                               qg21_enumerate!, compute_qg10_labels,
                               compute_local_sym_factor
 

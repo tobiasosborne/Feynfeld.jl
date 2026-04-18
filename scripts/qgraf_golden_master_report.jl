@@ -12,8 +12,7 @@
 #
 # Beads: feynfeld-ney
 
-include("../src/v2/FeynfeldX.jl")
-using .FeynfeldX
+using Feynfeld
 
 const SUMMARY = joinpath(@__DIR__, "..", "refs", "qgraf", "v4.0.6",
                          "qgraf-4.0.6.dir", "golden_masters", "SUMMARY.md")

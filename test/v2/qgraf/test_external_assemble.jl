@@ -10,9 +10,8 @@
 
 using Test
 
-include("../../../src/v2/FeynfeldX.jl")
-using .FeynfeldX
-using .FeynfeldX.QgrafPort: Partition, TopoState, MAX_V,
+using Feynfeld
+using Feynfeld.QgrafPort: Partition, TopoState, MAX_V,
                             build_externals, ExternalFactor
 
 @testset "Phase 18a-5: per-external spinor/polarisation factors" begin
