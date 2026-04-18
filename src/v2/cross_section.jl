@@ -166,13 +166,25 @@ function solve_tree_pipeline(prob::CrossSectionProblem)
     physical_moms = vcat([leg.momentum for leg in prob.incoming],
                          [leg.momentum for leg in prob.outgoing])
 
-    # Phase 18b-1: keep one canonical representative per orbit.  Retaining
-    # all orbit-members would require inter-bundle momentum-label matching
-    # inside spin_sum_interference (interference.jl:102 `_find_line_by_bar_mom`
-    # keys on bar momentum names), which breaks for automorphic relabelings
-    # within the same orbit.  With canonical reps only, weights collapse to
-    # 1 per orbit and the double-sum in combine_m_squared_burnside gives
-    # each (orbit_i, orbit_j) pair exactly once.
+    # Phase 18b-1 (Session 27): keep one canonical representative per orbit
+    # via `is_emission_canonical`. This has the Strategy-C bug for Bhabha
+    # (bead feynfeld-vjw9, HANDOFF Session 22 Phase 17a VERDICT): the lex-
+    # smallest orbit rep may be qgen-invalid, dropping an entire orbit.
+    #
+    # Session 29 attempted fix: Burnside weighting with every emission,
+    # weight = |Stab(e)|/|G|. The arithmetic works (verified on paper for
+    # Bhabha: |M_t|² + |M_s|² − 2·T_int). BUT `spin_sum_interference`
+    # (interference.jl:46 `_find_line_by_bar_mom`) keys on bar-momentum
+    # names which differ per orbit-member under automorphic relabelings,
+    # so cross-bundle interference errors with "No line with bar momentum
+    # ...". This is exactly the secondary bug Session 27 flagged.
+    #
+    # Burnside-all requires FIXING interference label matching first
+    # (bead's Option B: ~80-120 LOC per-bundle momentum relabeling). The
+    # `same_emission_orbit` helper (audition.jl, Session 29) can also be
+    # used for a direct orbit-grouping fix (bead's Option C) if/when its
+    # Bhabha-edge-case handling is completed — currently it gives 4 orbits
+    # for the 2-orbit ee→ee case. Both paths remain open; see bead vjw9.
     bundles = QgrafPort.AmplitudeBundle[]
     weights = Rational{Int}[]
     QgrafPort._foreach_emission(prob.model, in_fields, out_fields; loops=0) do state, labels, ps1, pmap

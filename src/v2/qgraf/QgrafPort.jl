@@ -62,6 +62,7 @@ export Partition, EquivClass, FilterSet, TopoState,
        count_dedup_burnside, count_dedup_canonical, count_dedup_prefilter,
        count_diagrams_qg21,
        is_emission_canonical, emission_stabilizer,
+       same_emission_orbit,
        is_pmap_canonical, pmap_stabilizer
 
 end

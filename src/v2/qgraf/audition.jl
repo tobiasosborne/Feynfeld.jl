@@ -86,6 +86,77 @@ function is_emission_canonical(state::TopoState, labels,
 end
 
 """
+    same_emission_orbit(state, labels, autos, ps1_a, pmap_a, ps1_b, pmap_b) -> Bool
+
+True iff there is an automorphism `auto ∈ autos` that maps emission A to
+emission B under the joint (ps1, pmap) action — i.e.,
+`auto[ps1_a[j]] == ps1_b[j]` for all `j` AND
+`_diagram_sig(auto, pmap_a) == _diagram_sig(id, pmap_b)`.
+
+This is the same equivalence relation that `emission_stabilizer` counts
+self-fixers for.  Used by `solve_tree_pipeline` to pick exactly one
+representative per (ps1, pmap) orbit without the canonical-rep-may-be-
+qgen-invalid bug flagged in HANDOFF Session 22 Phase 17a VERDICT (bead
+feynfeld-vjw9).
+
+Cost: O(|autos| · (n_ext + Σ vdeg)).  For tree 2→2 problems, |autos| and
+emission count are both small.
+"""
+function same_emission_orbit(state::TopoState, labels,
+                               autos::Vector{Vector{Int8}},
+                               ps1_a::AbstractVector{<:Integer},
+                               pmap_a::AbstractMatrix{Symbol},
+                               ps1_b::AbstractVector{<:Integer},
+                               pmap_b::AbstractMatrix{Symbol})
+    length(ps1_a) == length(ps1_b) || return false
+    n_ext = length(ps1_a)
+    n     = Int(state.n)
+    vd    = state.vdeg
+    @inbounds for auto in autos
+        # ps1 action: auto[ps1_a[j]] == ps1_b[j].
+        ps1_ok = true
+        for j in 1:n_ext
+            if Int(auto[ps1_a[j]]) != Int(ps1_b[j]); ps1_ok = false; break; end
+        end
+        ps1_ok || continue
+
+        # pmap action (matches the semantics Burnside uses via `_diagram_sig`):
+        # for each destination vertex v in emission B, the multiset of
+        # (neighbour-label, field) pairs at v must equal the multiset from
+        # emission A read at the AUTO-SOURCE vertex `auto[v]` with the
+        # neighbour labels then relabeled back through auto.  Formally:
+        # pairs_b[v]  = sort {(vmap[v, s],              pmap_b[v,        s])}
+        # pairs_a[v]  = sort {(auto^-1[vmap[auto[v], s]], pmap_a[auto[v], s])}
+        # equivalently, keep pairs_b as the reference and rewrite A with
+        # auto acting LEFT on the pmap index (auto·pmap ↔ pmap∘auto).
+        pmap_ok = true
+        for v in 1:n
+            v_src = Int(auto[v])
+            vd_v  = Int(vd[v])
+            vd_v == Int(vd[v_src]) || (pmap_ok = false; break)
+            pairs_a = Vector{Tuple{Int, Symbol}}(undef, vd_v)
+            pairs_b = Vector{Tuple{Int, Symbol}}(undef, vd_v)
+            for slot in 1:vd_v
+                nb_a_src       = Int(labels.vmap[v_src, slot])
+                # Invert auto on the neighbour so pairs_a[v] is expressed in
+                # emission-B's vertex label space.
+                nb_a_relabelled = 0
+                for w in 1:n
+                    if Int(auto[w]) == nb_a_src; nb_a_relabelled = w; break; end
+                end
+                pairs_a[slot] = (nb_a_relabelled, pmap_a[v_src, slot])
+                nb_b          = Int(labels.vmap[v, slot])
+                pairs_b[slot] = (nb_b, pmap_b[v, slot])
+            end
+            sort!(pairs_a); sort!(pairs_b)
+            if pairs_a != pairs_b; pmap_ok = false; break; end
+        end
+        pmap_ok && return true
+    end
+    false
+end
+
+"""
     emission_stabilizer(state, labels, autos, ps1, pmap) -> Int
 
 Number of autos that preserve BOTH the pmap signature AND the ps1

@@ -100,6 +100,52 @@ did not.
 - **Move 2** (Phase 18b completion) — unchanged. Start at `feynfeld-vjw9`.
 - **Move 3** (Process abstraction) — deferred (epic `0e1t`, P4).
 
+### Session 29 addendum: vjw9 attempt + findings (bead still open)
+
+Spent the latter part of Session 29 on `feynfeld-vjw9` (Phase 18b-1a Bhabha
+orbit-rep dedup). Red-green TDD with physics ground truth from Session 22
+Phase 17a VERDICT and `test/v2/test_bhabha.jl` handbuilt reference.
+
+- **RED test landed**: `test/v2/qgraf/test_phase18b1_multi_orbit.jl` — 2 pass
+  (qgraf reference count_diagrams_qg21=2, ee→μμ regression single-orbit) +
+  2 `@test_broken` (Bhabha `n_emissions==2`; |M|² == T_tt + T_ss − 2·T_int).
+  Handbuilt reference cites `FeynCalc Examples/QED/Tree/Mathematica/ElAel-ElAel.m:98-99`.
+
+- **Three fix attempts, all blocked before green**:
+  1. **Signature-based dedup** (`emission_orbit_signature`) — expected orbit-
+     invariance via lex-min over autos of `(auto·ps1, _diagram_sig(auto, pmap))`.
+     Failed empirically: ee→μμ (1 orbit Burnside) split into 2; Bhabha (2)
+     split into 5. The theoretical cocycle identity between `_diagram_sig` and
+     a forward pmap action doesn't hold through sorting.
+  2. **Direct orbit membership** (`same_emission_orbit`, kept in `audition.jl`,
+     exported from `QgrafPort`) — correctly identifies ee→μμ's 8 emissions as
+     1 orbit (matches Burnside). Bhabha's 16 emissions split into 4 instead
+     of 2; some pmap-action identifications still missing, likely around
+     slot-permutation-within-vertex canonicalisation.
+  3. **Burnside weighting all emissions × |Stab|/|G|** — paper arithmetic
+     verifies |M_t|² + |M_s|² − 2·T_int for Bhabha. **Actual run errors** at
+     `interference.jl:46 _find_line_by_bar_mom`: "No line with bar momentum p2"
+     on cross-bundle terms. Exactly the secondary bug Session 27 cited when
+     picking Strategy B over A ("inter-bundle momentum-label matching inside
+     spin_sum_interference ... breaks for automorphic relabelings").
+
+- **Pipeline reverted** to Session 27 `is_emission_canonical` filter so
+  Phase 18a regression stays green (ee→μμ pipeline ≡ handbuilt test passes).
+  `same_emission_orbit` utility kept in audition.jl + QgrafPort exports —
+  it's the useful half of this session's work.
+
+- **Two clear next-attempt paths** (both unlock the `@test_broken` tests):
+  - **Option A/C** (bead's naming): finish `same_emission_orbit` for Bhabha.
+    Inspect why 4 instead of 2 orbits — likely needs canonical slot-permutation
+    within each vertex when comparing the pmap multisets. ~10-30 LOC more.
+  - **Option B**: make `spin_sum_interference._find_line_by_bar_mom` robust
+    to auto-relabelings — canonicalise bar_mom per bundle before the match.
+    Unlocks the already-working Burnside-all arithmetic. ~80-120 LOC
+    (Session 27 estimate; tracked in bead `feynfeld-rj1l`).
+
+  Current test suite: 1327 pass (was 1327 pre-attempt) + 2 new `@test_broken`.
+  No regressions.
+
 ## OPEN FOLLOW-UPS SURFACED SESSION 29
 
 - **`grind/run_v2_tests.sh` is now memory-risky** under concurrent WSL load.
