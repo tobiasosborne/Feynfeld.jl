@@ -1,10 +1,261 @@
-# HANDOFF — 2026-04-18 (Session 29: v1 deletion committed after Session 28.5 OOM crash)
+# HANDOFF — 2026-04-20 (Session 30: vjw9 diagnostic — architectural ps1-threading bug identified)
 
 ## DO NOT DELETE THIS FILE. Read it completely before working.
 
 ---
 
-## START HERE (Session 29 updates)
+## START HERE (Session 30 updates)
+
+1. Read `CLAUDE.md` first. Then this Session 30 block. Then Session 29.
+2. **`feynfeld-vjw9` blocker is NOT an orbit-dedup bug.** The original A/B/C options
+   in the bead (and Session 29's attempts) targeted `audition.jl`. Session 30
+   diagnostic shows the real bug is upstream in `src/v2/qgraf/emission_amplitude.jl:64-68`:
+   `qgraf_ext_moms[i] = physical_moms[i]` ignores `ps1`, so every Bhabha emission
+   routes s-channel `(p1+p2)²` regardless of which ps1 permutation it came from.
+   Pipeline produces `|M|² == T_ss` exactly — zero t-channel contribution.
+3. Test suite unchanged: 2 pass + 2 `@test_broken` in
+   `test/v2/qgraf/test_phase18b1_multi_orbit.jl`. Phase 18a regression green.
+   **No source code modified this session.**
+4. Next agent should read the Session 30 block below in full, then either
+   (a) do the architectural ps1-threading fix (non-trivial, multi-file), or
+   (b) pick a different ready bead and defer vjw9 until we've discussed the
+   architecture with Tobias.
+
+## SESSION 30 TIMELINE — diagnostic-only session, no code changes
+
+1. Tobias: "read HANDOFF.md, Feynfeld_PRD.md … then get to work with whatever
+   you think best". Dispatched three parallel read-only Sonnet Explore agents
+   on the vjw9 domain (audition.jl logic, Bhabha ground truth, burnside_combine
+   + interference plumbing).
+2. Initial hypothesis: Option A (lex-next-smallest fallback) — ~15 LOC. Agent-1
+   recommended orbit-signature dedup. But the bead notes said Session 29 tried
+   exactly that and it failed empirically ("theoretical cocycle identity doesn't
+   hold through sorting"). Correct — I needed to see real data.
+3. Baselined the RED tests (2 pass + 2 `@test_broken`, 13s).
+4. Wrote six diagnostic scripts into `/tmp/diag_*.jl` (not committed):
+   - `diag_bhabha_orbits.jl`: all 16 emissions + same_emission_orbit partition.
+   - `diag_orbit_via_diagsig.jl`: `_diagram_sig`-based partition (gave 5 classes).
+   - `diag_full_orbit.jl`: full G-orbit of each emission, showing X is not G-closed.
+   - `diag_denoms.jl`: denom signature per canonical emission.
+   - `diag_permute_test.jl`: route_momenta with ps1-permuted moms (proved t-channel
+     EMERGES once you permute physical_moms by ps1).
+   - `diag_all16_denoms.jl`: all 16 denoms under ps1-permutation (4 classes: s,
+     k1+k2, t, p2+k2 — 4 not 2 because route_momenta doesn't negate outgoing).
+   - `diag_correct_orbits.jl`: redo with the CORRECT `[:e,:e]` convention (see §4
+     below) — gave 5 orbit-sig groups all with denom (p1+p2)².
+5. Followed a rabbit hole for most of the session using
+   `in_fields=[:e,:e_bar],[:e,:e_bar]` — the field-name expansion path that
+   DOESN'T match what `solve_tree_pipeline` actually does. Caught the error only
+   at the end when investigating why my in-callback diagnostic said 3 canonical
+   but the actual pipeline reports `n_emissions=1`.
+6. Updated bead `feynfeld-vjw9` with corrected findings (twice — first note
+   was based on wrong convention, second note supersedes it).
+7. Did NOT change any source files. Committed only `.beads/interactions.jsonl`
+   with the Session 30 narrative. Pushed.
+
+## SESSION 30 ACCOMPLISHMENTS — diagnostic understanding, zero code
+
+- **Located the real bug.** `emission_amplitude.jl:64-68` does not thread `ps1`
+  through `physical_moms`. The `for i in 1:n_ext; qgraf_ext_moms[i] = physical_moms[i]; end`
+  loop is a no-op rename. Under this, every ps1 permutation routes the same
+  slot-indexed physical momenta → same propagator momentum → all s-channel for
+  Bhabha.  Proved empirically: with a manual `permuted[i] = physical_moms[ps1[i]]`
+  in a standalone script, t-channel denom `(p1+k1)` appears for the non-identity
+  ps1 permutations.
+- **Documented why orbit-dedup in audition.jl cannot fix vjw9.** X=16 emissions
+  is not G-closed. `same_emission_orbit` splits 16 into {8,4,2,2}; `_diagram_sig`
+  lex-min gives 5 classes; both conventions' orbit-sig groupings give 5. Burnside
+  arithmetic `16·|Stab|/|G| = 16·1/8 = 2` equals the physical channel count by
+  design, not by partitioning X. Any audition.jl-level "pick 2 canonical reps"
+  is a dead end because the 16 bundles currently route identical s-channel
+  momenta — you cannot distinguish s from t by inspecting bundles alone.
+- **Corrected stale bead description.** Prior sessions (22, 27, 29) framed vjw9
+  as a canonical-rep-may-be-qgen-invalid Strategy-C bug. The Strategy-C
+  description is still accurate (canonical filter gives n_emissions=1, not 2),
+  but the fix is NOT in `is_emission_canonical`; it is upstream in
+  `emission_to_amplitude`.
+
+## SESSION 30 FINDINGS — the architectural bug in detail
+
+### 1. Topology and emission count
+
+qg21 generates **one** topology state for Bhabha tree (not two). Adjacency:
+v1, v2 → v5; v3, v4 → v6; single v5-v6 photon edge. All 16 emissions share this
+vmap. `_foreach_emission` yields 16 `(ps1, pmap)` tuples per this state.
+`|autos| = 8`, every emission has `|Stab| = 1`, so Burnside arithmetic gives
+`16/8 = 2`.
+
+### 2. The convention gotcha that cost most of the session
+
+`solve_tree_pipeline` (cross_section.jl:163-164) does:
+```julia
+in_fields  = [leg.field_name for leg in prob.incoming]
+out_fields = [leg.field_name for leg in prob.outgoing]
+```
+
+`ExternalLeg.field_name` is `:e` regardless of `is_antiparticle`. So for a
+`CrossSectionProblem` set up as standard Bhabha (`[in_e, in_eb], [out_e, out_eb]`),
+`solve_tree_pipeline` calls `_foreach_emission` with `in=[:e,:e], out=[:e,:e]`,
+NOT `[:e,:e_bar],[:e,:e_bar]`. `_expand_external_fields` then alternates
+conjugates: `[:e,:e,:e,:e]` → `ext_exp=[:e,:e_bar,:e,:e_bar]`.  This is the
+"all particles, antiparticle-ness inferred" qgraf convention. Valid, but
+different from `ext_raw=[:e,:e_bar,:e,:e_bar]` which expands to
+`ext_exp=[:e,:e_bar,:e_bar,:e]`.
+
+Both conventions produce 16 emissions and Burnside count 2 — but the SPECIFIC
+ps1/pmap tuples differ. When I analysed `[:e,:e_bar]` manually for most of
+the session, the canonical count was 3, misleading me into thinking
+`is_emission_canonical` was over-accepting. Under the pipeline's actual
+convention `[:e,:e]`, canonical count is 1 (the original Strategy-C under-count).
+
+**Convention used in production code and reference: `[:e,:e],[:e,:e]`.**
+
+### 3. Why all bundles currently produce s-channel
+
+`emission_to_amplitude` (emission_amplitude.jl:54-105) receives
+`physical_moms = [p1, p2, k1, k2]` in slot order and `ps1` from qgen. Lines
+64-68:
+```julia
+qgraf_ext_moms = Vector{Momentum}(undef, n_ext)
+for i in 1:n_ext
+    qgraf_ext_moms[i] = physical_moms[i]  # no ps1 permutation
+end
+```
+The comment says "all incoming by negating outgoing" but the code neither
+permutes by ps1 nor negates outgoing. `route_momenta` then sees
+`[p1,p2,k1,k2]` in slot order regardless of ps1, routes propagator
+`v5→v6` = `p1+p2` always.
+
+Diagnostic confirmation (`/tmp/diag_permute_test.jl`): when I manually built
+`permuted[i] = physical_moms[ps1[i]]` and called `route_momenta` on it,
+non-identity ps1 permutations gave `(p1+k1)²` denoms — the t-channel.
+
+### 4. Why orbit-based dedup can't rescue this
+
+The current code gives ALL 16 emissions the same denom (p1+p2)². Dedup at the
+bundle level by denom signature yields 1 class, not 2. Dedup by orbit
+equivalence at the `(ps1, pmap)` level yields 5 classes (visible sizes
+{6,4,2,2,2} across the `[:e,:e]` convention). Neither matches the physical 2.
+
+X=16 is not G-closed: for emission e, `|Orbit_G(e)| = |G|/|Stab(e)| = 8` but
+many of those 8 images are not themselves valid qgen emissions (qgen picks
+one pmap per `(state, ps1)`; group-action images of a chosen pmap are
+mathematically valid but qgen never emits them).
+
+Even `count_dedup_canonical` (Strategy B) gives 1, confirming that picking
+"the canonical orbit rep per lex-min" doesn't yield 2 reps — one orbit's
+lex-min lies outside X.
+
+Any fix that stays inside `audition.jl` is chasing ghosts. The t-channel
+must be SURFACED at the `emission_to_amplitude` level by threading `ps1`
+through momentum routing.
+
+### 5. The actual fix plan (NOT implemented Session 30)
+
+Step 1. Patch `src/v2/qgraf/emission_amplitude.jl:54` `emission_to_amplitude`:
+```julia
+qgraf_ext_moms = Vector{Momentum}(undef, n_ext)
+for i in 1:n_ext
+    qgraf_ext_moms[i] = physical_moms[Int(ps1[i])]
+end
+```
+And pass `ps1` through to `build_externals` and `walk_fermion_lines`.
+
+Step 2. Add `ps1` kwarg (default `1:n_ext` — identity) to
+`src/v2/qgraf/vertex_assemble.jl::build_externals`. Inside:
+```julia
+phys_idx = Int(ps1[i])
+field    = pmap[i, 1]
+mom      = physical_moms[phys_idx]
+incoming = phys_idx <= n_inco  # was: i <= n_inco
+```
+This moves incoming-flag from slot-based to ps1-remapped. Existing callers
+(two test files: `test_fermion_line.jl`, `test_external_assemble.jl`) don't
+pass `ps1`, so they default to identity and behave unchanged.
+
+Step 3. Mirror ps1 kwarg through `src/v2/qgraf/fermion_line.jl::walk_fermion_lines`
+(line 45) to `build_externals`.
+
+Step 4. Run `test/v2/runtests.jl` — identity ps1 for ee→μμ means Phase 18a
+regression should be no-op. The 30 qgraf tests should be unaffected.
+
+Step 5. Bhabha will then emit bundles with TWO distinct denom classes
+(s: p1+p2 and t: p1+k1 up to conjugate-pair shifts). Under the original
+`[:e,:e_bar]`-expansion convention my diagnostic showed 4 denom classes
+(s, -s, t, -t). Under the correct `[:e,:e]` convention this needs re-running
+post-fix. Dedup to 2 reps via either (a) denom-signature grouping with
+sign-normalised momenta, or (b) diagonal-trace AlgSum equality. Then
+`burnside_combine` with weights=1.
+
+Step 6. Interference between s-rep and t-rep crosses the
+`_find_line_by_bar_mom` convention boundary that Session 29 hit. If Step 5
+produces reps whose fermion-line momenta line up, it may Just Work; if not,
+fold in the Option-B momentum-relabeling fix (bead `feynfeld-rj1l`).
+
+Step 7. Validate symbolically against the handbuilt
+`T_tt + T_ss − 2·T_int` reference in `test/v2/test_bhabha.jl`. Unlocks the
+two `@test_broken` assertions and closes vjw9.
+
+### 6. Open risks in the fix plan
+
+- **Spinor convention under ps1 permutation.** If ps1 places an
+  originally-outgoing leg (`ps1[i] > n_inco`) at an incoming slot, the
+  field at that slot (from `pmap[i,1]`) may have the "wrong" particle/
+  antiparticle sign relative to physical Bhabha. With conjugate-expanded
+  `ext_exp`, the field is already flipped for alternating same-species
+  slots. Net spinor construction will need to be verified emission by
+  emission against handbuilt reference; this is where the change can
+  silently break |M|² without throwing.
+- **Fermion sign.** `_emission_fermion_sign` uses ps1 internally;
+  unclear whether its current convention is consistent with the proposed
+  ps1-threaded physical_moms. Likely needs cross-checking.
+- **No outgoing negation.** The pre-existing "negate outgoing" comment at
+  line 47-48 is still a no-op after the fix. `route_momenta` may rely on
+  all-incoming convention internally; if so, post-ps1-permutation slots
+  need sign flip for legs where `ps1[i] > n_inco`. Or route_momenta may
+  not care (|M|² is even in momenta). Untested.
+
+### 7. Diagnostic scripts — kept in /tmp, NOT committed
+
+| Script | Purpose |
+|--------|---------|
+| `/tmp/diag_bhabha_orbits.jl` | All 16 emissions with ps1/pmap/canonical/stab dump |
+| `/tmp/diag_orbit_via_diagsig.jl` | `_diagram_sig`-based orbit partition (5 classes) |
+| `/tmp/diag_full_orbit.jl` | Full G-orbit under auto action; shows X not G-closed |
+| `/tmp/diag_denoms.jl` | Denom signature per canonical emission (all s-channel) |
+| `/tmp/diag_permute_test.jl` | route_momenta with ps1-permuted moms — proves t-channel emerges |
+| `/tmp/diag_all16_denoms.jl` | All 16 denoms under ps1-permutation (4 classes) |
+| `/tmp/diag_current_amp.jl` | Pipeline |M|² == T_ss (1 emission only, s-channel) |
+| `/tmp/diag_correct_orbits.jl` | Correct `[:e,:e]` convention orbit analysis |
+| `/tmp/diag_state_count.jl` | Confirms 1 qg21 state for Bhabha |
+| `/tmp/diag_inside_callback.jl` | Correct 3-canonical count using `[:e,:e_bar]` (wrong convention; kept for comparison) |
+| `/tmp/diag_pipeline_trace.jl` | Bundle-accumulation trace under try/catch |
+
+These exist only in /tmp (ephemeral). If the next session wants to reproduce,
+they'll need to recreate. Most are 20-40 LOC; regenerating is cheap.
+
+## SESSION 30 HANDOFF — what the next agent should do
+
+1. **Read the Session 30 findings block above in full.** The bug is
+   architectural, not in audition.jl. Understand that before touching code.
+2. **Decide the path with Tobias.** Options:
+   - **A (fix vjw9 now).** Work through the 7-step plan in §5. ~200-300 LOC
+     across 3 files (emission_amplitude.jl, vertex_assemble.jl,
+     fermion_line.jl) plus test verification. Risk: spinor convention
+     under permutation — verify step by step against handbuilt.
+   - **B (defer vjw9, work elsewhere).** Pick from the ready queue:
+     Move 1.4f @inferred regression (`feynfeld-4206`), 1.6 tutorial (`lj1`),
+     MUnit batches (`q6m`, `s4p`, `8qe`, `n01`, `iaz`), Eps contraction
+     (`qu1`). Most Phase 18b beads (`h3pb`, `m4o8`, etc.) are gated on
+     vjw9; they remain blocked.
+   - **C (discuss architecture with Tobias first).** The ps1-threading
+     gap has been latent since Phase 18a landed. If Tobias has a preferred
+     approach (e.g. make n_inco a per-slot flag; rework qgen's pmap
+     emission to be channel-explicit; something else), the fix should
+     align with that direction.
+3. **Session close protocol.** As always: `bd dolt push` + `git push`.
+
+---
 
 1. Read `CLAUDE.md` first — the v1 paragraph was rewritten Session 29 to reflect
    that `src/algebra/`, `src/integrals/`, `src/Feynfeld.jl`, `test/algebra/`,
