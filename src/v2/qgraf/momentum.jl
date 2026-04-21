@@ -50,19 +50,21 @@ struct EdgeMomenta
 end
 
 """
-    route_momenta(state, labels, ext_moms) -> EdgeMomenta
+    route_momenta(state, labels, ext_moms; ext_signs, loop_moms) -> EdgeMomenta
 
 Per-edge momentum assignment via qgraf's leaf-peel algorithm.
 
 # Convention
-qgraf treats every external momentum as flowing INTO the diagram. The
-caller is responsible for negating outgoing-physical momenta if a
-physical-flow sign is desired.
+qgraf treats every external momentum as flowing INTO the diagram.
+`ext_signs[c] = -1` flips the sign of that leg's contribution — use for
+physically-outgoing legs so routed propagator momenta carry physical signs
+(matches qgraf's `qflow` output-time sign flip at f08:6961-6964).
 
 # Inputs
 - `state::TopoState` with adjacency `xg` and external counts `xn` filled.
 - `labels` from `compute_qg10_labels(state)` (provides `vmap` for ext lookup).
 - `ext_moms::Vector{Momentum}` of length `state.n_ext`.
+- `ext_signs::Vector{Int}` of length `state.n_ext`, defaults to all +1.
 
 # Algorithm (qgraf f08:13400-13559)
 1. Init: each external edge i gets flow column i; each chord gets a fresh
@@ -80,10 +82,13 @@ Cross-ref: refs/qgraf/ALGORITHM.md §5.2
 """
 function route_momenta(state::TopoState, labels,
                        ext_moms::Vector{Momentum};
+                       ext_signs::Vector{Int}=fill(1, Int(state.n_ext)),
                        loop_moms::Union{Nothing, Vector{Momentum}}=nothing)
     n_ext = Int(state.n_ext)
     length(ext_moms) == n_ext ||
         error("route_momenta: ext_moms length $(length(ext_moms)) ≠ state.n_ext $n_ext")
+    length(ext_signs) == n_ext ||
+        error("route_momenta: ext_signs length $(length(ext_signs)) ≠ state.n_ext $n_ext")
     n     = Int(state.n)
     rhop1 = Int(state.rhop1)
 
@@ -212,7 +217,7 @@ function route_momenta(state::TopoState, labels,
         terms = Tuple{Rational{Int}, Momentum}[]
         for c in 1:n_ext
             flow[k, c] == 0 && continue
-            push!(terms, (Rational{Int}(flow[k, c]), ext_moms[c]))
+            push!(terms, (Rational{Int}(flow[k, c] * ext_signs[c]), ext_moms[c]))
         end
         for l in 1:n_chord
             cc = n_ext + l

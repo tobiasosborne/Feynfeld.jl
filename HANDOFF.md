@@ -1,8 +1,122 @@
-# HANDOFF — 2026-04-20 (Session 30: vjw9 diagnostic — architectural ps1-threading bug identified)
+# HANDOFF — 2026-04-21 (Session 31: vjw9 scope correction + Step 1 landed)
 
 ## DO NOT DELETE THIS FILE. Read it completely before working.
 
 ---
+
+## START HERE (Session 31 updates)
+
+1. Read `CLAUDE.md` first. Then this Session 31 block. Then Session 30 for vjw9 context.
+2. **Session 30's diagnosis was incomplete.** The ps1-threading fix it identified is one
+   of FOUR interlocking steps to unblock Bhabha. Step 1 landed this session; Steps 2-5
+   remain. The test file `test/v2/qgraf/test_phase18b1_multi_orbit.jl` still shows
+   2 `@test_broken` — that's expected; vjw9 isn't closed.
+3. **The real 4-step dependency chain** for Bhabha (each a discrete, testable unit):
+   - **Step 1 — ps1-threading + ext_signs outgoing-negation** [`feynfeld-ghqq`, DONE].
+     Thread ps1 through emission_to_amplitude → build_externals → walk_fermion_lines;
+     add ext_signs kwarg to route_momenta for the qgraf all-incoming convention.
+     Matches qgraf Fortran `qflow` f08:6961-6964 (verified). Identity default preserves
+     existing callers. Single-bundle Bhabha pipeline now routes s-channel correctly
+     (produces `T_ss` exactly). ee→μμ regression green. 1325 tests pass, 0 regressions.
+   - **Step 2 — Physical-antiparticle field labeling + dispatch fix** [`feynfeld-gpi5`, open,
+     blocked by Step 1's commit but now unblocked]. `cross_section.jl:163` drops
+     `leg.antiparticle`; `_expand_external_fields` alternation happens to work for
+     identity-ps1 by coincidence but corrupts t-channel orbit. `_spinor_dispatch` uses
+     field-label-derived anti flag, giving `v(k1)` for outgoing electron instead of
+     `ubar(k1)`. Fix: XOR rule for ext_raw labels + thread phys_antiparticle through
+     dispatch. ~30-50 LOC. Critical insight: **with Step 2 done, Bhabha's t-channel
+     fermion lines stay 1-vertex** — Phase 18b-3 (`feynfeld-a7f2`) is NOT on Bhabha's
+     critical path (it's for Compton's internal fermion propagator).
+   - **Step 3 — walk_fermion_lines multi-vertex** [`feynfeld-a7f2`, Phase 18b-3].
+     Required for Compton, NOT Bhabha. Independent of vjw9.
+   - **Step 4 — Orbit dedup** [`feynfeld-vjw9`, scope corrected]. With Step 2 done,
+     16 emissions will partition into 2 orbits (8 s + 8 t, not 8 s + 8 u as under
+     current convention). Original Options A/B/C apply. May need fresh empirical
+     test post-Step 2 to pick.
+   - **Step 5 — Interference label matching** [`feynfeld-rj1l`]. Scope depends on
+     Step 4. May be trivial if orbit reps have consistent bar_mom labels.
+4. **Default next work**: Step 2 (`feynfeld-gpi5`). Self-contained, ~30-50 LOC, has
+   clear empirical test. Unblocks vjw9 if combined with a Step 4 decision.
+
+## SESSION 31 TIMELINE
+
+1. Read HANDOFF.md + Feynfeld_PRD.md. Summarized project rules for Tobias.
+2. Dispatched 5 parallel Sonnet Explore agents to map the codebase for vjw9:
+   call-chain audit, qgen/ps1/pmap semantics, Bhabha ground truth, interference plumbing,
+   Julia idioms + existing callers. Synthesized into concrete fix plan.
+3. Dispatched 4 more parallel agents for ground-truth verification per Rule 3:
+   qgraf Fortran momentum convention, FeynCalc Bhabha handling, route_momenta audit,
+   QEDcore.jl ecosystem sweep. Verified the outgoing-negation claim against qgraf's
+   own `qflow` sign-flip at f08:6961-6964 (not just the docstring).
+4. Tobias approved the plan: \"ok go for it. red green tdd\".
+5. Baselined RED test: 2 pass + 2 @test_broken (13.2s). Implemented Step 1:
+   - `momentum.jl::route_momenta` — `ext_signs::Vector{Int}=fill(1, n_ext)` kwarg;
+     applied as coefficient multiplier in terms loop (line 220).
+   - `vertex_assemble.jl::build_externals` — `ps1::AbstractVector{<:Integer}=1:n_ext`
+     kwarg; uses `phys_idx=Int(ps1[i])` for both `physical_moms[phys_idx]` and
+     `incoming = phys_idx <= n_inco`. leg_idx remains slot index.
+   - `fermion_line.jl::walk_fermion_lines` — same ps1 kwarg; threads to internal
+     `build_externals` call.
+   - `emission_amplitude.jl::emission_to_amplitude` — builds `qgraf_ext_moms[i] =
+     physical_moms[Int(ps1[i])]` + `ext_signs[i] = phys_idx > n_inco ? -1 : 1`;
+     passes `ps1=ps1` kwarg to build_externals and walk_fermion_lines. Validates
+     ps1 length.
+6. Ran RED test → STILL 2 pass + 2 @test_broken. Diagnosed: pipeline still reports
+   `n_emissions=1` because `is_emission_canonical` filters. Ran diagnostic: single
+   bundle produces **exactly T_ss** (verified via `evaluate_sp` against handbuilt
+   trace). Momentum routing works — filter is the remaining blocker.
+7. Ran full suite (5min): 1325 pass + 6 broken, no regressions.
+8. Enumerated all 16 Bhabha emissions: 8 succeed (all s-channel), 8 crash in
+   walk_fermion_lines with \"multiple plain-spinor legs\" / \"multiple bar-spinor legs\".
+9. Dug into crash root cause: certain ps1 values produce vertices with both slots
+   at the same chain position (both :right or both :left). Initially thought this
+   meant Phase 18b-3 multi-vertex fermion lines (feynfeld-a7f2) was on critical path.
+10. Diagnostic test: forced physical ext_exp=[:e,:e_bar,:e_bar,:e] (bypassing
+    _expand_external_fields alternation). Crashes still happened because
+    `_spinor_dispatch` uses field-label-derived anti. Traced that to `cross_section.jl:163`
+    dropping is_antiparticle from in_fields — the real root cause is Step 2, not Step 3.
+11. Corrected the plan with Tobias's approval: 4-step dependency chain with Step 2
+    (labeling + dispatch) between Step 1 and Step 4.
+12. Reviewer agent on Step 1 changes: no bugs found; 3 acceptable notes (ext_signs
+    allocation in hot path, AbstractVector{<:Integer} polymorphism, no non-identity
+    unit test). Committed.
+13. Filed new beads: `feynfeld-ghqq` (Step 1, close now) and `feynfeld-gpi5` (Step 2).
+    Wired dependencies: gpi5 depends on ghqq, vjw9 depends on gpi5. Updated vjw9
+    bead notes with Session 31 findings.
+14. Updated HANDOFF.md (this block).
+15. `bd dolt push` + `git push`.
+
+## SESSION 31 ACCOMPLISHMENTS
+
+- **Step 1 landed, foundational and correct.** 4 files touched (~40 LOC changed).
+  Cross-validated against qgraf Fortran source (f08:6961-6964), FeynCalc's
+  `SetMandelstam[..., -k1, -k2]` convention, and `qdis_fermion_sign`'s own ps1 usage.
+- **Scope correction for vjw9.** The 4-step dependency chain is now documented in
+  the bead, in beads for Steps 1/2, and in this HANDOFF. Future agents won't
+  chase the wrong fix.
+- **Bhabha critical path clarified.** Phase 18b-3 (multi-vertex fermion lines) is
+  NOT required for Bhabha; only for Compton. Significant scope reduction for Bhabha.
+- **Empirical verification pattern established.** /tmp/diag_* scripts (not committed)
+  let me test hypotheses without modifying source. Pattern: directly invoke
+  `_foreach_emission` with manual ext_exp override, catch errors, dump denom
+  signatures. Reproducible by next session if needed.
+
+## SESSION 31 OPEN QUESTIONS (for next agent)
+
+- **Step 2's exact shape.** The bead gpi5 outlines the fix but leaves some details
+  unspecified: should `_expand_external_fields` be fixed to not alternate when input
+  is already correct, or bypassed entirely? Does ExternalFactor need both `antiparticle`
+  (phys) and a derived `is_bar_field` (from pmap label), or just phys_antiparticle?
+  Needs a focused design session with the reviewer at the end.
+- **Step 4 re-evaluation.** The Strategy-C bug description in vjw9 (canonical rep
+  may be qgen-invalid) was under the OLD convention. After Step 2, the orbit
+  structure may look different — possibly `is_emission_canonical` works fine without
+  any extra fix. Re-run `count_dedup_canonical` after Step 2 before picking strategy.
+- **HANDOFF's \"multi-vertex walk_fermion_lines\" scope.** Currently a7f2's description
+  says \"walk the fermion line across internal fermion propagators\" — correct for
+  Compton but its dependency on h3pb (fermion propagator composite momentum) is
+  right. Bhabha is NOT a use case for a7f2; scope note added to vjw9 but a7f2's
+  description is fine as-is.
 
 ## START HERE (Session 30 updates)
 

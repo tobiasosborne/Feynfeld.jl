@@ -42,11 +42,16 @@ Master assembler for one emission. Composes route_momenta + compute_amap
 + build_propagators + build_vertices + build_externals + walk_fermion_lines.
 
 Convention:
-- `physical_moms` holds the PHYSICAL leg momenta in slot order
-  (incoming first, then outgoing — same order as `pmap[1..n_ext, 1]`).
+- `physical_moms` holds the PHYSICAL leg momenta in PHYSICAL-leg order
+  (incoming 1..n_inco, outgoing n_inco+1..n_ext).
 - `n_inco` is the number of incoming legs.
-- Internally builds the qgraf "all incoming" ext_moms by negating the
-  outgoing-leg momenta for momentum routing.
+- `ps1[i]` is the physical-leg index at qgen slot i (forward permutation).
+  Slot i sees the physical momentum `physical_moms[ps1[i]]` and inherits
+  physical incoming/outgoing status from `ps1[i] ≤ n_inco`.
+- For `route_momenta` we use the qgraf "all incoming" convention: slots
+  whose physical leg is outgoing (`ps1[i] > n_inco`) contribute with a
+  −1 sign via `ext_signs`. Mirrors qgraf's `qflow` output-time sign flip
+  (f08:6961-6964). Spinors receive unnegated physical momenta.
 
 Tree-only scope; the helper bails with a Phase-18b deferral message
 when `walk_fermion_lines` rejects an internal fermion propagator.
@@ -60,19 +65,25 @@ function emission_to_amplitude(state::TopoState, labels,
     n_ext = Int(state.n_ext)
     length(physical_moms) == n_ext ||
         error("emission_to_amplitude: physical_moms length $(length(physical_moms)) ≠ n_ext $n_ext")
+    length(ps1) == n_ext ||
+        error("emission_to_amplitude: ps1 length $(length(ps1)) ≠ n_ext $n_ext")
 
-    # qgraf "all incoming" momenta: keep incoming as-is, negate outgoing.
+    # Slot i gets physical leg ps1[i]; outgoing slots flip sign for
+    # qgraf "all incoming" routing convention.
     qgraf_ext_moms = Vector{Momentum}(undef, n_ext)
+    ext_signs      = Vector{Int}(undef, n_ext)
     for i in 1:n_ext
-        qgraf_ext_moms[i] = physical_moms[i]
+        phys_idx          = Int(ps1[i])
+        qgraf_ext_moms[i] = physical_moms[phys_idx]
+        ext_signs[i]      = phys_idx > n_inco ? -1 : 1
     end
 
-    edge_mom    = route_momenta(state, labels, qgraf_ext_moms)
+    edge_mom    = route_momenta(state, labels, qgraf_ext_moms; ext_signs=ext_signs)
     propagators = build_propagators(state, labels, pmap, edge_mom, model)
     vertices    = build_vertices(state, labels, pmap, edge_mom, model)
-    externals   = build_externals(state, pmap, physical_moms, n_inco, model)
+    externals   = build_externals(state, pmap, physical_moms, n_inco, model; ps1=ps1)
     lines       = walk_fermion_lines(state, labels, pmap, physical_moms,
-                                       n_inco, model)
+                                       n_inco, model; ps1=ps1)
 
     # Per-line chain: bar_spinor × vertex_factor × plain_spinor.
     # Mirror of src/v2/amplitude.jl:61-72 _fermion_line_chain.

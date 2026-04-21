@@ -35,22 +35,27 @@ struct FermionLine
 end
 
 """
-    walk_fermion_lines(state, labels, pmap, physical_moms, n_inco, model) -> Vector{FermionLine}
+    walk_fermion_lines(state, labels, pmap, physical_moms, n_inco, model; ps1) -> Vector{FermionLine}
 
 For each internal vertex, locate the (single) pair of fermion half-edges
 and pair them into a FermionLine. Internal fermion propagators (where
 the second endpoint is also internal) error with a Phase-18b deferral
 message.
+
+`ps1` is threaded to `build_externals` so each slot's bar/plain position
+is determined by the ps1-permuted physical leg (see `build_externals`
+docstring). Defaults to identity.
 """
 function walk_fermion_lines(state::TopoState, labels,
                              pmap::AbstractMatrix{Symbol},
                              physical_moms::Vector{Momentum},
                              n_inco::Int,
-                             model::AbstractModel)
+                             model::AbstractModel;
+                             ps1::AbstractVector{<:Integer}=1:Int(state.n_ext))
     n_ext = Int(state.n_ext)
     rhop1 = Int(state.rhop1)
     n     = Int(state.n)
-    externals = build_externals(state, pmap, physical_moms, n_inco, model)
+    externals = build_externals(state, pmap, physical_moms, n_inco, model; ps1=ps1)
 
     out = FermionLine[]
     for v in rhop1:n
