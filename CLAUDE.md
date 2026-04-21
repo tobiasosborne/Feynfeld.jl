@@ -111,9 +111,11 @@ julia --project=. -e 'using Pkg; Pkg.test()'
 All issues are tracked with Beads (not TodoWrite, not markdown files, not ad-hoc tracking).
 ```bash
 # First time setup (or after clone)
-bd init --force --prefix feynfeld && bd backup restore
+# The git-tracked .beads/issues.jsonl is the source of truth (271+ issues + memories).
+# bd init creates an empty Dolt DB; bd import loads the snapshot into it.
+bd init --force --prefix feynfeld && bd import
 
-# Check beads version — must be >= 0.61, must use Dolt backend
+# Check beads version — must be >= 1.0, must use Dolt backend
 bd --version
 bd doctor
 
@@ -122,11 +124,13 @@ bd ready                     # find available work
 bd create --title="..." --description="..." --type=task --priority=2
 bd update <id> --claim       # claim work
 bd close <id>                # mark complete
-bd dolt push                 # push to Dolt remote
 
-# Session end: always push
-bd dolt push
-git push
+# Session end: refresh the git-tracked snapshot BEFORE committing,
+# otherwise GitHub stays stale and the next fresh clone won't see your work.
+bd export -o .beads/issues.jsonl
+git add .beads/issues.jsonl
+git push     # ← this is the only thing that reaches GitHub.
+             # `bd dolt push` only mirrors to a local file:// sibling and is NOT a sync channel.
 ```
 
 ---
