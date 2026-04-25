@@ -47,13 +47,54 @@ function _diagram_sig(state::TopoState, labels, perm::AbstractVector{<:Integer},
     sigs
 end
 
-# Apply a permutation π ∈ autos to ps1 (action: new_ps1[i] = π(ps1[i])).
-# An emission's ps1 is preserved by π iff this equals the original ps1,
-# which happens iff π fixes every value ps1[i] individually.
+# Inverse of a vertex permutation — used by every action below to map
+# new-vertex coordinates back to old-vertex coordinates.
+function _inv_perm(perm::AbstractVector{<:Integer})
+    n = length(perm)
+    out = Vector{Int8}(undef, n)
+    @inbounds for v in 1:n
+        out[Int(perm[v])] = Int8(v)
+    end
+    out
+end
+
+# ── Right-action convention on (ps1, pmap) ────────────────────────────────
+#
+# A topology automorphism g ∈ S_n permutes vertices.  External slots
+# 1..n_ext are themselves vertices, so g induces a permutation of slot
+# indices.  The PHYSICAL leg identification (which index is in_e, etc.)
+# does NOT change under g — autos describe combinatorial symmetry, not
+# physical relabeling.
+#
+# Therefore the action of g on `ps1 : slot → physical-leg` is:
+#     (g·ps1)[i] = ps1[g⁻¹[i]]               (right action)
+# i.e. "the new slot i was old slot g⁻¹[i], whose physical leg was
+# ps1[g⁻¹[i]]".  The action on `pmap` is consistent: `_diagram_sig`
+# already views pmap at new vertex k via old vertex inv_perm[k].
+#
+# The earlier left-action `(g·ps1)[i] = g[ps1[i]]` is a different (and
+# physically wrong) action — it relabels physical legs, not slots.  Under
+# left action, separate qgen emissions in the same physical orbit (e.g.
+# Bhabha t-channel members connected by topology auto (3,4)) are NOT
+# identified, and `is_emission_canonical` over-accepts.
+#
+# Verified empirically: with right action, is_emission_canonical accepts
+# exactly the qgraf-validated diagram count (2 for Bhabha, 1 for ee→μμ,
+# matching count_diagrams_qg21).  See bead feynfeld-vjw9.
+
+"""
+    _ps1_preserved(perm, ps1) -> Bool
+
+True iff `perm` stabilises `ps1` under the right action
+`(perm·ps1)[i] = ps1[perm⁻¹[i]]`.  Body checks the equivalent condition
+`ps1[perm[i]] == ps1[i]` for all `i` — this is `ps1 ∘ perm == ps1`
+(right-composing both sides of `ps1 ∘ perm⁻¹ == ps1` by `perm`).  For a
+bijective `ps1` this collapses to `perm = identity` on the external slots.
+"""
 function _ps1_preserved(perm::AbstractVector{<:Integer},
                          ps1::AbstractVector{<:Integer})
     @inbounds for i in eachindex(ps1)
-        Int(perm[ps1[i]]) == Int(ps1[i]) || return false
+        Int(ps1[Int(perm[i])]) == Int(ps1[i]) || return false
     end
     true
 end
@@ -62,9 +103,14 @@ end
     is_emission_canonical(state, labels, autos, ps1, pmap) -> Bool
 
 True iff the original labelling (identity perm) gives the LEX-SMALLEST
-(ps1, diagram-signature) pair among all topology automorphisms in `autos`.
-This is qgraf's full dedup criterion (qgen:14036-14100), generalized to
-account for the external-leg labelling that ps1 encodes.
+`(ps1, diagram-signature)` pair under the right action of `autos` —
+i.e. for every non-identity `g ∈ autos`, the pair
+`(ps1∘g⁻¹, _diagram_sig(g, pmap))` is ≥ `(ps1, _diagram_sig(id, pmap))`.
+
+This is qgraf's full dedup criterion (qgen:14036-14100), generalised to
+account for the external-leg labelling that ps1 encodes.  Each orbit
+contains exactly one canonical emission, so for any process the count
+of accepted emissions equals `count_diagrams_qg21(...)`.
 """
 function is_emission_canonical(state::TopoState, labels,
                                 autos::Vector{Vector{Int8}},
@@ -77,7 +123,8 @@ function is_emission_canonical(state::TopoState, labels,
     orig = (Vector{Int}(ps1), orig_pmap_sig)
     @inbounds for i in 2:length(autos)
         auto = autos[i]
-        new_ps1 = Int[Int(auto[ps1[j]]) for j in 1:n_ext]
+        ginv = _inv_perm(auto)
+        new_ps1 = Int[Int(ps1[Int(ginv[j])]) for j in 1:n_ext]
         new_pmap_sig = _diagram_sig(state, labels, auto, pmap)
         new_pair = (new_ps1, new_pmap_sig)
         new_pair < orig && return false
@@ -88,19 +135,14 @@ end
 """
     same_emission_orbit(state, labels, autos, ps1_a, pmap_a, ps1_b, pmap_b) -> Bool
 
-True iff there is an automorphism `auto ∈ autos` that maps emission A to
-emission B under the joint (ps1, pmap) action — i.e.,
-`auto[ps1_a[j]] == ps1_b[j]` for all `j` AND
-`_diagram_sig(auto, pmap_a) == _diagram_sig(id, pmap_b)`.
+True iff there exists an automorphism `g ∈ autos` mapping emission A to
+emission B under the right action: `ps1_a ∘ g⁻¹ == ps1_b` AND
+`_diagram_sig(g, pmap_a) == _diagram_sig(id, pmap_b)`.  Uses the same
+`_diagram_sig` view that `emission_stabilizer` and `is_emission_canonical`
+use, so all three agree on the orbit equivalence relation.
 
-This is the same equivalence relation that `emission_stabilizer` counts
-self-fixers for.  Used by `solve_tree_pipeline` to pick exactly one
-representative per (ps1, pmap) orbit without the canonical-rep-may-be-
-qgen-invalid bug flagged in HANDOFF Session 22 Phase 17a VERDICT (bead
-feynfeld-vjw9).
-
-Cost: O(|autos| · (n_ext + Σ vdeg)).  For tree 2→2 problems, |autos| and
-emission count are both small.
+Cost: O(|autos| · (n_ext + Σ vdeg)).  For tree 2→2 problems, |autos|
+and emission count are both small.
 """
 function same_emission_orbit(state::TopoState, labels,
                                autos::Vector{Vector{Int8}},
@@ -111,47 +153,20 @@ function same_emission_orbit(state::TopoState, labels,
     length(ps1_a) == length(ps1_b) || return false
     n_ext = length(ps1_a)
     n     = Int(state.n)
-    vd    = state.vdeg
-    @inbounds for auto in autos
-        # ps1 action: auto[ps1_a[j]] == ps1_b[j].
+    identity = Int8.(1:n)
+    target_sig = _diagram_sig(state, labels, identity, pmap_b)
+    @inbounds for g in autos
+        ginv = _inv_perm(g)
+        # ps1 right-action: ps1_a ∘ g⁻¹ == ps1_b ?
         ps1_ok = true
         for j in 1:n_ext
-            if Int(auto[ps1_a[j]]) != Int(ps1_b[j]); ps1_ok = false; break; end
+            if Int(ps1_a[Int(ginv[j])]) != Int(ps1_b[j]); ps1_ok = false; break; end
         end
         ps1_ok || continue
-
-        # pmap action (matches the semantics Burnside uses via `_diagram_sig`):
-        # for each destination vertex v in emission B, the multiset of
-        # (neighbour-label, field) pairs at v must equal the multiset from
-        # emission A read at the AUTO-SOURCE vertex `auto[v]` with the
-        # neighbour labels then relabeled back through auto.  Formally:
-        # pairs_b[v]  = sort {(vmap[v, s],              pmap_b[v,        s])}
-        # pairs_a[v]  = sort {(auto^-1[vmap[auto[v], s]], pmap_a[auto[v], s])}
-        # equivalently, keep pairs_b as the reference and rewrite A with
-        # auto acting LEFT on the pmap index (auto·pmap ↔ pmap∘auto).
-        pmap_ok = true
-        for v in 1:n
-            v_src = Int(auto[v])
-            vd_v  = Int(vd[v])
-            vd_v == Int(vd[v_src]) || (pmap_ok = false; break)
-            pairs_a = Vector{Tuple{Int, Symbol}}(undef, vd_v)
-            pairs_b = Vector{Tuple{Int, Symbol}}(undef, vd_v)
-            for slot in 1:vd_v
-                nb_a_src       = Int(labels.vmap[v_src, slot])
-                # Invert auto on the neighbour so pairs_a[v] is expressed in
-                # emission-B's vertex label space.
-                nb_a_relabelled = 0
-                for w in 1:n
-                    if Int(auto[w]) == nb_a_src; nb_a_relabelled = w; break; end
-                end
-                pairs_a[slot] = (nb_a_relabelled, pmap_a[v_src, slot])
-                nb_b          = Int(labels.vmap[v, slot])
-                pairs_b[slot] = (nb_b, pmap_b[v, slot])
-            end
-            sort!(pairs_a); sort!(pairs_b)
-            if pairs_a != pairs_b; pmap_ok = false; break; end
+        # pmap action via _diagram_sig: g · pmap_a ≡ pmap_b ?
+        if _diagram_sig(state, labels, g, pmap_a) == target_sig
+            return true
         end
-        pmap_ok && return true
     end
     false
 end
@@ -403,10 +418,15 @@ function count_dedup_prefilter(model, in_fields::Vector{Symbol},
             for ps1 in _permutations(1:n_ext)
                 ps1v = collect(ps1)
                 ps1v in seen && continue
-                # Build orbit
+                # Build orbit under the right-action `(g·ps1)[i] = ps1[g⁻¹[i]]`
+                # used elsewhere in this file (`is_emission_canonical`,
+                # `_ps1_preserved`, `same_emission_orbit`). Topology autos
+                # relabel slots, not physical legs — see the right-action
+                # comment block above _ps1_preserved.
                 orbit = Set{Vector{Int}}()
                 for auto in autos
-                    new_ps1 = [Int(auto[ps1v[i]]) for i in 1:n_ext]
+                    ginv = _inv_perm(auto)
+                    new_ps1 = [Int(ps1v[Int(ginv[i])]) for i in 1:n_ext]
                     push!(orbit, new_ps1)
                 end
                 push!(canonical_perms, minimum(orbit))

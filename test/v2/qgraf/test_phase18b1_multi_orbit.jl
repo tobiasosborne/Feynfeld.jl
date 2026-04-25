@@ -13,19 +13,22 @@
 # solve_tree_pipeline must produce n_emissions == 2 (one canonical rep per
 # orbit) and amplitude_squared symbolically equal to the handbuilt sum.
 #
-# Session 29 status: the `@test_broken` assertions below are the RED tests
-# for bead feynfeld-vjw9.  The Session 27 `is_emission_canonical` filter
-# under-counts (Strategy-C bug, HANDOFF Session 22): canonical lex-smallest
-# rep of one Bhabha orbit is qgen-invalid, so that orbit yields 0 instead
-# of 1 emission.  Session 29 tried Burnside weighting (every emission ×
-# |Stab|/|G|) — arithmetic works, but `_find_line_by_bar_mom` inside
-# spin_sum_interference errors on cross-bundle automorphic relabelings
-# ("No line with bar momentum ..."). A new helper `same_emission_orbit`
-# (audition.jl) partitions orbits correctly for ee→μμ (1 orbit) but splits
-# Bhabha into 4 orbits instead of 2 — further auto-action calibration is
-# required. Next attempt: either fix interference label matching (bead's
-# Option B) to make Burnside-all work, or finish same_emission_orbit (bead's
-# Option C). Either unlocks these @test_broken assertions.
+# Session 32 fix (bead feynfeld-vjw9 closed): the orbit-rep dedup bug was
+# in the ps1 action used by `is_emission_canonical` / `emission_stabilizer`
+# / `same_emission_orbit`.  All three used the LEFT action
+# `(g·ps1)[i] = g[ps1[i]]` (relabels physical legs), but `_diagram_sig`
+# uses the right action on vertex relabeling.  Switching ps1 to the right
+# action `(g·ps1)[i] = ps1[g⁻¹[i]]` (relabels SLOTS — the physically
+# correct convention since topology autos describe combinatorial symmetry,
+# not physical leg reidentification) made all three agree, and
+# `is_emission_canonical` now accepts exactly `count_diagrams_qg21(...)`
+# emissions per process — verified for Bhabha (2), ee→μμ (1).
+#
+# With 2 canonical reps for Bhabha, the interference loop in
+# `spin_sum_interference` closes cleanly across the s/t reps because their
+# bar_mom assignments tile a 4-cycle (p1 → k1 → k2 → p2 → p1), so no
+# bar_mom canonicalisation (Option B / bead `feynfeld-rj1l`) is needed
+# at this scope.  Both former @test_broken assertions now pass.
 
 using Test
 using Feynfeld
@@ -49,7 +52,7 @@ using Feynfeld.QgrafPort: count_diagrams_qg21
     result = solve_tree_pipeline(prob)
 
     @testset "solve_tree_pipeline produces one rep per orbit" begin
-        @test_broken result.n_emissions == 2
+        @test result.n_emissions == 2
     end
 
     @testset "trace-only |M|² equals handbuilt T_tt + T_ss − 2 T_int" begin
@@ -72,7 +75,7 @@ using Feynfeld.QgrafPort: count_diagrams_qg21
         expected_raw      = T_tt + T_ss - 2 * T_int
         expected_expanded = expand_scalar_product(contract(expected_raw))
 
-        @test_broken result.amplitude_squared == expected_expanded
+        @test result.amplitude_squared == expected_expanded
     end
 
     @testset "Phase 18a regression: ee→μμ still single-orbit" begin

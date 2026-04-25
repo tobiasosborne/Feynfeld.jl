@@ -1,4 +1,4 @@
-# HANDOFF — 2026-04-25 (Session 32: vjw9 Step 2 landed)
+# HANDOFF — 2026-04-25 (Session 32: Bhabha tree-level pipeline COMPLETE)
 
 ## DO NOT DELETE THIS FILE. Read it completely before working.
 
@@ -8,19 +8,130 @@
 
 1. Read `CLAUDE.md` first. Then this Session 32 block. Then Session 31 for the
    4-step Bhabha dependency chain.
-2. **Step 2 (`feynfeld-gpi5`) landed and closed.** Bhabha emissions now route
-   correctly: 16 (ps1, pmap) tuples all resolve through `emission_to_amplitude`
-   without crashing, and the denom set partitions into both s `(p1+p2)²` and
-   t `(p1-k1)²` channels — acceptance criterion #4 met.
-3. **Default next work: `feynfeld-vjw9` (Step 4, orbit dedup).** With Step 2
-   in place, the 16 emissions split into a 2-orbit structure that is now
-   visible to the rest of the pipeline. The original Strategy A/B/C options
-   apply afresh; Session 31's open question on re-running `same_emission_orbit`
-   under Step-2 routing is now actionable. `solve_tree_pipeline(Bhabha)` still
-   returns `n_emissions=1` because `is_emission_canonical` drops the t-orbit's
-   canonical rep — that's the remaining vjw9 work.
-4. **Phase 18b-3 (`feynfeld-a7f2`, Step 3)** stays NOT on Bhabha's critical
-   path. Independent; required for Compton's internal fermion propagator.
+2. **Bhabha tree pipeline IS DONE at trace-only scope.** Three closed beads
+   this session: `feynfeld-gpi5` (Step 2: XOR labels + phys_anti dispatch),
+   `feynfeld-vjw9` (Step 4: orbit dedup), `feynfeld-ewgw` (Phase 18b-1
+   umbrella). `solve_tree_pipeline(Bhabha)` produces `n_emissions=2` and
+   `|M|² == T_tt + T_ss − 2·T_int` symbolically.
+3. **Step 5 (`feynfeld-rj1l`) NOT NEEDED for Bhabha.** The canonical (s, t)
+   reps' bar_mom assignments naturally tile a 4-cycle (p1 → k1 → k2 → p2 → p1)
+   so `spin_sum_interference._find_line_by_bar_mom` closes correctly. rj1l
+   stays open as a P2 enhancement (symbolic 1/denom InverseSP factor for the
+   FULL physical |M|², not trace-only).
+4. **Default next work**: pick from `bd ready`. Most likely candidates are
+   the rest of Phase 18b (Compton/QCD/EW validation via 18b-3..8) or the
+   reviewer-flagged C1 follow-up from Step 2 (clean up
+   `ExternalFactor.antiparticle` semantic overload — not blocking).
+5. Full suite: **1451 pass + 0 broken** (was 1325+6 at session start).
+   +119 tests across this session. Zero regressions.
+
+## SESSION 32 ROOT CAUSE (vjw9): left/right action mismatch on ps1
+
+The orbit-dedup machinery (`is_emission_canonical`, `_ps1_preserved`,
+`same_emission_orbit`, `count_dedup_prefilter`) all used the LEFT action
+`(g·ps1)[i] = g[ps1[i]]` on ps1, but `_diagram_sig` (which all of them
+ultimately compare against) uses the RIGHT action via `inv_perm[k]`.
+
+Topology automorphisms physically describe combinatorial symmetry —
+they relabel SLOTS, not PHYSICAL legs. The right action
+`(g·ps1)[i] = ps1[g⁻¹[i]]` says "new slot i was old slot g⁻¹[i],
+whose physical leg was ps1[g⁻¹[i]]". The left action incorrectly
+relabels physical legs.
+
+For Bhabha: under left action, e3 (ps1=[1,3,2,4], t-channel) and
+e4 (ps1=[1,3,4,2], t-channel) are NOT auto-connected because there
+is no auto with `g[ps1_3[i]] = ps1_4[i]`. Under right action, the auto
+(3,4) connects them via `ps1_3[g⁻¹[i]] = ps1_4[i]`. Result: with right
+action, `is_emission_canonical` accepts exactly 2 (matches qgraf).
+
+The same fix closed 4 long-standing `@test_broken` assertions in
+`test_phase17_audition.jl` (canonical / prefilter under-counts for
+ee→μμ 1L and ee→ee tree).
+
+This was hiding behind 3 prior session attempts (Sessions 27, 29, 30).
+Session 27's Strategy A/B/C debate was about WHICH dedup approach to
+use, not about a bug in the action. Session 29 tried three signature
+variants without diagnosing the action mismatch. Session 30 was diagnostic-
+only.
+
+## SESSION 32 TIMELINE (full)
+
+**Step 2 — `feynfeld-gpi5` (closed earlier in session):**
+
+1. Read HANDOFF.md + Feynfeld_PRD.md. Summarised project rules + Step 2 plan.
+2. Dispatched 4 parallel Sonnet Explore agents for ground-truth verification:
+   Step 1 wiring, spinor-dispatch + field-expansion, Bhabha test/FeynCalc
+   handbuilt, qgraf ps1/pmap convention incl. f08:6961-6964.
+3. Implemented `_qgraf_ext_labels` (XOR rule) + `phys_anti` threading through
+   `_foreach_emission` / `emission_to_amplitude` / `build_externals` /
+   `walk_fermion_lines`. 5 files, ~115 LOC. 7-assertion test file added.
+4. Reviewer pass: no blockers, 3 deferred concerns (semantics overload of
+   ExternalFactor.antiparticle, Union{Nothing,...} ergonomics, count_dedup
+   TODO). Picked up trivial fixes; documented C1 + C2 for follow-up.
+5. Closed gpi5; updated vjw9 with re-evaluation note. Commit `a722792` pushed.
+
+**Step 4 — `feynfeld-vjw9` (closed later in session):**
+
+1. Tobias prodded after Step 2 commit: "you're stopping too early — Bhabha
+   isn't done." Picked up vjw9.
+2. Tobias prodded again after I started ad-hoc denom-evaluation diagnostics:
+   "you are relitigating this over and over… read the worklogs… have you
+   READ the GROUND TRUTH source code?" Stopped, read qgraf qgen:14036-14100
+   Fortran source, read all relevant prior session blocks (22, 27, 29, 30, 31).
+3. With concrete data (16 emissions, |G|=8, |Stab|=1 each via the existing
+   helpers, 3 emissions accepted by `is_emission_canonical`), traced WHY
+   the count was 3 not 2. Found: e3 and e4 are physically the same orbit
+   but the ps1 left action doesn't connect them.
+4. Hypothesised right action; verified empirically before any code change:
+   right action gave Bhabha=2 and ee→μμ=1, exactly matching qgraf.
+5. Implemented: added `_inv_perm` helper, switched `_ps1_preserved`,
+   `is_emission_canonical`, `same_emission_orbit`, `count_dedup_prefilter`
+   to right action. Collapsed `same_emission_orbit`'s ad-hoc pmap-matching
+   loop into a clean `_diagram_sig` comparison.
+6. Wrote `test/v2/qgraf/test_orbit_relation.jl` (113 property assertions
+   across Bhabha/ee→μμ/φ³ 4-pt): action axioms, Burnside identity, orbit-
+   stabilizer theorem, equivalence-relation properties (reflexive/symmetric/
+   transitive), cross-orbit non-equivalence, Strategy-C bug closure.
+7. Multi-orbit Bhabha test: 2 `@test_broken` flipped to `@test`. Phase 17
+   audition: 4 `@test_broken` flipped to `@test`.
+8. Reviewer pass: APPROVE with 4 follow-ups (action axioms missing in test,
+   count_dedup_prefilter still left-action, transitivity test weak,
+   docstring tightening). Addressed all 4. 113 → 113 (axiom + cross-orbit
+   tests added; net same count after some restructuring).
+9. Full suite: **1451 pass + 0 broken**. Zero regressions.
+10. Closed vjw9 + ewgw. This handoff. Commit + push.
+
+## SESSION 32 ACCOMPLISHMENTS
+
+- **Bhabha tree-level pipeline DONE end-to-end at trace-only scope.**
+  `solve_tree_pipeline(Bhabha)` produces n_emissions=2 and the trace-only
+  AlgSum equals the handbuilt `T_tt + T_ss − 2·T_int` symbolically.
+- **Foundational orbit-relation machinery now provably correct.** All four
+  orbit-relation entry points (`is_emission_canonical`, `_ps1_preserved`,
+  `same_emission_orbit`, `count_dedup_prefilter`) use the consistent
+  right-action convention. 113 property assertions in
+  `test/v2/qgraf/test_orbit_relation.jl` verify action axioms, Burnside
+  identity, orbit-stabilizer theorem, and Strategy-C bug closure across
+  3 representative processes — these protect the foundation for ALL
+  future multi-channel calculations (Compton, qq̄→gg, ee→W+W-, etc.).
+- **6 long-standing @test_broken assertions flipped to @test:**
+  - 4 from `test_phase17_audition.jl` (canonical/prefilter under-counts).
+  - 2 from `test_phase18b1_multi_orbit.jl` (n_emissions==2 + |M|² match).
+- **Test count**: 1325 baseline + 6 broken → 1451 pass + 0 broken
+  (+119 net assertions, no regressions).
+
+## SESSION 32 OPEN QUESTIONS / FOLLOW-UPS
+
+- **`feynfeld-rj1l` (P2)**: symbolic InverseSP factor for full
+  physical |M|² (not trace-only). The Bhabha trace-only result we have is
+  multiplied by 1/denom_i·denom_j at numeric evaluation time; rj1l would
+  bring this into the symbolic AlgSum. ~200 LOC.
+- **C1 from Step-2 reviewer**: `ExternalFactor.antiparticle` field semantics
+  shifted from label-derived to physical-when-supplied. Worth adding
+  explicit `phys_antiparticle::Bool` field or renaming. Small, deferred.
+- **Phase 18b remaining work**: 18b-2..8 still in the epic `feynfeld-xa7s`.
+  Most are not on the critical path for any specific process now that
+  Bhabha (the test case) works.
 
 ## SESSION 32 TIMELINE
 
