@@ -125,15 +125,18 @@ struct ExternalFactor
 end
 
 """
-    build_externals(state, pmap, physical_moms, n_inco, model; ps1) -> Vector{ExternalFactor}
+    build_externals(state, pmap, physical_moms, n_inco, model;
+                    ps1, phys_anti=nothing) -> Vector{ExternalFactor}
 
 For each external leg i (1..n_ext), construct ExternalFactor:
-  - field        = pmap[i, 1]
-  - phys_idx     = Int(ps1[i])  (physical-leg index under qgraf's slot permutation)
-  - momentum     = physical_moms[phys_idx] (PHYSICAL — not qgraf "all incoming")
-  - incoming     = phys_idx ≤ n_inco
-  - antiparticle = field name ends with `_bar`
-  - spinor / position via the standard u/v/ubar/vbar dispatch
+  - field        = pmap[i, 1]                      (qgraf all-incoming label)
+  - phys_idx     = Int(ps1[i])                     (physical-leg index)
+  - momentum     = physical_moms[phys_idx]         (PHYSICAL — not negated)
+  - incoming     = phys_idx ≤ n_inco               (PHYSICAL direction)
+  - antiparticle = phys_anti[phys_idx] when supplied;
+                   otherwise `_is_antiparticle_field(field)` (label-derived)
+  - spinor / position via the standard u/v/ubar/vbar dispatch using the
+    PHYSICAL (incoming, antiparticle) flags
 
 `ps1::AbstractVector{<:Integer}` defaults to `1:n_ext` (identity). When
 qgen permutes external legs to generate non-s-channel emissions (e.g.
@@ -141,6 +144,15 @@ Bhabha t-channel), ps1 ≠ identity and the momentum/incoming lookup must
 be ps1-threaded so the physical leg at slot i carries its true momentum
 and true incoming/outgoing status. Matches `qdis_fermion_sign`'s
 convention (qgen.jl:390: `ij_post = Int(ps1[ij])`).
+
+`phys_anti::Union{Nothing, Vector{Bool}}` (default `nothing`) supplies
+the PHYSICAL antiparticle flag per physical leg. When `nothing`, falls
+back to inspecting the qgraf pmap label (`_is_antiparticle_field`) —
+this is correct only when the qgraf all-incoming label happens to agree
+with the physical particle identity (true for ee→μμ identity-ps1, false
+for Bhabha t-channel emissions). Pipeline callers should always supply
+`phys_anti`; the back-compat default exists for tests / older callers
+that pre-date Step 2 of the Bhabha unblock chain (bead feynfeld-gpi5).
 
 Mass: read from the model field (e.g. `:zero` or `:m_e`); for `:zero`
 spinors get mass=0, otherwise mass=1//1 placeholder (matches
@@ -151,12 +163,15 @@ function build_externals(state::TopoState,
                           physical_moms::Vector{Momentum},
                           n_inco::Int,
                           model::AbstractModel;
-                          ps1::AbstractVector{<:Integer}=1:Int(state.n_ext))
+                          ps1::AbstractVector{<:Integer}=1:Int(state.n_ext),
+                          phys_anti::Union{Nothing, Vector{Bool}}=nothing)
     n_ext = Int(state.n_ext)
     length(physical_moms) == n_ext ||
         error("build_externals: physical_moms length $(length(physical_moms)) ≠ n_ext $n_ext")
     length(ps1) == n_ext ||
         error("build_externals: ps1 length $(length(ps1)) ≠ n_ext $n_ext")
+    phys_anti === nothing || length(phys_anti) == n_ext ||
+        error("build_externals: phys_anti length $(length(phys_anti)) ≠ n_ext $n_ext")
 
     out = ExternalFactor[]
     for i in 1:n_ext
@@ -164,7 +179,8 @@ function build_externals(state::TopoState,
         field    = pmap[i, 1]
         mom      = physical_moms[phys_idx]
         incoming = phys_idx <= n_inco
-        anti     = _is_antiparticle_field(field)
+        anti     = phys_anti === nothing ? _is_antiparticle_field(field) :
+                                            phys_anti[phys_idx]
         species  = _field_species(model, field)
         spin, pos = _spinor_dispatch(species, incoming, anti, mom,
                                        _ext_mass(model, field))

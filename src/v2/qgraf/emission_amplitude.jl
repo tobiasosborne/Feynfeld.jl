@@ -36,7 +36,8 @@ end
 
 """
     emission_to_amplitude(state, labels, ps1, pmap, model;
-                           physical_moms, n_inco) -> AmplitudeBundle
+                           physical_moms, n_inco, phys_anti=nothing)
+        -> AmplitudeBundle
 
 Master assembler for one emission. Composes route_momenta + compute_amap
 + build_propagators + build_vertices + build_externals + walk_fermion_lines.
@@ -52,6 +53,13 @@ Convention:
   whose physical leg is outgoing (`ps1[i] > n_inco`) contribute with a
   −1 sign via `ext_signs`. Mirrors qgraf's `qflow` output-time sign flip
   (f08:6961-6964). Spinors receive unnegated physical momenta.
+- `phys_anti[i]` (optional) is the PHYSICAL antiparticle flag of leg i
+  (in physical-leg order). When supplied, threaded to `build_externals`
+  / `walk_fermion_lines` and used by `_spinor_dispatch` instead of the
+  qgraf-pmap-label-derived flag. Required for Bhabha-class processes
+  where a slot's pmap label (qgraf all-incoming convention) disagrees
+  with the leg's physical particle/antiparticle identity. Defaults to
+  `nothing` (back-compat: dispatch falls back to label-derived).
 
 Tree-only scope; the helper bails with a Phase-18b deferral message
 when `walk_fermion_lines` rejects an internal fermion propagator.
@@ -61,12 +69,15 @@ function emission_to_amplitude(state::TopoState, labels,
                                 pmap::AbstractMatrix{Symbol},
                                 model::AbstractModel;
                                 physical_moms::Vector{Momentum},
-                                n_inco::Int)
+                                n_inco::Int,
+                                phys_anti::Union{Nothing, Vector{Bool}}=nothing)
     n_ext = Int(state.n_ext)
     length(physical_moms) == n_ext ||
         error("emission_to_amplitude: physical_moms length $(length(physical_moms)) ≠ n_ext $n_ext")
     length(ps1) == n_ext ||
         error("emission_to_amplitude: ps1 length $(length(ps1)) ≠ n_ext $n_ext")
+    phys_anti === nothing || length(phys_anti) == n_ext ||
+        error("emission_to_amplitude: phys_anti length $(length(phys_anti)) ≠ n_ext $n_ext")
 
     # Slot i gets physical leg ps1[i]; outgoing slots flip sign for
     # qgraf "all incoming" routing convention.
@@ -81,9 +92,11 @@ function emission_to_amplitude(state::TopoState, labels,
     edge_mom    = route_momenta(state, labels, qgraf_ext_moms; ext_signs=ext_signs)
     propagators = build_propagators(state, labels, pmap, edge_mom, model)
     vertices    = build_vertices(state, labels, pmap, edge_mom, model)
-    externals   = build_externals(state, pmap, physical_moms, n_inco, model; ps1=ps1)
+    externals   = build_externals(state, pmap, physical_moms, n_inco, model;
+                                    ps1=ps1, phys_anti=phys_anti)
     lines       = walk_fermion_lines(state, labels, pmap, physical_moms,
-                                       n_inco, model; ps1=ps1)
+                                       n_inco, model;
+                                       ps1=ps1, phys_anti=phys_anti)
 
     # Per-line chain: bar_spinor × vertex_factor × plain_spinor.
     # Mirror of src/v2/amplitude.jl:61-72 _fermion_line_chain.

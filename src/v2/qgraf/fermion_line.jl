@@ -35,27 +35,31 @@ struct FermionLine
 end
 
 """
-    walk_fermion_lines(state, labels, pmap, physical_moms, n_inco, model; ps1) -> Vector{FermionLine}
+    walk_fermion_lines(state, labels, pmap, physical_moms, n_inco, model;
+                       ps1, phys_anti=nothing) -> Vector{FermionLine}
 
 For each internal vertex, locate the (single) pair of fermion half-edges
 and pair them into a FermionLine. Internal fermion propagators (where
 the second endpoint is also internal) error with a Phase-18b deferral
 message.
 
-`ps1` is threaded to `build_externals` so each slot's bar/plain position
-is determined by the ps1-permuted physical leg (see `build_externals`
-docstring). Defaults to identity.
+`ps1` and `phys_anti` are threaded to `build_externals` so each slot's
+bar/plain position reflects the PHYSICAL particle/antiparticle identity
+of the ps1-permuted leg, not the qgraf-pmap-label. Both default to
+their `build_externals` defaults (identity ps1; label-derived anti).
 """
 function walk_fermion_lines(state::TopoState, labels,
                              pmap::AbstractMatrix{Symbol},
                              physical_moms::Vector{Momentum},
                              n_inco::Int,
                              model::AbstractModel;
-                             ps1::AbstractVector{<:Integer}=1:Int(state.n_ext))
+                             ps1::AbstractVector{<:Integer}=1:Int(state.n_ext),
+                             phys_anti::Union{Nothing, Vector{Bool}}=nothing)
     n_ext = Int(state.n_ext)
     rhop1 = Int(state.rhop1)
     n     = Int(state.n)
-    externals = build_externals(state, pmap, physical_moms, n_inco, model; ps1=ps1)
+    externals = build_externals(state, pmap, physical_moms, n_inco, model;
+                                  ps1=ps1, phys_anti=phys_anti)
 
     out = FermionLine[]
     for v in rhop1:n

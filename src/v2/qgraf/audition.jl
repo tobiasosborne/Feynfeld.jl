@@ -192,12 +192,23 @@ pmap_stabilizer(state, labels, autos, pmap) =
 # Uses the legacy partition iterator (Phase 10 not yet ported), then runs
 # qg21+qg10+qgen, calling `callback(state, labels, ps1, pmap)` for each
 # valid emission.  pmap is mutated in place by qgen — copy if needed.
+#
+# `ext_exp::Union{Nothing, Vector{Symbol}}` lets callers supply the
+# per-slot field labels (qgraf "all incoming" convention) directly,
+# bypassing `_expand_external_fields`. Required when the alternation
+# heuristic would mis-label legs (e.g. Bhabha — see
+# `Feynfeld._qgraf_ext_labels`). When `nothing`, falls back to the
+# alternation expansion of `vcat(in_fields, out_fields)`.
 function _foreach_emission(callback::F, model, in_fields::Vector{Symbol},
-                            out_fields::Vector{Symbol}; loops::Int) where {F}
+                            out_fields::Vector{Symbol}; loops::Int,
+                            ext_exp::Union{Nothing, Vector{Symbol}}=nothing) where {F}
     n_ext   = length(in_fields) + length(out_fields)
     ext_raw = vcat(in_fields, out_fields)
     exp     = _expand_model_for_diagen(model)
-    ext_exp = _expand_external_fields(ext_raw, exp)
+    ext_exp_eff = ext_exp === nothing ? _expand_external_fields(ext_raw, exp) :
+                                          ext_exp
+    length(ext_exp_eff) == n_ext ||
+        error("_foreach_emission: expanded labels length $(length(ext_exp_eff)) ≠ n_ext $n_ext")
     dpntro  = build_dpntro(exp.vertex_rules)
     rules   = feynman_rules(model)
     vd      = Set(length(k) for k in keys(rules.vertices))
@@ -212,7 +223,7 @@ function _foreach_emission(callback::F, model, in_fields::Vector{Symbol},
             labels = compute_qg10_labels(state)
             ps1 = collect(1:n_ext)
             while true
-                ext_perm = Symbol[ext_exp[ps1[i]] for i in 1:n_ext]
+                ext_perm = Symbol[ext_exp_eff[ps1[i]] for i in 1:n_ext]
                 qgen_enumerate_assignments(state, labels, ext_perm, dpntro,
                                             exp.conjugate) do st, pmap
                     callback(st, labels, ps1, pmap)
@@ -302,6 +313,10 @@ function count_diagrams_qg21(model, in_fields::Vector{Symbol},
     n_ext   = length(in_fields) + length(out_fields)
     ext_raw = vcat(in_fields, out_fields)
     exp     = _expand_model_for_diagen(model)
+    # OK to use the alternation expansion here: this counter only computes
+    # diagram cardinality, which depends on the field-label MULTISET (not on
+    # which slot hosts which conjugate-pair member).  See gpi5 / Step 2 for
+    # the pipeline-side fix where slot-physical alignment matters.
     ext_exp = _expand_external_fields(ext_raw, exp)
     dpntro  = build_dpntro(exp.vertex_rules)
     rules   = feynman_rules(model)

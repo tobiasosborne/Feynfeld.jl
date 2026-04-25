@@ -1,3 +1,109 @@
+# HANDOFF — 2026-04-25 (Session 32: vjw9 Step 2 landed)
+
+## DO NOT DELETE THIS FILE. Read it completely before working.
+
+---
+
+## START HERE (Session 32 updates)
+
+1. Read `CLAUDE.md` first. Then this Session 32 block. Then Session 31 for the
+   4-step Bhabha dependency chain.
+2. **Step 2 (`feynfeld-gpi5`) landed and closed.** Bhabha emissions now route
+   correctly: 16 (ps1, pmap) tuples all resolve through `emission_to_amplitude`
+   without crashing, and the denom set partitions into both s `(p1+p2)²` and
+   t `(p1-k1)²` channels — acceptance criterion #4 met.
+3. **Default next work: `feynfeld-vjw9` (Step 4, orbit dedup).** With Step 2
+   in place, the 16 emissions split into a 2-orbit structure that is now
+   visible to the rest of the pipeline. The original Strategy A/B/C options
+   apply afresh; Session 31's open question on re-running `same_emission_orbit`
+   under Step-2 routing is now actionable. `solve_tree_pipeline(Bhabha)` still
+   returns `n_emissions=1` because `is_emission_canonical` drops the t-orbit's
+   canonical rep — that's the remaining vjw9 work.
+4. **Phase 18b-3 (`feynfeld-a7f2`, Step 3)** stays NOT on Bhabha's critical
+   path. Independent; required for Compton's internal fermion propagator.
+
+## SESSION 32 TIMELINE
+
+1. Read HANDOFF.md + Feynfeld_PRD.md. Summarised project rules + Step 2 plan.
+   Tobias: "go for it. (As long as it conforms to eg qgraf ground truth)".
+2. Dispatched 4 parallel Sonnet Explore agents for ground-truth verification:
+   Step 1 wiring as it stands, spinor-dispatch + field-expansion plumbing,
+   Bhabha test ground truth (FeynCalc + handbuilt), qgraf ps1/pmap convention
+   incl. f08:6961-6964 cross-check. Synthesised into a 4-file Step 2 plan.
+3. Tobias approved. Claimed `feynfeld-gpi5`. Baselined RED test
+   `test/v2/qgraf/test_phase18b1_multi_orbit.jl` (2 pass + 2 broken, 18s).
+4. Wrote new RED test file `test/v2/qgraf/test_phase18b1_step2_dispatch.jl`
+   with 3 testsets: XOR-rule helper unit, all-16-Bhabha-emissions resolve
+   through direct `_foreach_emission` walk, Phase 18a regression. Verified
+   RED via 4 errors (`_qgraf_ext_labels` undefined). One assertion (test 2)
+   initially passed accidentally because `is_emission_canonical` filters
+   `solve_tree_pipeline` down to 1 emission — replaced with direct enum.
+5. Implemented Step 2 across 5 files (~115 LOC diff):
+   - `src/v2/cross_section.jl` — added `_qgraf_ext_labels(model, legs)` helper
+     with the XOR rule + ground-truth citations; `solve_tree_pipeline` now
+     builds `phys_anti` and `ext_exp`, threads both through.
+   - `src/v2/qgraf/audition.jl::_foreach_emission` — added
+     `ext_exp::Union{Nothing,Vector{Symbol}}=nothing` kwarg; bypasses
+     `_expand_external_fields` when supplied.
+   - `src/v2/qgraf/emission_amplitude.jl::emission_to_amplitude` — added
+     `phys_anti::Union{Nothing,Vector{Bool}}=nothing` kwarg, threaded to
+     `build_externals` + `walk_fermion_lines`.
+   - `src/v2/qgraf/vertex_assemble.jl::build_externals` — added `phys_anti`
+     kwarg; in the loop, `anti = phys_anti===nothing ? _is_antiparticle_field(field)
+     : phys_anti[phys_idx]`. Default preserves pre-Step-2 behaviour for
+     test/older callers.
+   - `src/v2/qgraf/fermion_line.jl::walk_fermion_lines` — added `phys_anti`
+     kwarg, forwarded.
+6. Re-ran the new test: 5/5 green at first cut. Strengthened with two more
+   assertions (denom-set size > 1 and t-channel-marker check) after a quick
+   `/tmp/step2_denom_check.jl` diagnostic showed 16 emissions and 4 distinct
+   denom string forms covering both s `(p1+p2)²` and t `(p1-k1)²`/`(p2-k2)²`.
+   Final test count: 7 assertions, all green.
+7. Multi-orbit RED test still 2 pass + 2 broken — correctly, those are vjw9's
+   gates which Step 4 unblocks.
+8. Full suite: 1332 pass + 6 broken (was 1325+6 baseline). +7 new, 0 regressions.
+9. Reviewer agent (general-purpose, given full diff context + ground-truth
+   citations to verify): NO BLOCKERS. 3 deferred concerns:
+   - C1 (semantic overload) — `ExternalFactor.antiparticle` field semantics
+     shifted from label-derived to physical-when-supplied. Worth a follow-up
+     to add an explicit `phys_antiparticle::Bool` field or rename. Not
+     blocking; the docstring acknowledges the duality.
+   - C2 (idiom) — `Union{Nothing, Vector{Bool}}` 3 layers deep is awkward.
+     Could collapse if pipeline always synthesises `phys_anti`. Style.
+   - C3 (drift risk) — `count_dedup_burnside_qg21` and `count_dedup_prefilter`
+     in `audition.jl` still use `_expand_external_fields`. Counts depend only
+     on the multiset, so this is correct, but next reader could propagate
+     the Bhabha mistake back. **TODO comment added** at audition.jl:316.
+10. Picked up nit (error message wording at audition.jl:212).
+11. Closed `feynfeld-gpi5`, updated `feynfeld-vjw9` notes with Step 2 status
+    + Step 4 re-evaluation suggestion.
+12. This HANDOFF. `bd export -o .beads/issues.jsonl`. Commit + push.
+
+## SESSION 32 ACCOMPLISHMENTS
+
+- **Step 2 of the 4-step Bhabha unblock chain landed cleanly.** No regressions,
+  full reviewer pass, ground-truth citations on every new docstring.
+- **Bhabha emissions now physically routable end-to-end up to orbit dedup.**
+  s + t channels both surface in the emission denom signatures. The remaining
+  Bhabha blocker is genuinely just orbit selection (vjw9), not anything
+  upstream in the pipeline.
+- **Reviewer-flagged follow-ups documented but deferred.** None gate vjw9.
+
+## SESSION 32 OPEN QUESTIONS (for next agent)
+
+- **Step 4 strategy choice.** With Step 2 in place, `same_emission_orbit`
+  (audition.jl, Session 29) on Bhabha may now give the correct 2-orbit
+  partition (it gave 4 under the broken routing). Re-run before re-attempting
+  Strategy A vs C. If 2 orbits, Strategy C (orbit-grouping with one rep per
+  orbit) is the simplest path; if not, Strategy B (Burnside-all + relabeling
+  in spin_sum_interference, bead `feynfeld-rj1l`) remains the alternative.
+- **C1 follow-up bead?** Worth filing a small cleanup bead for after the
+  Bhabha chain closes: add explicit `ExternalFactor.phys_antiparticle::Bool`
+  + remove the label-derived fallback in `build_externals`. Defer until
+  Steps 4/5 land.
+
+---
+
 # HANDOFF — 2026-04-21 (Session 31: vjw9 scope correction + Step 1 landed)
 
 ## DO NOT DELETE THIS FILE. Read it completely before working.

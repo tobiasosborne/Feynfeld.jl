@@ -141,6 +141,47 @@ end
 # pipeline. Existing solve_tree is preserved unchanged for back-compat.
 
 """
+    _qgraf_ext_labels(model, legs::Vector{ExternalLeg}) -> Vector{Symbol}
+
+Per-slot field labels in qgraf's "all incoming" convention. Self-conjugate
+fields are unchanged; non-self-conjugate fields take a `_bar` suffix iff
+the leg flows out as antiparticle in the all-incoming view, i.e.
+`antiparticle == incoming` (equivalently `antiparticle XOR !incoming`).
+
+Truth table for non-self-conjugate fields (e.g. electron):
+  (anti=F, in=T)  in_e   → :e
+  (anti=T, in=T)  in_eb  → :e_bar
+  (anti=F, in=F)  out_e  → :e_bar    ← outgoing particle flips
+  (anti=T, in=F)  out_eb → :e        ← outgoing antiparticle flips
+
+Used by `solve_tree_pipeline` to drive `_foreach_emission` with
+physically-correct slot labels. The diagram-gen helper
+`_expand_external_fields` also produces a valid multiset but its
+alternation heuristic places `_bar` markers based on field-occurrence
+count rather than physical direction; for processes like Bhabha (two
+identical-species pairs) the alternation no longer matches the physical
+labelling and the qgraf-label-derived antiparticle flag in
+`build_externals` mis-classifies outgoing legs.
+
+Ref: refs/qgraf/v4.0.6/qgraf-4.0.6.dir/qgraf-4.0.6.f08:6961-6964 (qflow);
+     refs/qgraf/ALGORITHM.md §1.2 (link array, separate antiparticle symbol);
+     refs/FeynCalc/.../ElAel-ElAel.m:77 (SetMandelstam[..., -k1, -k2]).
+"""
+function _qgraf_ext_labels(model::AbstractModel, legs::Vector{ExternalLeg})
+    out = Vector{Symbol}(undef, length(legs))
+    for (i, leg) in enumerate(legs)
+        f = get_field(model, leg.field_name)
+        if f.self_conjugate
+            out[i] = leg.field_name
+        else
+            out[i] = (leg.antiparticle == leg.incoming) ?
+                        Symbol(leg.field_name, :_bar) : leg.field_name
+        end
+    end
+    out
+end
+
+"""
     solve_tree_pipeline(prob::CrossSectionProblem)
 
 Build the tree-level |M|² for the given process by routing through the
@@ -163,8 +204,10 @@ function solve_tree_pipeline(prob::CrossSectionProblem)
     in_fields  = [leg.field_name for leg in prob.incoming]
     out_fields = [leg.field_name for leg in prob.outgoing]
     n_inco     = length(prob.incoming)
-    physical_moms = vcat([leg.momentum for leg in prob.incoming],
-                         [leg.momentum for leg in prob.outgoing])
+    legs       = vcat(prob.incoming, prob.outgoing)
+    physical_moms = [leg.momentum for leg in legs]
+    phys_anti     = Bool[leg.antiparticle for leg in legs]
+    ext_exp       = _qgraf_ext_labels(prob.model, legs)
 
     # Phase 18b-1 (Session 27): keep one canonical representative per orbit
     # via `is_emission_canonical`. This has the Strategy-C bug for Bhabha
@@ -187,12 +230,14 @@ function solve_tree_pipeline(prob::CrossSectionProblem)
     # for the 2-orbit ee→ee case. Both paths remain open; see bead vjw9.
     bundles = QgrafPort.AmplitudeBundle[]
     weights = Rational{Int}[]
-    QgrafPort._foreach_emission(prob.model, in_fields, out_fields; loops=0) do state, labels, ps1, pmap
+    QgrafPort._foreach_emission(prob.model, in_fields, out_fields; loops=0,
+                                  ext_exp=ext_exp) do state, labels, ps1, pmap
         autos = QgrafPort.enumerate_topology_automorphisms(state)
         QgrafPort.is_emission_canonical(state, labels, autos, ps1, pmap) || return
         bundle = QgrafPort.emission_to_amplitude(state, labels, ps1, pmap,
                                                    prob.model;
-                                                   physical_moms, n_inco)
+                                                   physical_moms, n_inco,
+                                                   phys_anti=phys_anti)
         push!(bundles, bundle)
         push!(weights, 1//1)
     end
