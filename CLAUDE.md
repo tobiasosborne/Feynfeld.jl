@@ -19,8 +19,8 @@ coverage) progress.
 ## Active code
 - **Package `Feynfeld`**: sole codebase, active development. Entry point `src/Feynfeld.jl`
   (module `Feynfeld`) includes the v2 implementation files under `src/v2/`. qgraf port
-  is submodule `Feynfeld.QgrafPort`. 1323 test assertions + 4 `@test_broken`
-  (canonical/prefilter dedup) via `julia --project=. test/v2/runtests.jl` (single-process,
+  is submodule `Feynfeld.QgrafPort`. 1451 pass + 0 broken (post-Session 32
+  right-action ps1 fix) via `julia --project=. test/v2/runtests.jl` (single-process,
   ~6 min) OR `Pkg.test()` which forwards through `test/runtests.jl`. Spirals 0-7
   complete; Phase 18b in progress.
 - **v1 deleted Session 29 (2026-04-18).** `src/algebra/`, `src/integrals/`,

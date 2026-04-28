@@ -130,7 +130,7 @@ AlgSum = Dict{FactorKey, Coeff}          # O(1) like-term collection
 For new symbolic quantities (N for colour, masses, couplings), define a proper
 algebraic type. Never use `Any` or `Expr`.
 
-### 2.3 What exists (v2, 301 tests, updated 2026-03-29)
+### 2.3 What exists (v2, 1451 pass + 0 broken, updated 2026-04-28)
 
 | Layer | Status | Files |
 |-------|--------|-------|

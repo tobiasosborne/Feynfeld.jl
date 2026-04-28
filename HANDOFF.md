@@ -1,6 +1,65 @@
-# HANDOFF — 2026-04-25 (Session 32: Bhabha tree-level pipeline COMPLETE)
+# HANDOFF — 2026-04-28 (Session 33: Ultra review — 11 reviewers, 42 beads filed)
 
 ## DO NOT DELETE THIS FILE. Read it completely before working.
+
+---
+
+## START HERE (Session 33 updates)
+
+1. **Mother-of-all-code-reviews completed.** 11 parallel reviewers covered:
+   Knuth (algorithms), Torvalds (taste), Carmack (perf), idiomaticity,
+   architecture, bugs, smells, Julia antipatterns, test coverage, vision
+   match, and ground-truth+literate programming. All reports under
+   `reviews/ultra_2026-04-28/` (README.md is the index, 11 files
+   01_..11_*.md). Reviewers had read+edit, no julia execution.
+2. **42 deduped findings filed as beads** (open count 51 → 93). Mapping
+   at `reviews/ultra_2026-04-28/_bead_map.md` (F001..F042 → feynfeld-*).
+   Distribution: P1=14, P2=24, P3=4. 18 review findings were skipped
+   because an existing open bead already covered them (also in the map).
+3. **Top P1 fix candidates surfaced by the review** (deep-link to beads):
+   - `feynfeld-ocpb` (F002) — DiracExpr.simplify silently drops spinors;
+     fires the moment Phase 18b-2..8 uses `DiracExpr +`. Fix BEFORE 18b-3.
+   - `feynfeld-3grs` (F009) — pair() factory still returns `Union{Int,Pair}`,
+     last unfixed Session-8 cockroach, poisons ~6 call sites.
+   - `feynfeld-1wdl` (F008) — solve_tree vs solve_tree_pipeline schism
+     (two exported entry points, different shapes; pipeline-principle drift).
+   - `feynfeld-umgq` (F012) — AlgSum.+ Dict-copy in 11 hot sites; biggest
+     single perf win is an in-place `add!/mul_acc!` kernel.
+   - `feynfeld-2r8u` (F011) — `Dict{Tuple, VertexRule}` defeats inference
+     across every vertex lookup in 4 model files.
+4. **Drive-by edits made by reviewers during the run** (committed this session):
+   - `src/v2/amplitude.jl:125-136` — Idiomaticity reviewer split an isa
+     cascade into `_ferm_boson_pair` dispatch helpers.
+   - `Feynfeld_PRD.md:133` — Vision reviewer bumped stale "301 tests" to
+     "1451 pass + 0 broken, updated 2026-04-28".
+   - `CLAUDE.md:22-25` — test count refresh (your manual edit; matches
+     what the Vision reviewer also patched).
+5. **Stale memory flagged**: `bug-1-root-cause-qgraf-qgen-flavor-loop`
+   describes the qgen multiset-vs-positional bug as still open. The Bug
+   Hunter verified it was actually fixed Session 23 via `_msperms` +
+   `_qgen_check_perm` at qgen.jl:193-218. Update task filed as
+   `feynfeld-w35r` (F024). Run `bd remember --key bug-1-root-cause-qgraf-qgen-flavor-loop "<new content>"` to refresh, OR `bd forget` if no
+   replacement context is needed.
+6. **Cross-bead clusters** (potential epics, not yet wired with `bd dep`):
+   - Type-stability sweep: F009 + F010 + F011 (feynfeld-3grs, vbhd, 2r8u).
+   - Perf push: F012..F017 (feynfeld-umgq + 5 others).
+   - Post-Phase-18b cleanup: F019..F022 (audition consolidation, Algo L
+     dedup, 200-LOC splits).
+   - F035 (feynfeld-6pq5) `@test_broken` regression file is a multi-blocker
+     companion: its asserts auto-flip as F002/F003/F004/F009/F010 land.
+7. **Default next work**: `bd ready`. Phase 18b dependency chain is
+   unchanged from Session 32 (h3pb → a7f2 → ...). The review-driven P1
+   beads are independent of the 18b chain and are reasonable parallel work.
+8. Full suite still **1451 pass + 0 broken**; no source changes from the
+   review except the one small `amplitude.jl` refactor (idiomatic, no
+   behavioural change).
+
+## SESSION 33 — what the review did NOT change
+
+- No physics changes. No solver changes. No test status changes.
+- Reviewers were instructed not to run julia; all findings are static-read.
+- 18 findings overlapped existing beads and were not re-filed; mapping
+  in `_bead_map.md` "EXISTING COVERAGE" section.
 
 ---
 

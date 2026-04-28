@@ -123,17 +123,17 @@ function _build_fermion_exchange(ch::TreeChannel, rules::FeynmanRules, model::Ab
 end
 
 # Separate a pair of legs into (fermion_leg, boson_leg) at a vertex.
+# Dispatches on field species pairs (Rule 8: dispatch over isa cascades).
 function _separate_fermion_boson(a::ExternalLeg, b::ExternalLeg, model::AbstractModel)
     fa = get_field(model, a.field_name)
     fb = get_field(model, b.field_name)
-    if fa isa Field{Fermion} && fb isa Field{Boson}
-        (a, b)
-    elseif fa isa Field{Boson} && fb isa Field{Fermion}
-        (b, a)
-    else
-        error("Expected one fermion + one boson at vertex, got $(typeof(fa)) + $(typeof(fb))")
-    end
+    _ferm_boson_pair(a, b, fa, fb)
 end
+
+_ferm_boson_pair(a, b, ::Field{Fermion}, ::Field{Boson}) = (a, b)
+_ferm_boson_pair(a, b, ::Field{Boson}, ::Field{Fermion}) = (b, a)
+_ferm_boson_pair(_, _, fa, fb) =
+    error("Expected one fermion + one boson at vertex, got $(typeof(fa)) + $(typeof(fb))")
 
 # Propagator momentum for the channel.
 function propagator_momentum(ch::TreeChannel)
