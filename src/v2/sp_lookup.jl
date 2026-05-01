@@ -3,7 +3,7 @@
 
 # Symmetric lookup in Float64 scalar product dictionary.
 function _splookup(sv::Dict{Tuple{Symbol,Symbol},Float64}, a::Symbol, b::Symbol)
-    key = a <= b ? (a, b) : (b, a)
+    key = _sp_key(a, b)
     haskey(sv, key) && return sv[key]
     haskey(sv, (b, a)) && return sv[(b, a)]
     error("SP($a,$b) not in sp_vals")

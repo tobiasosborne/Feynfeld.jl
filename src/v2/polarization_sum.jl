@@ -52,6 +52,6 @@ function polarization_sum_massive(mu::LorentzIndex, nu::LorentzIndex,
 end
 
 function _lookup_sp(a::Momentum, b::Momentum, ctx::SPContext)
-    key = a.name <= b.name ? (a.name, b.name) : (b.name, a.name)
+    key = _sp_key(a.name, b.name)
     get(ctx.values, key, nothing)
 end
