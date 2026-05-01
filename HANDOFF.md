@@ -1,6 +1,100 @@
-# HANDOFF — 2026-04-28 (Session 33: Ultra review — 11 reviewers, 42 beads filed)
+# HANDOFF — 2026-05-01 (Session 34: Ultra-review warm-up — bus7 + 3grs closed)
 
 ## DO NOT DELETE THIS FILE. Read it completely before working.
+
+---
+
+## START HERE (Session 34 updates)
+
+1. **Two ultra-review beads closed.** Suite still **1451 pass + 0 broken**. No
+   physics changes; pure cleanup driven by Session 33's review findings.
+   - `feynfeld-bus7` (F037, P2) — centralise `_sp_key`. Replaced two inline
+     copies (`polarization_sum.jl:55`, `sp_lookup.jl:6`) with calls to the
+     canonical `_sp_key` in `sp_context.jl:12`. 4 LOC source diff. Commit
+     `8dd6a9d`.
+   - `feynfeld-3grs` (F009, P1) — eliminate the last unfixed Session-8
+     type-instability cockroach. `pair(::LI,::LI)` no longer returns
+     `Union{Int, MetricTensor}`; `pair(::PairArg,::PairArg) = Pair(a, b)` is
+     the only method. BMHV vanishing handled at the two callers that need
+     it (`_do_contraction(MT,MT)` keeps its upstream `dim_contract` check;
+     `_det4x4_pairs` gets a new inline guard). 7 dead `isa Number` guards
+     removed across `contract.jl` / `expand_sp.jl` / `eps_contract.jl`;
+     `_try_expand` result type tightened from
+     `Vector{Tuple{Coeff,Union{AlgFactor,Nothing}}}` to
+     `Vector{Tuple{Coeff,AlgFactor}}`; `_gamma_pair_to_alg` helper deleted
+     (dead branch flagged by reviewer). Latent crash at
+     `contract.jl:178` (`AlgFactor[...]` comprehension) eliminated.
+     Inference: `pair(LI,LI)::MetricTensor`, `pair(M,M)::ScalarProduct`.
+     -28 LOC net, 6 files. Reviewer APPROVE. Commit `422a73e`.
+2. **Type-stability sweep cluster status (F009/F010/F011):** F009 done.
+   F010 (`feynfeld-vgwx`, momentum_sum Union) and F011 (`feynfeld-2r8u`,
+   VertexRule key types) still open. F036 (`feynfeld-gras`) was noted in
+   the bead map as "fixing F009 erases most of F036" — re-check before
+   spending time; may be near-trivial now or already correct.
+3. **`feynfeld-6pq5` (F035, @test_broken regression suite)** can flip its
+   F009 assertions to `@test`. Hasn't been touched yet — left for the
+   author of 6pq5 or for whoever picks it up next.
+4. **Phase 18b chain unchanged.** No work on h3pb / a7f2 / ... this session.
+5. **Default next work**: `bd ready`. Reasonable parallel work alongside
+   Phase 18b: rest of the type-stability sweep (vgwx, 2r8u), the 6pq5 flip,
+   or the perf cluster (umgq is highest-leverage).
+
+## SESSION 34 TIMELINE
+
+1. Read HANDOFF.md + Feynfeld_PRD.md + recent sessions for context.
+   Summarised project rules + current status. Tobias asked for a smallish
+   warm-up from the ultra review.
+2. Picked `feynfeld-bus7` (F037) — centralise `_sp_key`. Read the three
+   sites, confirmed via grep no other inline copies exist (`sp_context.jl:12`
+   canonical; `polarization_sum.jl:55` and `sp_lookup.jl:6` inline). Edited
+   both inline sites to call `_sp_key`. Targeted MUnit PolarizationSum
+   green (6/6). Full suite green (1451/1451, 6m13.7s). Closed bus7,
+   commit `8dd6a9d`, pushed.
+3. Tobias: "do 3grs". Claimed `feynfeld-3grs`.
+4. Read `pair.jl`, `contract.jl`, `expand_sp.jl`, `eps_contract.jl` myself
+   (per the core-rules-discipline memory: Opus 4.7 skips 3-research-agents,
+   reads source). Audited all `pair()` call sites + 7 `isa Number` guards.
+   Determined: 6 of 7 guards are dead (LI×M and M×M can't BMHV-vanish; the
+   `_do_contraction(MT,MT)` guard is redundant with its existing upstream
+   `dim_contract` check). Only `_det4x4_pairs` needs a real replacement
+   guard.
+5. Implemented Flavour A from the bead: `pair(::PairArg,::PairArg) =
+   Pair(a,b)` as the sole method; removed dead guards; added inline
+   `dim_contract` check in `_det4x4_pairs`; tightened `_try_expand` type.
+   Verified type stability via `Base.return_types`.
+6. Targeted MUnit Contract + ExpandScalarProduct green (9/9 + 10/10).
+   Kicked off full suite in background.
+7. Dispatched general-purpose reviewer agent in parallel (Rule 6).
+   Reviewer: APPROVE. Two non-blocking notes: `_gamma_pair_to_alg`
+   (`dirac.jl:110-111`) had the same dead `p isa Number` branch
+   (cosmetic comment also suggested at `polarization_sum.jl:19`).
+8. Folded the `_gamma_pair_to_alg` cleanup in (skipped the comment).
+   Targeted DiracTrace + DiracTrick green (22+65). Full suite green
+   (1451/1451, 6m22.7s).
+9. Closed 3grs, commit `422a73e`, pushed.
+10. This HANDOFF entry. Commit + push.
+
+## SESSION 34 ACCOMPLISHMENTS
+
+- **Two ultra-review beads off the open list** (93 → 91 open).
+- **Last Session-8 type-instability cockroach killed.** Tobias's Rule-8
+  ("isa anti-pattern") debt down by one. The `pair()` cascade was a
+  poster-child for "polymorphic factory return → forced isa cascade
+  downstream" and is now structurally impossible.
+- **Latent crash bug eliminated** (`_subst_factor` comprehension
+  receiving `0::Int`). Was hard to trigger but a real correctness
+  hazard — the kind of cockroach Rule 4 ("all bugs are deep") warns
+  against bandaid-fixing.
+
+## SESSION 34 OPEN QUESTIONS / FOLLOW-UPS
+
+- `feynfeld-gras` (F036) — re-audit; bead map predicted F009 erases
+  most of it. Likely near-trivial now.
+- `feynfeld-6pq5` (F035) — at minimum the F009 assertions can flip
+  from `@test_broken` to `@test`. Hasn't been touched.
+- C2 from the reviewer pass (cosmetic: BMHV-moved comment on
+  `polarization_sum.jl:19`) — not filed as a bead, trivially addressable
+  next time someone touches that file.
 
 ---
 
