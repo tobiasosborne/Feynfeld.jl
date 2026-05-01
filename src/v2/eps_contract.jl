@@ -72,13 +72,14 @@ function _det4x4_pairs(a::Vector{PairArg}, b::Vector{PairArg})
     for (perm, sign) in _S4_PERMS
         term = alg(sign)
         for i in 1:4
-            p = pair(a[i], b[perm[i]])
-            if p isa Number
-                iszero(p) && (term = AlgSum(); break)
-                term = p * term
-            else
-                term = term * alg(p)
+            ai, bi = a[i], b[perm[i]]
+            # BMHV vanishing for mixed-dim LI×LI: skip this permutation term
+            if ai isa LorentzIndex && bi isa LorentzIndex &&
+               dim_contract(ai.dim, bi.dim) === nothing
+                term = AlgSum()
+                break
             end
+            term = term * alg(pair(ai, bi))
         end
         result = result + term
     end

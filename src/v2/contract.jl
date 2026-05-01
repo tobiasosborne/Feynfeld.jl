@@ -102,11 +102,8 @@ function _do_contraction(fi::MetricTensor, fj::MetricTensor, idx::LorentzIndex, 
     surv_i = _surviving(fi, idx)
     surv_j = _surviving(fj, idx)
     surv_i !== nothing && surv_j !== nothing || return nothing
-    dc = dim_contract(surv_i.dim, surv_j.dim)
-    dc === nothing && return (0, AlgFactor[])
-    new_p = pair(surv_i, surv_j)
-    new_p isa Number && return (new_p, AlgFactor[])
-    (1, AlgFactor[new_p])
+    dim_contract(surv_i.dim, surv_j.dim) === nothing && return (0, AlgFactor[])
+    (1, AlgFactor[pair(surv_i, surv_j)])
 end
 
 # Metric-FourVector: g^{mu nu} p^mu → p^nu
@@ -114,9 +111,7 @@ function _do_contraction(fi::MetricTensor, fj::Pair{LorentzIndex, Momentum}, idx
     surv = _surviving(fi, idx)
     surv !== nothing || return nothing
     fj.a == idx || return nothing
-    new_p = pair(surv, fj.b)
-    new_p isa Number && return (new_p, AlgFactor[])
-    (1, AlgFactor[new_p])
+    (1, AlgFactor[pair(surv, fj.b)])
 end
 
 function _do_contraction(fi::Pair{LorentzIndex, Momentum}, fj::MetricTensor, idx::LorentzIndex, ctx::SPContext)
@@ -127,7 +122,6 @@ end
 function _do_contraction(fi::Pair{LorentzIndex, Momentum}, fj::Pair{LorentzIndex, Momentum}, idx::LorentzIndex, ctx::SPContext)
     fi.a == idx && fj.a == idx || return nothing
     sp = pair(fi.b, fj.b)
-    sp isa Number && return (sp, AlgFactor[])
     val = _try_sp(sp, ctx)
     val !== nothing && return (val, AlgFactor[])
     (1, AlgFactor[sp])

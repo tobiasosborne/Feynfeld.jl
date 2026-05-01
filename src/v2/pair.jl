@@ -32,14 +32,10 @@ const MetricTensor  = Pair{LorentzIndex, LorentzIndex}
 const FourVector    = Union{Pair{LorentzIndex, Momentum}, Pair{Momentum, LorentzIndex}}
 const ScalarProduct = Pair{Momentum, Momentum}
 
-# Safe factory: checks BMHV vanishing, returns 0 if it vanishes.
-# This is the public API. Direct Pair() is internal.
-# Dispatch: LorentzIndex × LorentzIndex checks BMHV vanishing.
-function pair(a::LorentzIndex, b::LorentzIndex)
-    dc = dim_contract(a.dim, b.dim)
-    dc === nothing && return 0
-    Pair(a, b)
-end
+# Public factory. Always returns a Pair (type-stable; concrete by dispatch).
+# BMHV vanishing for mixed-dim LI×LI contractions is the contraction engine's
+# concern — see contract.jl::_do_contraction(MT,MT) and
+# eps_contract.jl::_det4x4_pairs, both of which call dim_contract themselves.
 pair(a::PairArg, b::PairArg) = Pair(a, b)
 
 # ---- Equality, hashing, ordering (structural, not repr-based) ----

@@ -19,7 +19,7 @@ function _expand_term(factors::Vector{AlgFactor}, coeff)
             other_factors = AlgFactor[factors[j] for j in eachindex(factors) if j != i]
             result = AlgSum()
             for (c, new_f) in expanded
-                new_factors = isnothing(new_f) ? copy(other_factors) : AlgFactor[other_factors; new_f]
+                new_factors = AlgFactor[other_factors; new_f]
                 sub = _expand_term(new_factors, mul_coeff(coeff, c))
                 result = result + sub
             end
@@ -38,7 +38,7 @@ _try_expand(::Pair{LorentzIndex, LorentzIndex}) = nothing
 function _try_expand(e::Eps)
     for (slot_idx, slot) in enumerate((e.a, e.b, e.c, e.d))
         slot isa MomentumSum || continue
-        result = Tuple{Coeff, Union{AlgFactor, Nothing}}[]
+        result = Tuple{Coeff, AlgFactor}[]
         for (c, m) in slot.terms
             slots = PairArg[e.a, e.b, e.c, e.d]
             slots[slot_idx] = m
@@ -51,44 +51,28 @@ end
 
 # MomentumSum in first slot
 function _try_expand(p::Pair{MomentumSum, A}) where {A<:PairArg}
-    result = Tuple{Coeff, Union{AlgFactor, Nothing}}[]
+    result = Tuple{Coeff, AlgFactor}[]
     for (c, m) in p.a.terms
-        new_p = pair(m, p.b)
-        if new_p isa Number
-            push!(result, (mul_coeff(c, new_p), nothing))
-        else
-            push!(result, (c, new_p))
-        end
+        push!(result, (c, pair(m, p.b)))
     end
     result
 end
 
 # MomentumSum in second slot
 function _try_expand(p::Pair{A, MomentumSum}) where {A<:PairArg}
-    result = Tuple{Coeff, Union{AlgFactor, Nothing}}[]
+    result = Tuple{Coeff, AlgFactor}[]
     for (c, m) in p.b.terms
-        new_p = pair(p.a, m)
-        if new_p isa Number
-            push!(result, (mul_coeff(c, new_p), nothing))
-        else
-            push!(result, (c, new_p))
-        end
+        push!(result, (c, pair(p.a, m)))
     end
     result
 end
 
 # Both slots are MomentumSum
 function _try_expand(p::Pair{MomentumSum, MomentumSum})
-    result = Tuple{Coeff, Union{AlgFactor, Nothing}}[]
+    result = Tuple{Coeff, AlgFactor}[]
     for (c1, m1) in p.a.terms
         for (c2, m2) in p.b.terms
-            c = mul_coeff(c1, c2)
-            new_p = pair(m1, m2)
-            if new_p isa Number
-                push!(result, (mul_coeff(c, new_p), nothing))
-            else
-                push!(result, (c, new_p))
-            end
+            push!(result, (mul_coeff(c1, c2), pair(m1, m2)))
         end
     end
     result
