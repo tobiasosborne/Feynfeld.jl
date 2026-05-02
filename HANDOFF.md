@@ -1,6 +1,89 @@
-# HANDOFF — 2026-05-01 (Session 34: Ultra-review warm-up — bus7 + 3grs closed)
+# HANDOFF — 2026-05-02 (Session 35: gras closed — contract.jl Coeff coercion + Eps sentinel)
 
 ## DO NOT DELETE THIS FILE. Read it completely before working.
+
+---
+
+## START HERE (Session 35 updates)
+
+1. **`feynfeld-gras` (F036, P2) closed.** Session 34's prediction held —
+   F009's `pair()` Union fix had already eliminated the Pair-Int slot
+   mixing, leaving two real cleanups in `src/v2/contract.jl`:
+   - **Numeric coercion.** `0::Int` and `1::Int` literals in
+     `_do_contraction` returns replaced with `0//1` / `1//1` (Coeff =
+     Rational{Int}). 5 sites: lines ~105, 106, 114, 127, 137, 147.
+   - **`:vanishes` Symbol sentinel removed.** `_eps_replace_slot` now
+     returns `Union{Eps, Nothing}` (was `Union{Nothing, Symbol, Eps}`).
+     `nothing` = vanishes by antisymmetry. Dead "idx not found" branch
+     removed — precondition: `_contract_factors` worklist only invokes
+     `_do_contraction(::Eps, ::*, idx, …)` when idx appears in both
+     factors' index inventories, so for an `Eps`, idx IS a LorentzIndex
+     slot. Comment at the helper documents this.
+   - 14 insertions / 15 deletions (-1 LOC net), 1 file. Reviewer APPROVE.
+   - Inference verified via `Base.return_types`:
+     `_do_contraction(MT,MT,…)::Union{Nothing,Tuple{Rational{Int},Vector{AlgFactor}}}`,
+     `_eps_replace_slot::Union{Nothing,Eps}`.
+   - Full suite **1451 pass + 0 broken**, 6m47s. Commit pending.
+2. **Type-stability sweep status (F009/F010/F011/F036):** F009 done
+   (Session 34). F036 done (this session). F010 (`feynfeld-vgwx`,
+   momentum_sum Union) and F011 (`feynfeld-2r8u`, VertexRule key types)
+   still open — natural continuation if next session wants to keep
+   sweeping. 6pq5 (F035) still untouched; its F009 assertions can flip
+   from `@test_broken` to `@test`.
+3. **Phase 18b chain unchanged.** No work on h3pb / a7f2 / ... this
+   session.
+4. **Default next work**: `bd ready`. Continue type-stability sweep
+   (vgwx, 2r8u), or pick up 6pq5 to flip the F009 assertions, or perf
+   cluster (umgq is highest-leverage), or Phase 18b chain.
+
+## SESSION 35 TIMELINE
+
+1. Read HANDOFF.md + Feynfeld_PRD.md for context. Summarised project
+   rules. Tobias asked what's next; I suggested gras + 6pq5 as warm-ups
+   riding directly on F009. Approved.
+2. Claimed `feynfeld-gras`. Read `src/v2/contract.jl` myself (Opus 4.7
+   core-rules-discipline). Audited the two findings:
+   - (a) `_do_contraction` first-slot type. After F009, only `0::Int` /
+     `1::Int` literals remain as Int leakage. `dim_trace` and `_try_sp`
+     already return Coeff. Coercion to `0//1` / `1//1` is the fix.
+   - (b) `_eps_replace_slot` Symbol sentinel. Two callers, both inside
+     `_do_contraction`, both inside the `_contract_factors` worklist.
+     Worklist precondition guarantees idx is in both factors' index
+     inventories — for Eps, that means idx is a LorentzIndex slot.
+     "Not found" path is dead defensive code.
+3. Edited contract.jl: 5 numeric-literal coercions + helper refactor.
+   Verified type stability via `Base.return_types` on all relevant
+   methods. All return tight `Tuple{Coeff, Vector{AlgFactor}}` or
+   `Tuple{Rational{Int}, Vector{AlgFactor}}` (the tighter binding when
+   `dim_trace`/`_try_sp` are not in the path).
+4. Targeted MUnit Contract green (9/9), MUnit DiracTrace green (22/22),
+   ee→WW Grozin green (17/17). Kicked off full suite in background.
+5. Dispatched general-purpose reviewer in parallel (Rule 6). Reviewer:
+   APPROVE. One soft note (precondition failure mode = soft "treat as
+   vanishing" rather than throw — non-blocking, comment at helper
+   already documents the precondition).
+6. Full suite green: 1451/1451, 6m47.8s. Closed gras with detailed
+   resolution. `bd export` → 313 issues + 5 memories. This HANDOFF.
+   Commit + push.
+
+## SESSION 35 ACCOMPLISHMENTS
+
+- **F036 off the open list** (91 → 90 open).
+- **Symbol sentinel anti-pattern eliminated** (`:vanishes`). Same kind
+  of Rule-8 cleanup as Session 34's pair() Union fix — the helper now
+  has a clean small Union return and the call sites have one fewer
+  `===` magic-value check each.
+- **Dead defensive code removed.** The "idx not found" branch in
+  `_eps_replace_slot` was unreachable by precondition; removing it
+  makes the precondition explicit (in the comment) instead of hidden
+  behind a guard that pretends to handle a case that can't occur.
+
+## SESSION 35 OPEN QUESTIONS / FOLLOW-UPS
+
+- **Type-stability sweep continues.** F010 (vgwx), F011 (2r8u) are the
+  natural next picks if the goal is to close out the cluster.
+- **6pq5 (F035) still untouched.** Its F009 + F036 assertions can flip
+  from `@test_broken` to `@test` mechanically.
 
 ---
 
