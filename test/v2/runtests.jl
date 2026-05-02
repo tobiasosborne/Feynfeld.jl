@@ -37,6 +37,7 @@ using Feynfeld
     include("test_qcd_4gluon.jl")
     include("test_qcd_ghost.jl")
     include("test_ee_ww_grozin.jl")
+    include("test_dirac_expr_simplify.jl")
     # ---- MUnit translations (FeynCalc port) ----
     for f in sort(readdir(joinpath(@__DIR__, "munit")))
         startswith(f, "test_") && endswith(f, ".jl") || continue

@@ -89,18 +89,23 @@ function dirac_trace(de::DiracExpr)
 end
 
 # ---- Clean up: collect terms with identical chains ----
+# Keys on the FULL chain.elements (gammas + spinors). Two terms whose
+# chains differ only in their spinor pair represent physically distinct
+# fermion lines and must NOT merge.
+# Bug history: feynfeld-ocpb (F002) — earlier this keyed on `gammas(chain)`,
+# silently dropping spinors and collapsing distinct lines. Regression
+# guard: test/v2/test_dirac_expr_simplify.jl.
 function simplify(de::DiracExpr)
-    # Group by chain structure (using chain elements as key)
-    groups = Dict{Vector{DiracGamma}, AlgSum}()
+    groups = Dict{Vector{DiracElement}, AlgSum}()
     for (coeff, chain) in de.terms
-        gs = gammas(chain)
-        existing = get(groups, gs, AlgSum())
-        groups[gs] = existing + coeff
+        elems = chain.elements
+        existing = get(groups, elems, AlgSum())
+        groups[elems] = existing + coeff
     end
     terms = Tuple{AlgSum, DiracChain}[]
-    for (gs, coeff) in groups
+    for (elems, coeff) in groups
         iszero(coeff) && continue
-        push!(terms, (coeff, DiracChain(gs)))
+        push!(terms, (coeff, DiracChain(elems)))
     end
     DiracExpr(terms)
 end

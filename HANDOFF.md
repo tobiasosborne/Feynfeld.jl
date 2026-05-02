@@ -1,6 +1,103 @@
-# HANDOFF — 2026-05-02 (Session 36: umgq closed — in-place AlgSum kernels)
+# HANDOFF — 2026-05-02 (Session 37: ocpb closed — DiracExpr.simplify spinor-drop bug)
 
 ## DO NOT DELETE THIS FILE. Read it completely before working.
+
+---
+
+## START HERE (Session 37 updates)
+
+1. **`feynfeld-ocpb` (F002, P1, CORRECTNESS) closed.** Session 33's
+   "fix BEFORE 18b-3" gate is now off the chain.
+   - **Root fix at `src/v2/dirac_expr.jl:91-110`:** `simplify(::DiracExpr)`
+     now keys on `chain.elements` (full `Vector{DiracElement}`) instead
+     of `gammas(chain)` (`Vector{DiracGamma}`). Two-line fix as the bead
+     predicted.
+   - **Bug shape**: pre-fix, two terms whose chains differ ONLY in the
+     spinor pair (e.g. `ūbar(p1)γ^μv(p2)` vs `v̄(p2)γ^μu(p1)` —
+     physically distinct fermion lines) collided in the simplify Dict
+     and merged their AlgSums; the rebuilt chain had spinors stripped.
+     Masked today because `_fermion_line_chain` builds DiracExpr via
+     the constructor (never via `+`), but Phase 18b-2..8 will combine
+     DiracExprs across orbits via `+` and would silently lose spinors.
+   - **Free secondary fix** (reviewer-flagged): pre-fix, chains with
+     only spinors (no gammas) ALL collided on the empty gamma-key.
+     Post-fix they partition correctly by spinor identity.
+   - **New regression file** `test/v2/test_dirac_expr_simplify.jl`
+     (3 testsets, 11 assertions): "preserves spinors via +" — direct
+     construction + `+` path; "identical chains DO merge" — same gammas
+     + same spinors merge to one term with summed coefficient;
+     "spinor-free chains still merge correctly" — guards the
+     dirac_trick.jl pathway. Wired into runtests.jl.
+   - **Verified RED before fix** (3 fails + 1 error in "preserves
+     spinors"), **GREEN after** (11/11). Full suite **1462 pass + 0
+     broken** (was 1451 + 0 broken; +11 new regression assertions),
+     7m02s.
+   - **Reviewer APPROVE** (general-purpose, full diff trace through
+     hash/equality/edge-cases). The fix preserves the original
+     "merge identical chains" semantic exactly (`Vector{DiracElement}`
+     hashes structurally; `Spinor`/`DiracGamma` use Julia default
+     immutable-struct field-wise hash).
+2. **Phase 18b-3..8 now unblocked** (with respect to ocpb). The next
+   correctness gate on the chain was this; remaining 18b work is the
+   pre-existing ladder (h3pb → a7f2 → ...).
+3. **dirac_trick.jl DiracExpr accumulator sites** (3 sites skipped in
+   umgq) are still a perf opportunity — `Vector{Tuple{AlgSum, DiracChain}}`
+   storage means each `result + simplified` does a `vcat` + full `simplify`
+   (now with full chain-elements key, so a hash per chain). Not filed
+   as a bead. Worth bundling into a "DiracExpr in-place / Dict-based
+   storage" follow-up if perf becomes a bottleneck.
+4. **Default next work**: `bd ready`. Type-stability sweep (vgwx F010,
+   2r8u F011), 6pq5 F035 `@test_broken` flips, 1wdl F008 (pipeline
+   schism), 65wz Spiral 9 closure, or the Phase 18b chain (h3pb, a7f2,
+   ...).
+
+## SESSION 37 TIMELINE
+
+1. Tobias: "keep going". Picked `feynfeld-ocpb` per the HANDOFF
+   strategic note ("fix BEFORE 18b-3"). Even though the fix is small
+   in code, it's a correctness bug gating the active development chain.
+2. Read `dirac_expr.jl`, `dirac.jl` (DiracChain/DiracElement defs),
+   `06_bugs.md` §B3. Confirmed Spinor and DiracGamma rely on default
+   field-wise equality + hash (no custom methods); DiracElement is
+   `Union{DiracGamma, Spinor}` so a `Vector{DiracElement}` key hashes
+   structurally.
+3. Wrote regression test `test/v2/test_dirac_expr_simplify.jl` BEFORE
+   the fix (RED-first discipline). Two of the three testsets are the
+   bug guards; the third asserts dirac_trick.jl's spinor-free merging
+   still works (preventing me from over-correcting and breaking it).
+4. Ran the test pre-fix → RED (3 fails + 1 error in "preserves spinors").
+5. Applied two-line fix in `simplify(::DiracExpr)`. Added a docstring
+   noting the bug history + pointer to the regression test.
+6. Ran the test post-fix → GREEN (11/11).
+7. Wired the test into `runtests.jl` between `test_ee_ww_grozin.jl`
+   and the MUnit batch.
+8. Kicked off full suite in background. Dispatched general-purpose
+   reviewer in parallel: APPROVE, plus a noted-but-not-blocking
+   observation that chains with only spinors are also fixed (free).
+9. Suite green: 1462 pass + 0 broken, 7m02s.
+10. Closed ocpb. `bd export`. This HANDOFF. Commit + push.
+
+## SESSION 37 ACCOMPLISHMENTS
+
+- **A correctness P1 gating Phase 18b is off the critical path.** Three
+  sessions of HANDOFF-flagged dread eliminated.
+- **First proper RED-then-GREEN test design in recent sessions.**
+  Tobias's "golden-master TDD" memory matches this discipline: write
+  the test that would have caught the bug FIRST, watch it fail, then
+  fix.
+- **Free secondary bug fix** (spinor-only chains partitioning) folded
+  in without separate cost.
+- **Test count crosses 1462.** Permanent +11.
+
+## SESSION 37 OPEN QUESTIONS / FOLLOW-UPS
+
+- **DiracExpr in-place storage** (the dirac_trick.jl deferred work
+  from umgq). Even more relevant now that simplify keys on full chains
+  — same dict-cost shape as AlgSum's add!. Worth a bead bundling the
+  refactor.
+- **Spinor-only DiracExprs** are now meaningful (used to silently
+  collapse). Worth a sanity sweep to see if any current pipeline
+  produces them; if not, no action needed beyond the new test.
 
 ---
 
