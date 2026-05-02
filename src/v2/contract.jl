@@ -5,8 +5,7 @@ function contract(s::AlgSum; ctx::SPContext=CURRENT_SP[])
     s = eps_contract(s)  # Eps·Eps → determinant of metrics (pre-pass)
     result = AlgSum()
     for (fk, c) in s.terms
-        contracted = _contract_factors(fk.factors, c, ctx)
-        result = result + contracted
+        add!(result, _contract_factors(fk.factors, c, ctx))
     end
     result
 end
@@ -175,7 +174,7 @@ function substitute_index(s::AlgSum, old_idx::LorentzIndex, new_idx::LorentzInde
     result = AlgSum()
     for (fk, c) in s.terms
         new_factors = AlgFactor[_subst_factor(f, old_idx, new_idx) for f in fk.factors]
-        result = result + alg_from_factors(new_factors, c)
+        add!(result, alg_from_factors(new_factors, c))
     end
     result
 end

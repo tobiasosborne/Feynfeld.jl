@@ -89,7 +89,7 @@ function _single_line_trace(de::DiracExpr)
             sign_j = _conj_gamma5_sign(gammas_j)
             gammas_conj_j = _conjugate_gammas(gammas_j)
             tr = _build_and_trace(mom_R, mass_R, gammas_conj_j, mom_L, mass_L, gammas_i)
-            result = result + ci * cj * sign_j * tr
+            mul_acc!(result, ci * cj, tr, sign_j)
         end
     end
     result
@@ -164,8 +164,7 @@ function _build_and_trace(mom1, mass1, gammas_mid, mom2, mass2, gammas_end)
 
     result = AlgSum()
     for (c, gs) in parts
-        tr = dirac_trace(gs)
-        result = result + c * tr
+        add!(result, dirac_trace(gs), c)
     end
     result
 end

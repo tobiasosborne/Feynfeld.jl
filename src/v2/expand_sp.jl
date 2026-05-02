@@ -4,8 +4,7 @@
 function expand_scalar_product(s::AlgSum)
     result = AlgSum()
     for (fk, c) in s.terms
-        expanded = _expand_term(fk.factors, c)
-        result = result + expanded
+        add!(result, _expand_term(fk.factors, c))
     end
     result
 end
@@ -20,8 +19,7 @@ function _expand_term(factors::Vector{AlgFactor}, coeff)
             result = AlgSum()
             for (c, new_f) in expanded
                 new_factors = AlgFactor[other_factors; new_f]
-                sub = _expand_term(new_factors, mul_coeff(coeff, c))
-                result = result + sub
+                add!(result, _expand_term(new_factors, mul_coeff(coeff, c)))
             end
             return result
         end

@@ -75,7 +75,7 @@ _mom_pair(li::LorentzIndex, p::Momentum) = alg(pair(li, p))
 function _mom_pair(li::LorentzIndex, ms::MomentumSum)
     result = AlgSum()
     for (c, m) in ms.terms
-        result = result + c * alg(pair(li, m))
+        add!(result, alg(pair(li, m)), c)
     end
     result
 end

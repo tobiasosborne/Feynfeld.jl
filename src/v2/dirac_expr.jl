@@ -83,8 +83,7 @@ end
 function dirac_trace(de::DiracExpr)
     result = AlgSum()
     for (coeff, chain) in de.terms
-        tr = dirac_trace(chain)
-        result = result + coeff * tr
+        mul_acc!(result, coeff, dirac_trace(chain))
     end
     result
 end

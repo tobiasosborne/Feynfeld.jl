@@ -33,8 +33,7 @@ determinant formula. Call BEFORE the per-index contraction loop.
 function eps_contract(s::AlgSum)
     result = AlgSum()
     for (fk, c) in s.terms
-        contracted = _eps_contract_term(fk.factors, c)
-        result = result + contracted
+        add!(result, _eps_contract_term(fk.factors, c))
     end
     result
 end
@@ -81,7 +80,7 @@ function _det4x4_pairs(a::Vector{PairArg}, b::Vector{PairArg})
             end
             term = term * alg(pair(ai, bi))
         end
-        result = result + term
+        add!(result, term)
     end
     result
 end

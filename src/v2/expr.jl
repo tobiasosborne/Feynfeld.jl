@@ -93,41 +93,77 @@ _coeff_iszero(c::Rational{Int}) = iszero(c)
 _coeff_iszero(c::DimPoly) = iszero(c)
 _coeff_iszero(c::Number) = iszero(c)
 
-# ---- Arithmetic on AlgSum ----
-function Base.:+(a::AlgSum, b::AlgSum)
-    result = _d()(a.terms)
-    for (fk, c) in b.terms
-        existing = get(result, fk, 0//1)
-        new_c = normalise_coeff(add_coeff(existing, c))
-        if _coeff_iszero(new_c)
-            delete!(result, fk)
-        else
-            result[fk] = new_c
-        end
-    end
-    AlgSum(result)
-end
-
-Base.:-(a::AlgSum, b::AlgSum) = a + (-1 * b)
-Base.:-(a::AlgSum) = -1 * a
-
-function Base.:*(a::AlgSum, b::AlgSum)
-    result = _d()()
-    for (fk_a, c_a) in a.terms
-        for (fk_b, c_b) in b.terms
-            merged = FactorKey(vcat(fk_a.factors, fk_b.factors))
-            c = normalise_coeff(mul_coeff(c_a, c_b))
-            _coeff_iszero(c) && continue
-            existing = get(result, merged, 0//1)
+# ---- In-place accumulation kernels ----
+# Mutate `dst.terms` in place: dst += sign * src.
+# Precondition: src must not alias dst (no self-add). Hot-path callers own
+# their accumulators locally, so aliasing cannot occur.
+# Returns dst (for chaining).
+function add!(dst::AlgSum, src::AlgSum, sign=1//1)
+    if sign isa Number && isone(sign)
+        for (fk, c) in src.terms
+            existing = get(dst.terms, fk, 0//1)
             new_c = normalise_coeff(add_coeff(existing, c))
             if _coeff_iszero(new_c)
-                delete!(result, merged)
+                delete!(dst.terms, fk)
             else
-                result[merged] = new_c
+                dst.terms[fk] = new_c
+            end
+        end
+    else
+        for (fk, c) in src.terms
+            scaled = normalise_coeff(mul_coeff(c, sign))
+            _coeff_iszero(scaled) && continue
+            existing = get(dst.terms, fk, 0//1)
+            new_c = normalise_coeff(add_coeff(existing, scaled))
+            if _coeff_iszero(new_c)
+                delete!(dst.terms, fk)
+            else
+                dst.terms[fk] = new_c
             end
         end
     end
-    AlgSum(result)
+    dst
+end
+
+# Mutate `dst.terms` in place: dst += c * a * b.
+# Avoids materialising the (a*b) intermediate.
+# Precondition: dst must not alias a or b.
+function mul_acc!(dst::AlgSum, a::AlgSum, b::AlgSum, c=1//1)
+    sizehint!(dst.terms, length(dst.terms) + length(a.terms) * length(b.terms))
+    is_unit = c isa Number && isone(c)
+    for (fk_a, c_a) in a.terms
+        for (fk_b, c_b) in b.terms
+            cab = normalise_coeff(mul_coeff(c_a, c_b))
+            _coeff_iszero(cab) && continue
+            scaled = is_unit ? cab : normalise_coeff(mul_coeff(cab, c))
+            _coeff_iszero(scaled) && continue
+            merged = FactorKey(vcat(fk_a.factors, fk_b.factors))
+            existing = get(dst.terms, merged, 0//1)
+            new_c = normalise_coeff(add_coeff(existing, scaled))
+            if _coeff_iszero(new_c)
+                delete!(dst.terms, merged)
+            else
+                dst.terms[merged] = new_c
+            end
+        end
+    end
+    dst
+end
+
+# ---- Arithmetic on AlgSum ----
+# Public + and * preserve immutable-AlgSum semantics by allocating a fresh
+# accumulator and delegating to the in-place kernels above. Inner-loop
+# callers should call add!/mul_acc! directly.
+function Base.:+(a::AlgSum, b::AlgSum)
+    result = AlgSum(_d()(a.terms))
+    add!(result, b)
+end
+
+Base.:-(a::AlgSum, b::AlgSum) = add!(AlgSum(_d()(a.terms)), b, -1//1)
+Base.:-(a::AlgSum) = -1 * a
+
+function Base.:*(a::AlgSum, b::AlgSum)
+    mul_acc!(AlgSum(), a, b)
 end
 
 # Scalar * AlgSum

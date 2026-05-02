@@ -6,6 +6,7 @@ module QgrafPort
 
 import ..Feynfeld: Momentum, MomentumSum, momentum_sum,
                      AlgSum, alg, pair, DiracExpr, DiracChain, dot,
+                     add!, mul_acc!,
                      AbstractModel, model_fields, get_field, species, Field,
                      Boson, Fermion, Scalar,
                      DimD, LorentzIndex, Spinor,

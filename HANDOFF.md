@@ -1,6 +1,106 @@
-# HANDOFF — 2026-05-02 (Session 35: gras closed — contract.jl Coeff coercion + Eps sentinel)
+# HANDOFF — 2026-05-02 (Session 36: umgq closed — in-place AlgSum kernels)
 
 ## DO NOT DELETE THIS FILE. Read it completely before working.
+
+---
+
+## START HERE (Session 36 updates)
+
+1. **`feynfeld-umgq` (F012, P1) closed.** Carmack's biggest-perf-win bead.
+   - **Two new kernels in `src/v2/expr.jl`:**
+     - `add!(dst::AlgSum, src::AlgSum, sign=1//1)` — mutates `dst.terms`
+       in place (dst += sign * src). Fast path when `sign==1`.
+       Precondition: no aliasing (hot-path callers own dst locally).
+     - `mul_acc!(dst::AlgSum, a::AlgSum, b::AlgSum, c=1//1)` — fuses
+       `a*b` with the accumulator (no intermediate AlgSum). `sizehint!`
+       on dst.terms.
+   - **Public `Base.:+`, `Base.:-`, `Base.:*` refactored** to delegate
+     to the kernels: one Dict copy at the API boundary, then in-place
+     fill. Public immutable-AlgSum semantics preserved.
+   - **16 of 19 hot accumulation sites converted** to `add!`/`mul_acc!`:
+     `colour_simplify.jl:8-11`, `contract.jl:6-10`+`:174-180`,
+     `eps_contract.jl:33-39`+`:74-86`, `dirac_expr.jl:83-89`,
+     `dirac_trace.jl:24-30`+`:60-71`+`:117-127`+`:142-152`,
+     `expand_sp.jl:4-30`, `qcd_model.jl:75-81`,
+     `spin_sum.jl:84-95`+`:165-170`, `qgraf/burnside_combine.jl:46-60`.
+     Skipped: 3 sites in `dirac_trick.jl` accumulate `DiracExpr`
+     (Vector{Tuple} storage, not Dict-based) — out of scope; tied up
+     with `feynfeld-ocpb` (F002, DiracExpr.simplify spinor-drop bug).
+   - **`add!`/`mul_acc!` exported to QgrafPort** so `burnside_combine.jl`
+     can use them.
+   - **Microbench:** `dirac_trace(8γ)` median 0.47ms → 0.33ms (**1.42×
+     faster**), allocations 762KB → 501KB per call (**-34%**). Bench
+     script: stash umgq diff → time → unstash → time. Carmack's "2-3×
+     wall-clock on solve_tree" is plausible at NLO scale where the
+     recursion is deeper (savings compound with n).
+   - **Reviewer APPROVE** (general-purpose agent, full diff + correctness
+     trace through the kernels). Full suite **1451 pass + 0 broken**,
+     6m20s. -29 LOC net (sites get tighter); +47 LOC in expr.jl
+     (kernel + refactor).
+2. **`dirac_trick.jl` DiracExpr accumulations remain.** Same pattern as
+   AlgSum but with different storage. Worth a follow-up bead bundled
+   with `ocpb` (F002, simplify silently drops spinors) — both want a
+   Dict-based DiracExpr storage. Not filed yet.
+3. **Future deeper algebra perf wins are still on the table** (Carmack
+   review §2-§5): cached `FactorKey.hash`, packed UInt64 vertex sigs,
+   incremental `_index_inventory`, mutable working buffer in trace
+   recursion. None filed; would be follow-up beads.
+4. **Default next work**: `bd ready`. The remaining type-stability sweep
+   (vgwx F010 momentum_sum Union, 2r8u F011 VertexRule keys), 6pq5
+   F035 `@test_broken` flips, ocpb F002 (CORRECTNESS bug, gates Phase
+   18b-3..8 — "fix BEFORE 18b-3" per Session 33), 1wdl F008 (pipeline
+   schism — solve_tree vs solve_tree_pipeline). Phase 18b chain (h3pb,
+   a7f2, ...) also still open.
+
+## SESSION 36 TIMELINE
+
+1. Session 35 closed gras + committed (`3eb1feb`). Tobias asked for
+   "a chunky next issue". Surveyed `bd ready` candidates: ocpb (small
+   fix, big strategic value), umgq (perf push, 11+ sites), 1wdl
+   (architectural). Picked umgq — biggest LOC volume, self-contained,
+   self-validating via existing tests + microbench.
+2. Read `expr.jl`, `coeff.jl`, Carmack §1, all 19 candidate hot sites.
+   Designed `add!`/`mul_acc!` kernel API with fast-path branches.
+3. Implemented kernels in expr.jl. Smoke-tested: `+`, `-`, `*`, `add!`,
+   `mul_acc!` all return expected results on `alg(2)`/`alg(3)` cases.
+4. Converted 16 sites by file (4 files × 4-5 sites avg). Identified the
+   3 DiracExpr sites in dirac_trick.jl as out-of-scope (different storage).
+5. Added `add!, mul_acc!` to QgrafPort imports for burnside_combine.
+6. Targeted MUnit Contract green (9/9), DiracTrace green (22/22).
+   Kicked off full suite in background.
+7. Dispatched general-purpose reviewer in parallel with full diff +
+   correctness questions. Reviewer: APPROVE — verified semantics,
+   aliasing, public-API immutability, fast-path correctness.
+8. Suite green: 1451/1451, 6m20s.
+9. Microbench: pre/post via `git stash` round-trip on a representative
+   8γ trace. Recorded 1.42× speedup and 34% alloc reduction.
+10. Closed umgq with detailed resolution + bench numbers. `bd export`.
+    This HANDOFF. Commit + push.
+
+## SESSION 36 ACCOMPLISHMENTS
+
+- **Largest single perf bead off the open list** (90 → 89 open,
+  P1 count down by 1).
+- **Foundation for NLO scaling laid.** The kernels are the load-bearing
+  piece for any future optimization (FactorKey caching, packed sigs,
+  incremental inventory). Without `add!`/`mul_acc!`, those wins are
+  bottlenecked on per-add Dict copies.
+- **Public API contract preserved.** `+`/`-`/`*` still return fresh
+  AlgSums; only the inner-loop call sites mutate. Immutable-AlgSum
+  invariant intact for any caller outside this module.
+- **First measured perf delta on the project.** Most prior sessions
+  optimised for correctness; this is the first one with `before` /
+  `after` numbers in the bead.
+
+## SESSION 36 OPEN QUESTIONS / FOLLOW-UPS
+
+- **DiracExpr in-place kernels** (dirac_trick.jl). Should bundle with
+  `ocpb` (F002) since both want Dict-based DiracExpr.terms storage.
+  Not filed.
+- **`Base.:-(::AlgSum)` (unary)** still uses `-1 * a` (fresh-AlgSum
+  comprehension). Not on hot path; deferred.
+- **Carmack §2-§5 deeper wins** (FactorKey hash cache, packed vertex
+  sigs, incremental inventory). All open; biggest ones for NLO.
 
 ---
 

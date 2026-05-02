@@ -6,8 +6,7 @@
 function contract_colour(s::AlgSum; N::Int=3)
     result = AlgSum()
     for (fk, c) in s.terms
-        contracted = _contract_colour_term(fk.factors, c, N)
-        result = result + contracted
+        add!(result, _contract_colour_term(fk.factors, c, N))
     end
     result
 end

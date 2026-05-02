@@ -54,7 +54,7 @@ function combine_m_squared_burnside(bundles::Vector{AmplitudeBundle},
         T_ij   = _pair_trace(bi, bj, i == j)
         w      = weights[i] * weights[j]
         s      = Rational{Int}(bi.fermion_sign * bj.fermion_sign)
-        m_sq   = m_sq + s * w * T_ij
+        add!(m_sq, T_ij, s * w)
     end
     m_sq
 end

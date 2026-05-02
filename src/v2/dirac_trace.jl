@@ -25,7 +25,7 @@ function _expand_and_trace(gs::Vector{<:DiracGamma})
         for (c, m) in g.slot.mom.terms
             expanded = copy(gs)
             expanded[idx] = GS(m)
-            result = result + c * _expand_and_trace(expanded)
+            add!(result, _expand_and_trace(expanded), c)
         end
         return result
     end
@@ -65,8 +65,7 @@ function _trace_no_g5(gs::Vector{<:DiracGamma})
         p = gamma_pair(g1, gs[k])
         iszero(p) && continue
         rest = [gs[i] for i in 2:n if i != k]
-        sub_trace = _trace_no_g5(rest)
-        result = result + sign * (p * sub_trace)
+        mul_acc!(result, p, _trace_no_g5(rest), sign)
     end
     result
 end
@@ -122,8 +121,7 @@ function _trace_with_g5(gs::Vector{<:DiracGamma})
         iszero(p) && continue
         rest = [ordinary[i] for i in 2:n if i != k]
         # Rest still has γ5 (append it for recursion)
-        sub_trace = _trace_with_g5_pure(rest)
-        result = result + sign * (p * sub_trace)
+        mul_acc!(result, p, _trace_with_g5_pure(rest), sign)
     end
     g5_sign * result
 end
@@ -147,8 +145,7 @@ function _trace_with_g5_pure(gs::Vector{<:DiracGamma})
         p = gamma_pair(g1, gs[k])
         iszero(p) && continue
         rest = [gs[i] for i in 2:n if i != k]
-        sub_trace = _trace_with_g5_pure(rest)
-        result = result + sign * (p * sub_trace)
+        mul_acc!(result, p, _trace_with_g5_pure(rest), sign)
     end
     result
 end
