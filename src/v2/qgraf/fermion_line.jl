@@ -1,35 +1,41 @@
-#  Phase 18a-6: fermion-line traversal.
+#  Phase 18b-3: multi-vertex fermion-line traversal.
 #
 #  walk_fermion_lines locates each fermion path through an emitted
-#  diagram. Phase 18a tree-only scope: every fermion line touches
-#  exactly ONE internal vertex (no internal fermion propagator), so
-#  the FermionLine struct collapses to a single (vertex, bar_slot,
-#  plain_slot, bar_leg, plain_leg) tuple. Multi-vertex fermion lines
-#  (Compton tree, fermion loops) are deferred to Phase 18b.
+#  diagram. A fermion line is an alternating chain
+#      bar_external → vertex₁ → propagator₁ → vertex₂ → ... → vertexₙ → plain_external
+#  where each internal vertex has exactly two fermion half-edges (the
+#  line enters at one and exits at the other). For tree QED 2→2 the
+#  line has n=1 vertex (no internal propagator); for Compton tree it
+#  has n=2 vertices joined by 1 internal fermion propagator.
 #
 #  The bar/plain assignment uses the externals' position metadata
-#  from build_externals (Phase 18a-5): the external connected via
-#  vmap to the bar slot must have :left position, the one at the
-#  plain slot must have :right position.
+#  from build_externals: the line starts at a `:left` external and
+#  terminates at a `:right` external.
 
 """
     FermionLine
 
-One fermion line through an emitted diagram. Tree-only: one vertex per
-line.
+One fermion line through an emitted diagram. Holds the ordered list of
+internal vertices along the line plus, for each vertex, the slot indices
+where the line enters (bar side) and exits (plain side). Internal
+fermion propagators between consecutive vertices are identified by
+their global edge ids.
 
 Fields:
-- `vertex`: the (single) internal vertex on this line.
-- `bar_slot, plain_slot`: slot indices at `vertex` where the line
-  enters from the bar (`:left`) external and exits at the plain
-  (`:right`) external.
-- `bar_leg, plain_leg`: external leg indices (1..n_ext) at the two
-  ends. `vmap[vertex, bar_slot] == bar_leg` and similarly for plain.
+- `vertices`: ordered internal vertices along the line (length n ≥ 1).
+- `in_slots[k]`: slot at `vertices[k]` where the line enters.
+- `out_slots[k]`: slot at `vertices[k]` where the line exits.
+- `propagator_edge_ids[k]`: global edge id of the internal fermion
+  propagator joining `vertices[k]` to `vertices[k+1]` (length n − 1).
+- `bar_leg, plain_leg`: external leg indices (1..n_ext) at the two ends.
+  `vmap[vertices[1], in_slots[1]] == bar_leg` and
+  `vmap[vertices[end], out_slots[end]] == plain_leg`.
 """
 struct FermionLine
-    vertex::Int
-    bar_slot::Int
-    plain_slot::Int
+    vertices::Vector{Int}
+    in_slots::Vector{Int}
+    out_slots::Vector{Int}
+    propagator_edge_ids::Vector{Int}
     bar_leg::Int
     plain_leg::Int
 end
@@ -38,15 +44,14 @@ end
     walk_fermion_lines(state, labels, pmap, physical_moms, n_inco, model;
                        ps1, phys_anti=nothing) -> Vector{FermionLine}
 
-For each internal vertex, locate the (single) pair of fermion half-edges
-and pair them into a FermionLine. Internal fermion propagators (where
-the second endpoint is also internal) error with a Phase-18b deferral
-message.
+Walk each fermion line from its `:left` external endpoint through any
+internal vertices and propagators until reaching a `:right` external
+endpoint. Each internal vertex on a line must have exactly two fermion
+half-edges (QED/QCD/EW 3-vertices satisfy this).
 
 `ps1` and `phys_anti` are threaded to `build_externals` so each slot's
 bar/plain position reflects the PHYSICAL particle/antiparticle identity
-of the ps1-permuted leg, not the qgraf-pmap-label. Both default to
-their `build_externals` defaults (identity ps1; label-derived anti).
+of the ps1-permuted leg.
 """
 function walk_fermion_lines(state::TopoState, labels,
                              pmap::AbstractMatrix{Symbol},
@@ -56,47 +61,62 @@ function walk_fermion_lines(state::TopoState, labels,
                              ps1::AbstractVector{<:Integer}=1:Int(state.n_ext),
                              phys_anti::Union{Nothing, Vector{Bool}}=nothing)
     n_ext = Int(state.n_ext)
-    rhop1 = Int(state.rhop1)
-    n     = Int(state.n)
     externals = build_externals(state, pmap, physical_moms, n_inco, model;
                                   ps1=ps1, phys_anti=phys_anti)
+    amap = compute_amap(state, labels)
 
     out = FermionLine[]
-    for v in rhop1:n
-        vdeg_v = Int(state.vdeg[v])
-        fermion_slots = Int[s for s in 1:vdeg_v
-                              if _field_species(model, pmap[v, s]) isa Fermion]
-        isempty(fermion_slots) && continue
+    for left_leg in 1:n_ext
+        externals[left_leg].position == :left || continue
 
-        # Tree-only: each fermion slot must connect to an external leg.
-        for s in fermion_slots
-            Int(labels.vmap[v, s]) <= n_ext ||
-                error("walk_fermion_lines: vertex $v slot $s connects to internal vertex $(Int(labels.vmap[v,s])); multi-vertex fermion lines deferred to Phase 18b")
-        end
+        # External legs have a single slot (slot 1). Step into the
+        # internal vertex they attach to.
+        v_curr  = Int(labels.vmap[left_leg, 1])
+        in_slot = Int(labels.lmap[left_leg, 1])
+        v_curr > n_ext ||
+            error("walk_fermion_lines: external left leg $left_leg connects to another external (impossible for tree)")
+        _field_species(model, pmap[v_curr, in_slot]) isa Fermion ||
+            error("walk_fermion_lines: external left leg $left_leg connects to non-fermion slot at v=$v_curr s=$in_slot")
 
-        # Pair them: exactly one bar (left) + one plain (right) per vertex
-        # for QED 3-vertices. Generalise via filtering.
-        bar_slot   = 0
-        plain_slot = 0
-        for s in fermion_slots
-            ext_leg  = Int(labels.vmap[v, s])
-            position = externals[ext_leg].position
-            if position == :left
-                bar_slot == 0 ||
-                    error("walk_fermion_lines: vertex $v has multiple bar-spinor legs (deferred to Phase 18b)")
-                bar_slot = s
-            elseif position == :right
-                plain_slot == 0 ||
-                    error("walk_fermion_lines: vertex $v has multiple plain-spinor legs (deferred to Phase 18b)")
-                plain_slot = s
+        vertices = Int[]
+        in_slots = Int[]
+        out_slots = Int[]
+        prop_edges = Int[]
+
+        while true
+            out_slot = _other_fermion_slot(v_curr, in_slot, state, model, pmap)
+            push!(vertices, v_curr)
+            push!(in_slots, in_slot)
+            push!(out_slots, out_slot)
+
+            next_v = Int(labels.vmap[v_curr, out_slot])
+            if next_v <= n_ext
+                externals[next_v].position == :right ||
+                    error("walk_fermion_lines: line from left leg $left_leg ends at non-:right external $next_v")
+                push!(out, FermionLine(vertices, in_slots, out_slots,
+                                        prop_edges, left_leg, next_v))
+                break
             end
+            push!(prop_edges, Int(amap[v_curr, out_slot]))
+            in_slot = Int(labels.lmap[v_curr, out_slot])
+            v_curr  = next_v
         end
-        bar_slot != 0 && plain_slot != 0 ||
-            error("walk_fermion_lines: vertex $v has incomplete fermion line (bar=$bar_slot, plain=$plain_slot)")
-
-        bar_leg   = Int(labels.vmap[v, bar_slot])
-        plain_leg = Int(labels.vmap[v, plain_slot])
-        push!(out, FermionLine(v, bar_slot, plain_slot, bar_leg, plain_leg))
     end
     out
+end
+
+# Unique fermion slot at v that is not `in_slot`. QED/QCD/EW 3-vertices
+# carry exactly two fermion half-edges; higher-arity or 4-fermion
+# vertices would need a different traversal policy.
+function _other_fermion_slot(v::Int, in_slot::Int, state::TopoState,
+                              model::AbstractModel,
+                              pmap::AbstractMatrix{Symbol})
+    vdeg_v = Int(state.vdeg[v])
+    fermion_slots = Int[s for s in 1:vdeg_v
+                          if _field_species(model, pmap[v, s]) isa Fermion]
+    length(fermion_slots) == 2 ||
+        error("walk_fermion_lines: vertex $v has $(length(fermion_slots)) fermion slots; only 2-fermion 3-vertices supported")
+    in_slot in fermion_slots ||
+        error("walk_fermion_lines: in_slot $in_slot at v=$v is not a fermion slot")
+    fermion_slots[1] == in_slot ? fermion_slots[2] : fermion_slots[1]
 end

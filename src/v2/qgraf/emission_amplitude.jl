@@ -98,19 +98,28 @@ function emission_to_amplitude(state::TopoState, labels,
                                        n_inco, model;
                                        ps1=ps1, phys_anti=phys_anti)
 
-    # Per-line chain: bar_spinor × vertex_factor × plain_spinor.
-    # Mirror of src/v2/amplitude.jl:61-72 _fermion_line_chain.
+    # Per-line chain: interleave bar_spinor × Π(vertex_factor × propagator_num) × plain_spinor.
+    # Tree single-vertex case (no internal fermion propagators) reduces
+    # to bar_sp × vtx × plain_sp; multi-vertex (Compton, fermion loops)
+    # threads propagator numerators between consecutive vertices.
+    prop_by_edge = Dict(p.edge_id => p for p in propagators)
     line_chains = DiracExpr[]
     for line in lines
         bar_sp   = externals[line.bar_leg].spinor
         plain_sp = externals[line.plain_leg].spinor
-        vtx      = vertices[line.vertex]
-        chain_terms = Tuple{AlgSum, DiracChain}[]
-        for (coeff, chain) in vtx.terms
-            full = dot(bar_sp, chain.elements..., plain_sp)
-            push!(chain_terms, (coeff, full))
+        line_de  = DiracExpr(dot(bar_sp))
+        for (k, v) in enumerate(line.vertices)
+            line_de = line_de * vertices[v]
+            if k < length(line.vertices)
+                edge_id = line.propagator_edge_ids[k]
+                prop_num = prop_by_edge[edge_id].num
+                prop_num isa DiracExpr ||
+                    error("emission_to_amplitude: fermion propagator at edge $edge_id has non-DiracExpr numerator $(typeof(prop_num))")
+                line_de = line_de * prop_num
+            end
         end
-        push!(line_chains, DiracExpr(chain_terms))
+        line_de = line_de * DiracExpr(dot(plain_sp))
+        push!(line_chains, line_de)
     end
 
     # Master amplitude: product of all line chains. For φ³ (no lines)

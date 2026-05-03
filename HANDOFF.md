@@ -1,6 +1,113 @@
-# HANDOFF — 2026-05-02 (Session 37: ocpb closed — DiracExpr.simplify spinor-drop bug)
+# HANDOFF — 2026-05-03 (Session 38: h3pb + a7f2 closed — Phase 18b-2 + 18b-3)
 
 ## DO NOT DELETE THIS FILE. Read it completely before working.
+
+---
+
+## START HERE (Session 38 updates)
+
+1. **`feynfeld-h3pb` (F009 ladder, P1, Phase 18b-2) closed.** Fermion
+   propagator numerator now accepts composite (`MomentumSum`) momentum.
+   - **Fix at `src/v2/qgraf/propagator_assemble.jl:93-106`:**
+     `_propagator_numerator(::Fermion, mom::MomentumSum, mass)` linearises
+     γ^μ over the sum: for `p = Σ cᵢ pᵢ`, returns `Σ cᵢ p̸ᵢ + m·I`.
+     `GS` added to `QgrafPort.jl` import list.
+   - **Tests** (`test/v2/qgraf/test_propagator_assemble.jl`): +12
+     assertions. 4 unit tests on the private dispatch (massless, massive,
+     negative-coeff, rational-coeff) + 1 `build_propagators` integration
+     test on a Compton-like s-channel topology with internal electron
+     edge. RED-then-GREEN: 5 errors before fix → 36/36 after.
+   - **Reviewer APPROVE-WITH-NITS** (non-blocking).
+   - **Commit `1d91ef9`**, suite 1462→1474 pass + 0 broken.
+
+2. **`feynfeld-a7f2` (P1, Phase 18b-3) closed.** Multi-vertex
+   fermion-line traversal — Compton tree now flows through the pipeline.
+   - **`FermionLine` struct rewritten** (`src/v2/qgraf/fermion_line.jl`):
+     was `(vertex, bar_slot, plain_slot, bar_leg, plain_leg)`; now
+     `(vertices::Vector{Int}, in_slots::Vector{Int}, out_slots::Vector{Int},
+      propagator_edge_ids::Vector{Int}, bar_leg, plain_leg)`. The tree
+     single-vertex case has `length(vertices)==1` and
+     `isempty(propagator_edge_ids)` — clean superset of the old shape.
+   - **`walk_fermion_lines` rewritten** as an arrow-walking algorithm:
+     for each `:left` external, step into its internal vertex, then
+     iterate "find the OTHER fermion slot at v, step across via
+     `lmap`/`vmap` peer-slot lookup, repeat" until reaching a `:right`
+     external. Uses `compute_amap` pairing invariant for propagator
+     edge_id capture. New helper `_other_fermion_slot` (asserts each
+     vertex has exactly 2 fermion slots — QED/QCD/EW 3-vertices and
+     Yukawa scalar all satisfy this; 4-fermion vertices fail fast).
+   - **`emission_to_amplitude` chain assembly** simplified via uniform
+     DiracExpr operator composition: `line_de = DiracExpr(dot(bar_sp))`,
+     fold in `vertices[v] * prop_num` per step, terminate with
+     `* DiracExpr(dot(plain_sp))`. Replaces the per-`vtx.terms` loop
+     with one operator chain (works for both single-vertex and
+     multi-vertex; equivalent to old code for the 1-vertex case via
+     DiracExpr.* cartesian-product semantics).
+   - **Tests** (+16 assertions across 2 files):
+     - `test/v2/qgraf/test_fermion_line.jl`: existing ee→μμ test updated
+       to new shape (`.vertex` → `.vertices[1]`, etc.); new Compton
+       s-channel testset asserts 1 line, 2 vertices, 1 propagator
+       edge_id with amap-pairing matched at both seam endpoints.
+     - `test/v2/qgraf/test_emission_amplitude.jl`: new Compton testset
+       proves `bundle.amplitude == handbuilt` symbolic equality, where
+       handbuilt uses the qgraf-port `:mu_l_<edge_id>` naming convention
+       (so the comparison is a clean DiracExpr `==`, no contraction
+       needed). Acceptance criterion (1) "Compton tree pipeline ≡
+       handbuilt symbolic AlgSum" satisfied.
+   - **Bhabha-class detail**: Compton needs `phys_anti=[false,...]` to
+     dispatch outgoing electron's `:e_bar` qgraf label to `ubar`/`:left`
+     (not `vbar`/`:left`). The pipeline already supports this via the
+     existing `phys_anti` parameter; the test threads it through.
+   - **Reviewer APPROVE-WITH-NITS**: two non-blocking nits — (a) no
+     3-vertex synthetic test (algorithm is general while-loop, structural
+     correctness covers it; tree QED 2→2 has no 3-vertex chains), (b)
+     `walk_fermion_lines` would silently OMIT a closed fermion loop
+     since there's no `:left` external to seed the walk (Phase 18b NLO
+     concern, deferred).
+   - **Suite 1474→1490 pass + 0 broken**, 6m35s.
+
+3. **Phase 18b-4..8 unblocked** (with respect to a7f2). The next bead in
+   the chain is **`feynfeld-m4o8` (Phase 18b-4: boson polarisation for
+   external gluons/photons)** — required for ee→γγ-style processes
+   where photons appear as external states. After that: feen (18b-6
+   symbolic masses), 5d1k (18b-7 coupling assignment), awtt (18b-5 4g
+   Lorentz), then 4xrh (18b-8 validation against handbuilt Compton/
+   Bhabha/qq̄→gg/ee→WW).
+
+4. **Default next work**: `bd ready`. The 18b chain (m4o8 next) is the
+   live development chain. Type-stability sweep (vgwx F010, 2r8u F011),
+   6pq5 F035 `@test_broken` flips, 1wdl F008 (pipeline schism), 65wz
+   Spiral 9 closure are all P1 candidates if the user wants a break
+   from 18b.
+
+## SESSION 38 ACCOMPLISHMENTS
+
+- **Two correctness gates off the Phase 18b critical path** (h3pb +
+  a7f2). Compton tree now produces a pipeline-generated AmplitudeBundle
+  symbolically equal to a handbuilt reference.
+- **Permanent +28 assertions** (12 from h3pb + 16 from a7f2). Test
+  count crosses 1490.
+- **`FermionLine` shape future-proofed for NLO**: the same struct
+  handles 0, 1, 2+ propagators per line; adding 1-loop fermion loops
+  later only needs an extension to the walking algorithm (seed from
+  unvisited fermion slots), not a struct change.
+- **`emission_to_amplitude` chain assembly simplified** by leveraging
+  DiracExpr operator overloading uniformly. Old code looped over
+  `vtx.terms` and built chains element-wise; new code is `bar * Π * plain`.
+
+## SESSION 38 OPEN QUESTIONS / FOLLOW-UPS
+
+- **Fermion-loop walk safety**: when 1-loop fermion bubbles arrive,
+  `walk_fermion_lines` must either (a) seed walks from unvisited fermion
+  slots, or (b) detect the closed-loop case and error fast. Currently
+  silent omission. File a bead when 18b NLO requires it.
+- **3-vertex synthetic test**: cheap insurance for the while-loop
+  generality. Defer until a 5-leg or 1-loop topology naturally provides
+  one.
+- **`_other_fermion_slot` micro-allocation**: rebuilds the fermion-slot
+  list per traversal step. Negligible for tree QED; bundle into the
+  perf-followup bead noted in Session 36 (umgq) if NLO recursion makes
+  it visible.
 
 ---
 
