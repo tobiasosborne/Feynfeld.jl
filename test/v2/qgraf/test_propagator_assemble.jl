@@ -161,4 +161,94 @@ using Feynfeld.QgrafPort: Partition, TopoState, MAX_V,
         @test p_self.denom == alg(pair(Momentum(:k1), Momentum(:k1)))
     end
 
+    # Phase 18b-2 (feynfeld-h3pb): fermion propagator numerator must accept
+    # composite momentum. γ^μ is linear in its argument, so for p = Σ cᵢ pᵢ
+    # the numerator (p̸ + m) expands to Σ cᵢ p̸ᵢ + m·I.
+    @testset "fermion propagator numerator with composite momentum" begin
+        _propnum = Feynfeld.QgrafPort._propagator_numerator
+        p1 = Momentum(:p1)
+        p2 = Momentum(:p2)
+
+        @testset "massless: p̸1 + p̸2" begin
+            mom = momentum_sum([(1//1, p1), (1//1, p2)])
+            @test mom isa MomentumSum
+            expected = DiracExpr(DiracChain([GS(p1)])) +
+                       DiracExpr(DiracChain([GS(p2)]))
+            @test _propnum(Fermion(), mom, 0//1) == expected
+        end
+
+        @testset "massive: p̸1 + p̸2 + m·I" begin
+            mom = momentum_sum([(1//1, p1), (1//1, p2)])
+            mass = 1//1
+            expected = DiracExpr(DiracChain([GS(p1)])) +
+                       DiracExpr(DiracChain([GS(p2)])) +
+                       mass * DiracExpr(alg(1))
+            @test _propnum(Fermion(), mom, mass) == expected
+        end
+
+        @testset "negative coefficient: p̸1 − p̸2" begin
+            mom = momentum_sum([(1//1, p1), (-1//1, p2)])
+            expected = DiracExpr(DiracChain([GS(p1)])) -
+                       DiracExpr(DiracChain([GS(p2)]))
+            @test _propnum(Fermion(), mom, 0//1) == expected
+        end
+
+        @testset "rational coefficient: ½ p̸1" begin
+            # Single-term momentum_sum with non-unit coefficient stays a
+            # MomentumSum (won't degenerate to bare Momentum).
+            mom = momentum_sum([(1//2, p1)])
+            @test mom isa MomentumSum
+            expected = (1//2) * DiracExpr(DiracChain([GS(p1)]))
+            @test _propnum(Fermion(), mom, 0//1) == expected
+        end
+    end
+
+    # Phase 18b-2 (feynfeld-h3pb): build_propagators must succeed on a
+    # Compton-like topology where the internal edge is an off-shell fermion
+    # carrying p1+p2.
+    @testset "Compton-like s-channel: internal fermion propagator" begin
+        # Topology: 4 ext (1=e, 2=γ, 3=e, 4=γ), 2 int (5,6). Edge 5-6 is
+        # the off-shell electron. Mirrors the photon-exchange topology
+        # above but with the internal field flipped to an electron.
+        p = Partition(Int8(4), Int8[2], Int8(3), Int8(0))
+        s = TopoState(p)
+        s.xg[1, 5] = 1
+        s.xg[2, 5] = 1
+        s.xg[3, 6] = 1
+        s.xg[4, 6] = 1
+        s.xg[5, 6] = 1
+        s.xn[5]    = 2
+        s.xn[6]    = 2
+        labels = compute_qg10_labels(s)
+
+        pmap = fill(:_, 6, MAX_V)
+        pmap[1, 1] = :e;       pmap[5, 1] = :e_bar
+        pmap[2, 1] = :gamma;   pmap[5, 2] = :gamma
+        pmap[3, 1] = :e_bar;   pmap[6, 1] = :e
+        pmap[4, 1] = :gamma;   pmap[6, 2] = :gamma
+        pmap[5, 3] = :e;       pmap[6, 3] = :e_bar
+
+        ext_moms = [Momentum(:p1), Momentum(:p2), Momentum(:p3), Momentum(:p4)]
+        edge_mom = route_momenta(s, labels, ext_moms)
+
+        propagators = build_propagators(s, labels, pmap, edge_mom, qed_model())
+
+        @test length(propagators) == 1
+        p_e = propagators[1]
+        @test p_e.field == :e
+        @test (p_e.v_lo, p_e.v_hi, p_e.parallel_idx) == (5, 6, 1)
+        # All-incoming convention: internal fermion carries p1+p2
+        expected_mom = momentum_sum([(1//1, Momentum(:p1)),
+                                     (1//1, Momentum(:p2))])
+        @test p_e.mom == expected_mom
+        # Electron has placeholder mass 1//1 in QED model (m_e ≠ :zero).
+        # Numerator: p̸1 + p̸2 + 1·I.
+        expected_num = DiracExpr(DiracChain([GS(Momentum(:p1))])) +
+                       DiracExpr(DiracChain([GS(Momentum(:p2))])) +
+                       (1//1) * DiracExpr(alg(1))
+        @test p_e.num == expected_num
+        # Denominator: (p1+p2)² − m² (placeholder mass 1//1).
+        @test p_e.denom == alg(pair(expected_mom, expected_mom)) - (1//1) * alg(1)
+    end
+
 end

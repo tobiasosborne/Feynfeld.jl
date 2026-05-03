@@ -93,8 +93,17 @@ _propagator_numerator(::Scalar, _mom, _mass) = alg(1)
 function _propagator_numerator(::Fermion, mom::Momentum, mass)
     propagator_num(Fermion(), mom, mass)
 end
-_propagator_numerator(::Fermion, ::Union{Nothing, MomentumSum}, _mass) =
-    error("Fermion propagator with composite/zero momentum deferred to Phase 18b")
+# Composite momentum: γ^μ is linear in its argument, so for p = Σ cᵢ pᵢ
+# the numerator (p̸ + m) expands to Σ cᵢ p̸ᵢ + m·I.
+# Phase 18b-2 (feynfeld-h3pb) — required for internal fermion propagators
+# in Compton/Bhabha/qq̄→gg.
+function _propagator_numerator(::Fermion, mom::MomentumSum, mass)
+    de = DiracExpr()
+    for (c, p) in mom.terms
+        de = de + c * DiracExpr(DiracChain([GS(p)]))
+    end
+    iszero(mass) ? de : de + mass * DiracExpr(alg(1))
+end
 
 # Denominator (p² − m²). For massless: just pair(mom, mom).
 function _propagator_denominator(mom, mass_val)
