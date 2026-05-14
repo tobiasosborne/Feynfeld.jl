@@ -74,17 +74,43 @@ end
 
 # Spin-summed trace for a DiracExpr fermion line.
 # |Σ_i c_i ū Γ_i v|² = Σ_{i,j} c_i c_j × Tr[compl_R × Γ̄_j × compl_L × Γ_i]
-function _single_line_trace(de::DiracExpr)
-    first_chain = de.terms[1][2]
+_single_line_trace(de::DiracExpr) = _line_trace(de, de)
+
+# Generalised single-line trace Σ_spins M_conj* M_fwd for two DiracExpr
+# fermion lines that share the same external-spinor pair (bar/plain
+# momenta). `_single_line_trace` is the diagonal `de_fwd === de_conj`
+# case; the off-diagonal case is the 1-line interference term (e.g. the
+# Compton s×u cross term — every emission of a 1-line process pins the
+# same external bar/plain momenta, so completeness is read off de_fwd).
+# Same kind, momentum and mass — the off-diagonal precondition below.
+_same_boundary_spinor(a::Spinor, b::Spinor) =
+    typeof(a) == typeof(b) && a.momentum == b.momentum && a.mass == b.mass
+
+function _line_trace(de_fwd::DiracExpr, de_conj::DiracExpr)
+    first_chain = de_fwd.terms[1][2]
     sp_L = first(first_chain.elements)::Spinor
     sp_R = last(first_chain.elements)::Spinor
+
+    # Off-diagonal (1-line interference) precondition: when fwd ≠ conj,
+    # both lines must share the same external bar/plain spinors —
+    # completeness is read off de_fwd only. This holds for Compton-class
+    # processes (qgen permutes only the bosons, leaving the fermion legs
+    # fixed); reconnected fermion lines go through spin_sum_interference.
+    if de_fwd !== de_conj
+        cc = de_conj.terms[1][2]
+        (_same_boundary_spinor(first(cc.elements)::Spinor, sp_L) &&
+         _same_boundary_spinor(last(cc.elements)::Spinor,  sp_R)) ||
+            error("_line_trace: de_fwd and de_conj have different external " *
+                  "spinors; the shared-boundary precondition fails")
+    end
+
     _, mass_R, mom_R = _completeness(sp_R)
     _, mass_L, mom_L = _completeness(sp_L)
 
     result = AlgSum()
-    for (ci, chain_i) in de.terms
+    for (ci, chain_i) in de_fwd.terms
         gammas_i = DiracGamma[e for e in chain_i.elements[2:end-1]]
-        for (cj, chain_j) in de.terms
+        for (cj, chain_j) in de_conj.terms
             gammas_j = DiracGamma[e for e in chain_j.elements[2:end-1]]
             sign_j = _conj_gamma5_sign(gammas_j)
             gammas_conj_j = _conjugate_gammas(gammas_j)

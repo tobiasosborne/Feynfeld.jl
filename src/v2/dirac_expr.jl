@@ -109,3 +109,23 @@ function simplify(de::DiracExpr)
     end
     DiracExpr(terms)
 end
+
+# ---- Lorentz-index substitution (boson polarisation index canonicalisation) ----
+# Extends `substitute_index` (contract.jl) to matrix-valued expressions.
+# Only `DiracGamma{LISlot}` factors carry a Lorentz index; momentum slots,
+# γ5 / projectors and spinors pass through unchanged. Term coefficients are
+# AlgSums and are substituted via the existing AlgSum method.
+function substitute_index(de::DiracExpr, old_idx::LorentzIndex, new_idx::LorentzIndex)
+    DiracExpr(Tuple{AlgSum, DiracChain}[
+        (substitute_index(coeff, old_idx, new_idx),
+         substitute_index(chain, old_idx, new_idx))
+        for (coeff, chain) in de.terms])
+end
+
+substitute_index(ch::DiracChain, old_idx::LorentzIndex, new_idx::LorentzIndex) =
+    DiracChain(DiracElement[_subst_dirac_elem(e, old_idx, new_idx)
+                            for e in ch.elements])
+
+_subst_dirac_elem(g::DiracGamma{LISlot}, old_idx::LorentzIndex, new_idx::LorentzIndex) =
+    DiracGamma(LISlot(_subst_li(g.slot.index, old_idx, new_idx)))
+_subst_dirac_elem(e::DiracElement, ::LorentzIndex, ::LorentzIndex) = e

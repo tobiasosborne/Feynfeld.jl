@@ -24,6 +24,10 @@ Fields:
 - `sym_factor`: 1/S_local from compute_local_sym_factor (Rational).
 - `coupling`: AlgSum placeholder for the coupling product (e.g. e²);
   Phase 18a fills with alg(1), full coupling assignment is 18b.
+- `boson_pols`: Vector{LorentzIndex} — the free polarisation indices of
+  external bosons, canonicalised to `:eps_<physical_leg>` and sorted by
+  name. Empty when every boson is internal (tree QED ee→μμ, φ³). Used by
+  `combine_m_squared_burnside` to apply the ε–ε* polarisation sum.
 """
 struct AmplitudeBundle
     line_chains::Vector{DiracExpr}
@@ -32,6 +36,7 @@ struct AmplitudeBundle
     fermion_sign::Int
     sym_factor::Rational{Int}
     coupling::AlgSum
+    boson_pols::Vector{LorentzIndex}
 end
 
 """
@@ -122,6 +127,34 @@ function emission_to_amplitude(state::TopoState, labels,
         push!(line_chains, line_de)
     end
 
+    # Phase 18b-4: canonicalise external-boson polarisation indices.
+    # `build_vertices` names a boson edge `:mu_l_<edge_id>`; for an
+    # external boson edge the id is the qgen slot, which maps to physical
+    # leg `ps1[slot]`. The slot↔physical-leg map differs per emission, so
+    # the same physical boson otherwise carries a different `:mu_l_*`
+    # name in different bundles. Relabel to `:eps_<physical_leg>` so the
+    # cross-bundle interference trace and the ε–ε* polarisation sum tie
+    # the same physical boson together.
+    boson_pols = LorentzIndex[]
+    for ef in externals
+        ef.pol_index === nothing && continue
+        canon = LorentzIndex(Symbol(:eps_, Int(ps1[ef.leg_idx])), DimD())
+        relabelled = DiracExpr[substitute_index(lc, ef.pol_index, canon)
+                               for lc in line_chains]
+        # The external boson's index must actually appear on a fermion-line
+        # chain (it attaches to a γ^μ vertex factor). If the substitution
+        # was a no-op the boson sits on no fermion line — its ε^μ would be
+        # a free AlgSum factor, which AmplitudeBundle cannot yet represent.
+        relabelled == line_chains &&
+            error("emission_to_amplitude: external boson leg $(ef.leg_idx) " *
+                  "polarisation index $(ef.pol_index) is not on any fermion " *
+                  "line; off-fermion-line external bosons are deferred to a " *
+                  "later Phase 18b sub-task")
+        line_chains = relabelled
+        push!(boson_pols, canon)
+    end
+    sort!(boson_pols)
+
     # Master amplitude: product of all line chains. For φ³ (no lines)
     # the amplitude is just DiracExpr(alg(1)).
     amplitude = isempty(line_chains) ? DiracExpr(alg(1)) :
@@ -134,7 +167,7 @@ function emission_to_amplitude(state::TopoState, labels,
         state, labels, pmap, _conjugate_dict(model)))
 
     AmplitudeBundle(line_chains, amplitude, denoms,
-                    fermion_sign, 1 // sym_factor, alg(1))
+                    fermion_sign, 1 // sym_factor, alg(1), boson_pols)
 end
 
 # Build conjugate dict on demand from the model (mirrors

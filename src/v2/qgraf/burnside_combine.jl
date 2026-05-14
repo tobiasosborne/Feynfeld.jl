@@ -56,27 +56,53 @@ function combine_m_squared_burnside(bundles::Vector{AmplitudeBundle},
         s      = Rational{Int}(bi.fermion_sign * bj.fermion_sign)
         add!(m_sq, T_ij, s * w)
     end
+
+    # Phase 18b-4: external-boson polarisation sums (Feynman gauge,
+    # Σ_λ ε^μ ε^{ν*} = -g^{μν}). Every bundle of a given process carries
+    # the same canonical `:eps_<leg>` indices (see emission_to_amplitude),
+    # so the sum factorises out of the i,j double sum and is applied once.
+    # The conjugate amplitude relabels each index `x → x_` (spin_sum.jl
+    # `_conjugate_gammas`), so the metric ties `:eps_<leg>` to
+    # `:eps_<leg>_`; `solve_tree_pipeline`'s `contract` does the rest.
+    if !isempty(bundles)
+        pol_idxs = bundles[1].boson_pols
+        for b in bundles
+            b.boson_pols == pol_idxs ||
+                error("combine_m_squared_burnside: bundles disagree on external " *
+                      "boson polarisation indices ($(b.boson_pols) vs $pol_idxs)")
+        end
+        for mu in pol_idxs
+            mu_conj = LorentzIndex(Symbol(mu.name, :_), mu.dim)
+            m_sq = m_sq * polarization_sum(mu, mu_conj)
+        end
+    end
     m_sq
 end
 
-# Diagonal (same bundle): two-line product of per-line traces.
-# Off-diagonal (different bundles): single closed-loop interference trace.
-# Empty line_chains (φ³ scalar): amplitude is alg(1); every pair is alg(1).
-# Phase 18b-1 supports 0- and 2-line bundles only; multi-vertex lines
-# (3+ chains) are deferred to Phase 18b-3.
+# Per-(i,j) trace, dispatched on fermion-line count:
+#   0×0  (φ³ scalar)      : amplitude is alg(1); every pair is alg(1).
+#   1×1  (Compton, qq̄→gg quark line) : one external-spinor pair, boson
+#         polarisation indices free. Diagonal is Σ_spins|M_i|²; the
+#         off-diagonal is the 1-line interference Σ_spins M_j* M_i —
+#         valid because every emission of a 1-line process pins the same
+#         external bar/plain momenta (Phase 18b-4).
+#   2×2  (ee→μμ, Bhabha)  : product of two per-line traces (diagonal) or
+#         the reconnected closed-loop interference trace (off-diagonal).
+# Mixed and 3+-line bundles are not yet supported.
 function _pair_trace(bi::AmplitudeBundle, bj::AmplitudeBundle, is_diagonal::Bool)
     n_i, n_j = length(bi.line_chains), length(bj.line_chains)
     if n_i == 0 && n_j == 0
         return alg(1)
+    elseif n_i == 1 && n_j == 1
+        return is_diagonal ?
+            _single_line_trace(bi.line_chains[1]) :
+            _line_trace(bj.line_chains[1], bi.line_chains[1])
+    elseif n_i == 2 && n_j == 2
+        return is_diagonal ?
+            spin_sum_amplitude_squared(bi.line_chains[1], bi.line_chains[2]) :
+            spin_sum_interference((bi.line_chains[1], bi.line_chains[2]),
+                                  (bj.line_chains[1], bj.line_chains[2]))
     end
-    (n_i == 2 && n_j == 2) ||
-        error("_pair_trace: Phase 18b-1 supports 0- and 2-line bundles only " *
-              "(got $n_i × $n_j lines); multi-vertex fermion lines deferred " *
-              "to Phase 18b-3")
-    if is_diagonal
-        spin_sum_amplitude_squared(bi.line_chains[1], bi.line_chains[2])
-    else
-        spin_sum_interference((bi.line_chains[1], bi.line_chains[2]),
-                                             (bj.line_chains[1], bj.line_chains[2]))
-    end
+    error("_pair_trace: unsupported fermion-line counts $n_i × $n_j " *
+          "(supported: 0×0, 1×1, 2×2); mixed / 3+-line bundles not yet handled")
 end

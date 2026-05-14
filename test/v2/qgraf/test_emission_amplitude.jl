@@ -57,6 +57,8 @@ using Feynfeld.QgrafPort: Partition, TopoState, MAX_V,
 
         # Tree-level QED: no automorphisms → S_local = 1.
         @test bundle.sym_factor == 1//1
+        # Photon is internal → no external polarisation indices.
+        @test isempty(bundle.boson_pols)
     end
 
     # Phase 18b-3 (feynfeld-a7f2): Compton tree s-channel exercises a
@@ -101,16 +103,18 @@ using Feynfeld.QgrafPort: Partition, TopoState, MAX_V,
                                       (1//1, Momentum(:k1))])
         @test bundle.denoms == [alg(pair(s_channel_mom, s_channel_mom))]
 
-        # Hand-built reference using the qgraf-port :mu_l_<edge_id>
-        # naming convention. The line walks bar(leg 3)→v6→prop→v5→plain(leg 1).
-        # mu_l_4 at v6 (boson edge to ext 4); mu_l_2 at v5 (boson edge to ext 2).
+        # Hand-built reference. The line walks bar(leg 3)→v6→prop→v5→
+        # plain(leg 1). build_vertices allocates :mu_l_4 at v6 (boson edge
+        # to ext 4) and :mu_l_2 at v5 (boson edge to ext 2); Phase 18b-4
+        # then canonicalises each external-boson index to :eps_<phys_leg>
+        # — here ps1 is identity so :mu_l_2→:eps_2, :mu_l_4→:eps_4.
         # Propagator num: (p̸1 + k̸1) since m_e=:zero.
-        mu_l_2 = LorentzIndex(:mu_l_2, DimD())
-        mu_l_4 = LorentzIndex(:mu_l_4, DimD())
+        eps_2 = LorentzIndex(:eps_2, DimD())
+        eps_4 = LorentzIndex(:eps_4, DimD())
         ubar_p2 = ubar(Momentum(:p2))
         u_p1    = u(Momentum(:p1))
-        gamma2  = DiracExpr(DiracChain([DiracGamma(LISlot(mu_l_2))]))
-        gamma4  = DiracExpr(DiracChain([DiracGamma(LISlot(mu_l_4))]))
+        gamma2  = DiracExpr(DiracChain([DiracGamma(LISlot(eps_2))]))
+        gamma4  = DiracExpr(DiracChain([DiracGamma(LISlot(eps_4))]))
         prop    = DiracExpr(DiracChain([GS(Momentum(:p1))])) +
                   DiracExpr(DiracChain([GS(Momentum(:k1))]))
         expected = DiracExpr(Feynfeld.dot(ubar_p2)) * gamma4 * prop * gamma2 *
@@ -118,6 +122,8 @@ using Feynfeld.QgrafPort: Partition, TopoState, MAX_V,
 
         @test bundle.amplitude == expected
         @test bundle.line_chains[1] == expected
+        # Phase 18b-4: external photons → canonical sorted pol indices.
+        @test bundle.boson_pols == [eps_2, eps_4]
     end
 
     @testset "φ³ φφ→φφ s-channel: scalar bundle (no fermion lines)" begin
@@ -151,6 +157,7 @@ using Feynfeld.QgrafPort: Partition, TopoState, MAX_V,
         @test bundle.denoms == [alg(pair(s_channel_mom, s_channel_mom))]
         @test bundle.fermion_sign == 1                # no fermions
         @test bundle.sym_factor == 1//1
+        @test isempty(bundle.boson_pols)              # scalars: no ε index
     end
 
 end

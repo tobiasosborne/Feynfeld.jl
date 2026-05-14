@@ -12,7 +12,9 @@ import ..Feynfeld: Momentum, MomentumSum, momentum_sum,
                      DimD, LorentzIndex, Spinor,
                      feynman_rules, propagator_num, vertex_factor,
                      u, v, ubar, vbar,
+                     substitute_index, polarization_sum,
                      spin_sum_amplitude_squared, spin_sum_interference,
+                     _single_line_trace, _line_trace,
                      _degree_partitions, _expand_external_fields,
                      _expand_model_for_diagen
 

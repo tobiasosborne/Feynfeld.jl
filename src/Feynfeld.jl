@@ -22,6 +22,9 @@ include("v2/dirac_trick.jl")
 include("v2/colour_trace.jl")
 include("v2/colour_simplify.jl")
 
+# ---- Layer 4b: Polarization sums (used by QgrafPort spin-sum stage) ----
+include("v2/polarization_sum.jl")
+
 # ---- Layer 1: Model ----
 include("v2/model.jl")
 
@@ -61,9 +64,6 @@ include("v2/qcd_model.jl")
 
 # ---- Layer 1c: EW Model ----
 include("v2/ew_model.jl")
-
-# ---- Layer 4b: Polarization sums ----
-include("v2/polarization_sum.jl")
 
 # ---- Layer 5: Integrals ----
 include("v2/pave.jl")

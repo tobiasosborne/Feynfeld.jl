@@ -110,9 +110,20 @@ One per external leg. Carries the spinor / polarisation factor and the
 in/out + antiparticle metadata Phase 18a-6 (fermion-line traversal)
 needs to chain spinors into Dirac chains.
 
-For boson externals: `spinor === nothing` and `position === nothing`.
-Polarisation handling is deferred to a future spin-sum stage; if the
-boson is internal-only (e.g. tree QED ee→μμ) we never need it.
+For fermion externals: `spinor` is the u/v/ubar/vbar factor, `position`
+is `:left | :right`, and `pol_index === nothing`.
+
+For boson externals (Phase 18b-4): `spinor === nothing`,
+`position === nothing`, and `pol_index` is the free Lorentz index of the
+polarisation vector ε^μ. It equals `:mu_l_<leg_idx>` — the same index
+`build_vertices` allocates for the boson edge at the internal peer
+vertex, since an external half-edge's id is its leg index
+(`compute_amap`: `amap[i,1] = i`). `emission_to_amplitude` later
+canonicalises it to `:eps_<physical_leg>` so the same physical boson
+agrees across emissions. Internal-only bosons (e.g. tree QED ee→μμ)
+never produce an `ExternalFactor`, so `pol_index` stays `nothing` there.
+
+For scalar externals: all three are `nothing`.
 """
 struct ExternalFactor
     leg_idx::Int
@@ -122,6 +133,7 @@ struct ExternalFactor
     antiparticle::Bool
     spinor::Union{Nothing, Spinor}
     position::Union{Nothing, Symbol}    # :left | :right for fermion
+    pol_index::Union{Nothing, LorentzIndex}   # ε^μ free index for boson
 end
 
 """
@@ -184,7 +196,15 @@ function build_externals(state::TopoState,
         species  = _field_species(model, field)
         spin, pos = _spinor_dispatch(species, incoming, anti, mom,
                                        _ext_mass(model, field))
-        push!(out, ExternalFactor(i, field, mom, incoming, anti, spin, pos))
+        # External boson: free polarisation index = boson-edge index at
+        # the internal peer vertex. An external half-edge's id is its leg
+        # slot `i` (compute_amap: amap[i,1] = i), so the index matches
+        # `build_vertices`'s `:mu_l_<edge_id>` for that edge without an
+        # amap lookup.
+        pol_idx = species isa Boson ?
+                    LorentzIndex(Symbol(:mu_l_, i), DimD()) : nothing
+        push!(out, ExternalFactor(i, field, mom, incoming, anti,
+                                   spin, pos, pol_idx))
     end
     out
 end
@@ -206,5 +226,8 @@ function _spinor_dispatch(::Fermion, incoming::Bool, anti::Bool,
     end
 end
 
-# Boson externals: polarisation handled at spin-sum stage (deferred).
+# Boson / scalar externals carry no spinor. For bosons the free
+# polarisation index is set by `build_externals` (Phase 18b-4); the
+# ε–ε* polarisation sum is applied at the spin-sum stage by
+# `combine_m_squared_burnside`.
 _spinor_dispatch(::Union{Boson, Scalar}, _, _, _, _) = (nothing, nothing)

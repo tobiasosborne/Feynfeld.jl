@@ -1,6 +1,93 @@
-# HANDOFF — 2026-05-03 (Session 38: h3pb + a7f2 closed — Phase 18b-2 + 18b-3)
+# HANDOFF — 2026-05-14 (Session 39: m4o8 closed — Phase 18b-4 external-boson polarisation)
 
 ## DO NOT DELETE THIS FILE. Read it completely before working.
+
+---
+
+## START HERE (Session 39 updates)
+
+1. **`feynfeld-m4o8` (P1, Phase 18b-4) closed.** External-boson
+   polarisation now flows through `solve_tree_pipeline`; Compton tree
+   (eγ→eγ) |M|² is pipeline-generated and symbolically equal to an
+   independent handbuilt reference.
+   - **Scope decision (approved by Tobias).** m4o8's acceptance
+     criterion named *full qq̄→gg* pipeline≡handbuilt, but qq̄→gg also
+     needs the 3-gluon vertex and pipeline colour — neither in m4o8's
+     description nor any other 18b bead. **Descoped to the polarisation
+     infrastructure validated on Compton** (pure QED: 1 fermion line, 2
+     external photons, Feynman gauge, no 3g vertex, no colour). Two new
+     beads filed and linked as blockers of `feynfeld-4xrh` (18b-8):
+     **`feynfeld-asp9`** (wire ggg vertex into `build_vertices`;
+     `triple_gauge_vertex` already exists in `qcd_model.jl`, unwired),
+     **`feynfeld-yewo`** (colour algebra in the qgraf pipeline — likely
+     its own epic; `AmplitudeBundle` has no colour field today).
+   - **Implementation** (5 source files, ~150 LOC):
+     - `ExternalFactor` gained `pol_index::Union{Nothing,LorentzIndex}`;
+       `build_externals` sets it to `:mu_l_<leg_idx>` for external
+       bosons (an external half-edge's id IS its leg slot, so no amap
+       lookup — matches `build_vertices`'s `:mu_l_<edge_id>`).
+     - `emission_to_amplitude` relabels each external-boson index
+       `:mu_l_<edge_id>` → canonical `:eps_<physical_leg>` via a new
+       `substitute_index(::DiracExpr)` (in `dirac_expr.jl`). Needed
+       because the slot↔physical-leg map differs per emission, so the
+       same physical photon otherwise carries different `:mu_l_*` names
+       in different bundles — breaking cross-bundle interference.
+       Canonical indices collected (sorted) into `AmplitudeBundle.boson_pols`.
+     - `spin_sum.jl`: `_single_line_trace(de)` refactored to
+       `_line_trace(de, de)`; new general `_line_trace(de_fwd, de_conj)`
+       with a shared-external-spinor precondition guard.
+     - `burnside_combine.jl`: `_pair_trace` now routes **1×1**
+       fermion-line bundles (diagonal → `_single_line_trace`,
+       off-diagonal → `_line_trace`); `combine_m_squared_burnside`
+       applies the Feynman-gauge ε–ε* polarisation sum (`-g^{μν}`) once
+       after the i,j double sum (it factorises out), with a
+       `boson_pols`-consistency guard across bundles.
+     - `src/Feynfeld.jl`: `polarization_sum.jl` include moved into
+       Layer 4 (before the QgrafPort submodule, which now imports it).
+   - **Validation** (`test/v2/qgraf/test_phase18b4_polarization.jl`,
+     +6 testsets): (a) `solve_tree_pipeline(Compton).amplitude_squared
+     == handbuilt` trace-only AlgSum — the symbolic acceptance test,
+     mirrors the Bhabha pattern; (b) physics ground truth — handbuilt
+     per-channel traces with propagator denominators + 1/4 average
+     evaluate to `25//6` = massless P&S Eq. 5.87 at s=4,t=-1,u=-3;
+     (c) `combine_m_squared_burnside` rejects mismatched `boson_pols`;
+     (d) ee→μμ regression — internal boson, empty `boson_pols`, still
+     single-orbit. Plus `boson_pols` / `pol_index` assertions added to
+     `test_emission_amplitude.jl` and `test_external_assemble.jl`.
+   - **Reviewer APPROVE-WITH-NITS**, all nits addressed: fail-fast error
+     if an external-boson index isn't on a fermion line (off-line ε is
+     not representable in `AmplitudeBundle` — deferred); `_line_trace`
+     shared-boundary precondition guard; `vertex_assemble.jl` is now 233
+     LOC (Rule 11) — pre-existing, refactor bead `feynfeld-zum1` filed P3.
+   - **Suite 1490→1511 pass + 0 broken**, 6m42s. +21 assertions.
+
+2. **Phase 18b-4 unblocked the rest of the 18b chain w.r.t. m4o8.**
+   Next 18b beads: `feen` (18b-6 symbolic mass placeholders), `5d1k`
+   (18b-7 coupling assignment per amplitude), `awtt` (18b-5 4-gluon
+   Lorentz factor), then `4xrh` (18b-8 validation) — but 4xrh now also
+   depends on `asp9` (ggg vertex) + `yewo` (pipeline colour).
+
+3. **Default next work**: `bd ready`. The 18b chain continues with
+   feen / 5d1k / awtt. asp9 (ggg vertex) is a natural follow-on since
+   `triple_gauge_vertex` already exists and just needs wiring — and it
+   unblocks qq̄→gg. Off-chain P1s unchanged from Session 38.
+
+## SESSION 39 OPEN QUESTIONS / FOLLOW-UPS
+
+- **Per-pair propagator denominators.** `solve_tree_pipeline` still
+  returns trace-only `amplitude_squared` (Burnside Option A); the
+  Compton physics test applies denoms by hand per channel. A
+  denom-aware combine (bead `feynfeld-rj1l`, Option B) is still the
+  open path to a fully pipeline-generated numerical |M|².
+- **`_line_trace` off-diagonal precondition.** Currently asserts fwd/conj
+  share external spinors — holds for Compton-class processes (qgen
+  permutes only bosons). A 1-line process with a permutable fermion pair
+  would need the reconnected-line path (`spin_sum_interference`); not
+  reachable in the current supported set.
+- **`emission_to_amplitude` fail-fast on off-fermion-line ε.** Will fire
+  for any future external boson not attached to a Dirac chain (e.g. a
+  purely-bosonic vertex chain). That representation gap in
+  `AmplitudeBundle` is the real deferral — revisit when `asp9` lands.
 
 ---
 
