@@ -30,6 +30,7 @@ function build_vertices(state::TopoState, labels,
                          model::AbstractModel)
     rules = feynman_rules(model)
     amap  = compute_amap(state, labels)
+    int_by_id = _internal_edges_by_id(edge_mom, labels, amap)
     rhop1 = Int(state.rhop1)
     n     = Int(state.n)
 
@@ -37,13 +38,26 @@ function build_vertices(state::TopoState, labels,
     for v in rhop1:n
         vdeg_v = Int(state.vdeg[v])
         fields = Symbol[pmap[v, s] for s in 1:vdeg_v]
-        out[v] = _vertex_factor_at(v, fields, vdeg_v, labels, amap, model, rules)
+        out[v] = _vertex_factor_at(v, fields, vdeg_v, labels, amap,
+                                    edge_mom, int_by_id, model, rules)
     end
     out
 end
 
+# edge_id → InternalEdge, using the same `amap[v_lo, slot]` edge id that
+# `build_propagators` assigns (so propagator/vertex agree on edge ids).
+function _internal_edges_by_id(edge_mom::EdgeMomenta, labels, amap)
+    d = Dict{Int, InternalEdge}()
+    for ie in edge_mom.internal
+        slot = _find_slot(labels, ie.v_lo, ie.v_hi, ie.parallel_idx)
+        d[Int(amap[ie.v_lo, slot])] = ie
+    end
+    d
+end
+
 function _vertex_factor_at(v::Int, fields::Vector{Symbol}, vdeg_v::Int,
-                            labels, amap, model, rules)
+                            labels, amap, edge_mom::EdgeMomenta, int_by_id,
+                            model, rules)
     if vdeg_v != 3
         error("build_vertices: vertex $v has degree $vdeg_v; only 3-vertices supported (Phase 18a, 4-vertex deferred to 18b)")
     end
@@ -56,6 +70,13 @@ function _vertex_factor_at(v::Int, fields::Vector{Symbol}, vdeg_v::Int,
     # All-scalar 3-vertex (φ³): no Lorentz structure.
     if isempty(boson_slots) && all(sp -> sp isa Scalar, species_at)
         return DiracExpr(alg(1))
+    end
+
+    # Triple gauge-boson vertex (ggg / WWγ / WWZ): all three legs are
+    # vector bosons. Phase 18b-4 (feynfeld-asp9).
+    if length(boson_slots) == 3
+        return _triple_boson_vertex_factor(v, vdeg_v, labels, amap,
+                                            edge_mom, int_by_id)
     end
 
     # QED/QCD/EW chiral 3-vertex: 2 fermions + 1 boson.
@@ -77,8 +98,50 @@ function _vertex_factor_at(v::Int, fields::Vector{Symbol}, vdeg_v::Int,
         return vertex_factor(rules, key, mu)
     end
 
-    error("build_vertices: 3-vertex at v=$v has $(length(boson_slots)) bosons (only 0 or 1 supported)")
+    error("build_vertices: 3-vertex at v=$v has $(length(boson_slots)) bosons (only 0, 1 or 3 supported)")
 end
+
+# Triple gauge-boson vertex factor: V_{μ₁μ₂μ₃}(p₁,p₂,p₃) with all
+# momenta outgoing from v. Index μ_s = `:mu_l_<edge_id>` for the boson
+# edge at slot s — shared with the peer vertex / external ε, exactly as
+# for the 1-boson case. Returns a scalar-in-Dirac-space DiracExpr.
+function _triple_boson_vertex_factor(v::Int, vdeg_v::Int, labels, amap,
+                                      edge_mom::EdgeMomenta, int_by_id)
+    mus  = LorentzIndex[]
+    moms = MomentumSum[]
+    for s in 1:vdeg_v
+        push!(mus, LorentzIndex(Symbol(:mu_l_, Int(amap[v, s])), DimD()))
+        push!(moms, _out_of_vertex_momentum(v, s, labels, amap, edge_mom, int_by_id))
+    end
+    DiracExpr(triple_gauge_vertex(mus[1], mus[2], mus[3],
+                                   moms[1], moms[2], moms[3]))
+end
+
+# Momentum flowing OUT of vertex v along the edge at slot s, as a
+# MomentumSum.
+#   External edge : `route_momenta` stores `ext_signs` (= -1 outgoing,
+#     +1 incoming), so the out-of-vertex momentum is `-ext_signs · ext_mom`.
+#   Internal edge : `InternalEdge.momentum` is routed v_lo → v_hi, so it
+#     flows out of v_lo (sign +1) and into v_hi (sign -1).
+function _out_of_vertex_momentum(v::Int, s::Int, labels, amap,
+                                  edge_mom::EdgeMomenta, int_by_id)
+    edge_id = Int(amap[v, s])
+    if edge_id <= edge_mom.n_ext
+        return _signed_momsum(edge_mom.ext_moms[edge_id],
+                              -edge_mom.ext_signs[edge_id])
+    end
+    ie = get(int_by_id, edge_id, nothing)
+    ie === nothing &&
+        error("build_vertices: no internal edge for edge_id $edge_id at v=$v")
+    _signed_momsum(ie.momentum, ie.v_lo == v ? 1 : -1)
+end
+
+_signed_momsum(m::Momentum, sgn::Int) =
+    MomentumSum(Tuple{Rational{Int}, Momentum}[(Rational{Int}(sgn), m)])
+_signed_momsum(ms::MomentumSum, sgn::Int) =
+    MomentumSum(Tuple{Rational{Int}, Momentum}[(sgn * c, p) for (c, p) in ms.terms])
+_signed_momsum(::Nothing, ::Int) =
+    error("build_vertices: triple-gauge vertex edge carries zero momentum")
 
 # Canonicalize pmap fields (which may carry _bar suffixes for fermion
 # antiparticles) to the rule-dict key form: strip _bar from each fermion

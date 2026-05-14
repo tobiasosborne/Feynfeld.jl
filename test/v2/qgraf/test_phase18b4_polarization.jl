@@ -112,9 +112,9 @@ using Feynfeld.QgrafPort: combine_m_squared_burnside, AmplitudeBundle,
         # Two bundles of the same process must agree on their canonical
         # external-boson indices, else the polarisation sum is ambiguous.
         b1 = AmplitudeBundle(DiracExpr[], DiracExpr(alg(1)), AlgSum[], 1,
-                             1//1, alg(1), [LorentzIndex(:eps_2, DimD())])
+                             1//1, alg(1), [LorentzIndex(:eps_2, DimD())], alg(1))
         b2 = AmplitudeBundle(DiracExpr[], DiracExpr(alg(1)), AlgSum[], 1,
-                             1//1, alg(1), [LorentzIndex(:eps_9, DimD())])
+                             1//1, alg(1), [LorentzIndex(:eps_9, DimD())], alg(1))
         @test_throws ErrorException combine_m_squared_burnside([b1, b2], [1//1, 1//1])
     end
 

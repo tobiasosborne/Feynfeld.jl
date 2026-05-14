@@ -80,7 +80,7 @@ function combine_m_squared_burnside(bundles::Vector{AmplitudeBundle},
 end
 
 # Per-(i,j) trace, dispatched on fermion-line count:
-#   0×0  (φ³ scalar)      : amplitude is alg(1); every pair is alg(1).
+#   0×0  (φ³ scalar)      : fermion part is alg(1).
 #   1×1  (Compton, qq̄→gg quark line) : one external-spinor pair, boson
 #         polarisation indices free. Diagonal is Σ_spins|M_i|²; the
 #         off-diagonal is the 1-line interference Σ_spins M_j* M_i —
@@ -89,20 +89,28 @@ end
 #   2×2  (ee→μμ, Bhabha)  : product of two per-line traces (diagonal) or
 #         the reconnected closed-loop interference trace (off-diagonal).
 # Mixed and 3+-line bundles are not yet supported.
+#
+# The boson sub-amplitude (off-fermion-line vertex factors, e.g. the
+# triple-gluon vertex in qq̄→gg s-channel) multiplies the fermion trace:
+# M_j contributes `boson_factor_j`, M_i* the conjugate (every Lorentz
+# index relabelled x → x_, matching the fermion line's `_conjugate_gammas`).
+# For fermion-only bundles both factors are alg(1) and this is inert.
 function _pair_trace(bi::AmplitudeBundle, bj::AmplitudeBundle, is_diagonal::Bool)
     n_i, n_j = length(bi.line_chains), length(bj.line_chains)
-    if n_i == 0 && n_j == 0
-        return alg(1)
+    fermion = if n_i == 0 && n_j == 0
+        alg(1)
     elseif n_i == 1 && n_j == 1
-        return is_diagonal ?
+        is_diagonal ?
             _single_line_trace(bi.line_chains[1]) :
             _line_trace(bj.line_chains[1], bi.line_chains[1])
     elseif n_i == 2 && n_j == 2
-        return is_diagonal ?
+        is_diagonal ?
             spin_sum_amplitude_squared(bi.line_chains[1], bi.line_chains[2]) :
             spin_sum_interference((bi.line_chains[1], bi.line_chains[2]),
                                   (bj.line_chains[1], bj.line_chains[2]))
+    else
+        error("_pair_trace: unsupported fermion-line counts $n_i × $n_j " *
+              "(supported: 0×0, 1×1, 2×2); mixed / 3+-line bundles not yet handled")
     end
-    error("_pair_trace: unsupported fermion-line counts $n_i × $n_j " *
-          "(supported: 0×0, 1×1, 2×2); mixed / 3+-line bundles not yet handled")
+    fermion * bj.boson_factor * _conjugate_algsum_indices(bi.boson_factor)
 end

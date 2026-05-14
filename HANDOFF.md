@@ -1,4 +1,4 @@
-# HANDOFF — 2026-05-14 (Session 39: m4o8 closed — Phase 18b-4 external-boson polarisation)
+# HANDOFF — 2026-05-14 (Session 39: m4o8 + asp9 closed — external-boson polarisation + triple-gluon vertex)
 
 ## DO NOT DELETE THIS FILE. Read it completely before working.
 
@@ -61,19 +61,64 @@
      LOC (Rule 11) — pre-existing, refactor bead `feynfeld-zum1` filed P3.
    - **Suite 1490→1511 pass + 0 broken**, 6m42s. +21 assertions.
 
-2. **Phase 18b-4 unblocked the rest of the 18b chain w.r.t. m4o8.**
-   Next 18b beads: `feen` (18b-6 symbolic mass placeholders), `5d1k`
-   (18b-7 coupling assignment per amplitude), `awtt` (18b-5 4-gluon
-   Lorentz factor), then `4xrh` (18b-8 validation) — but 4xrh now also
-   depends on `asp9` (ggg vertex) + `yewo` (pipeline colour).
+2. **`feynfeld-asp9` (P1) closed — triple-gluon vertex + boson-side
+   amplitude assembly.** Filed during m4o8 descoping, then re-scoped:
+   the original "wire ggg into build_vertices" undersold it. Diagnostic
+   on qq̄→gg showed 3 canonical emissions — t/u channels are pure
+   multi-vertex fermion lines that *already* flowed through the pipeline
+   (a7f2 + m4o8); only the s-channel needed work, and its ggg vertex
+   sits OFF the fermion line.
+   - **`triple_gauge_vertex` extracted** from `qcd_model.jl` into a new
+     Layer-4 `src/v2/gauge_vertex.jl` (model-agnostic algebraic helper)
+     so `QgrafPort` can import it.
+   - **`build_vertices`**: `_vertex_factor_at` gained an all-boson
+     3-vertex branch → `_triple_boson_vertex_factor`, which allocates
+     `:mu_l_<edge_id>` per boson edge and feeds `triple_gauge_vertex`
+     all-outgoing momenta. New helpers `_internal_edges_by_id`,
+     `_out_of_vertex_momentum`, `_signed_momsum`. `EdgeMomenta` gained
+     an `ext_signs` field so the out-of-vertex direction of external
+     edges is recoverable.
+   - **`emission_to_amplitude`**: `AmplitudeBundle` gained
+     `boson_factor::AlgSum` — the product of off-fermion-line vertex
+     factors (the ggg vertex). The polarisation-index canonicalisation
+     now relabels `boson_factor` as well as `line_chains`.
+   - **`burnside_combine.jl`**: `_pair_trace` multiplies the fermion
+     trace by `bj.boson_factor · _conjugate_algsum_indices(bi.boson_factor)`
+     — the latter (new, `contract.jl`) is the AlgSum analogue of
+     `_conjugate_gammas`. Inert for fermion-only bundles (`boson_factor
+     == alg(1)`).
+   - **Validation** (`test/v2/qgraf/test_triple_gauge_vertex.jl`): s/t/u
+     per-channel diagonal traces ≡ handbuilt references built from the
+     cited `triple_gauge_vertex` (P&S 16.10) + `dirac_trace`;
+     `solve_tree_pipeline(qq̄→gg)` runs end-to-end (n_emissions=3).
+   - **Reviewer APPROVE-WITH-NITS** — momentum bookkeeping verified
+     correct (the `v_lo→v_hi` flow relation is robust to peel order).
+     Nit addressed: `_conjugate_algsum_indices` precondition comment.
+     `vertex_assemble.jl` now 296 LOC — Rule 11 — bead `feynfeld-zum1`
+     updated with the 3-way split plan.
+   - **Suite 1511→1528 pass + 0 broken**, 6m29s. +17 assertions.
 
-3. **Default next work**: `bd ready`. The 18b chain continues with
-   feen / 5d1k / awtt. asp9 (ggg vertex) is a natural follow-on since
-   `triple_gauge_vertex` already exists and just needs wiring — and it
-   unblocks qq̄→gg. Off-chain P1s unchanged from Session 38.
+3. **Phase 18b chain status.** `4xrh` (18b-8 validation) now depends on
+   `feen` + `5d1k` + `awtt` + `asp9`(done) + `yewo` (pipeline colour).
+   Remaining 18b beads: `feen` (18b-6 symbolic mass placeholders),
+   `5d1k` (18b-7 coupling assignment per amplitude), `awtt` (18b-5
+   4-gluon Lorentz factor), `yewo` (colour algebra — likely its own
+   epic). All `bd ready`.
+
+4. **Default next work**: `bd ready`. Natural picks: `yewo` (colour —
+   the last big gap for full qq̄→gg ≡ FeynCalc; likely its own epic),
+   `feen` (symbolic masses, ee→W+W- target), `awtt` (4-gluon vertex —
+   close cousin of asp9's ggg work). Off-chain P1s unchanged.
 
 ## SESSION 39 OPEN QUESTIONS / FOLLOW-UPS
 
+- **Full qq̄→gg ≡ FeynCalc needs colour + the gauge-invariant sum.**
+  asp9 lands the s-channel ggg structure and per-channel traces, but
+  `combine_m_squared_burnside` uses Feynman-gauge ε–ε* sums (`-g`).
+  For QCD external gluons that is only correct for the *full*
+  colour-and-channel gauge-invariant sum — so `solve_tree_pipeline`'s
+  `amplitude_squared` for qq̄→gg is NOT yet comparable to FeynCalc
+  per-channel. Closing this is `feynfeld-yewo` (colour) → `feynfeld-4xrh`.
 - **Per-pair propagator denominators.** `solve_tree_pipeline` still
   returns trace-only `amplitude_squared` (Burnside Option A); the
   Compton physics test applies denoms by hand per channel. A

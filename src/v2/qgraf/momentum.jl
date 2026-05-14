@@ -40,12 +40,17 @@ Per-topology momentum routing result.
 Fields:
 - `n_ext`: number of external legs (= length(ext_moms)).
 - `ext_moms`: external momenta (mirrored input, qgraf "all incoming" convention).
+- `ext_signs`: per-leg sign passed to `route_momenta` (`-1` for
+  physically-outgoing legs, `+1` otherwise). Kept so downstream
+  consumers — e.g. `build_vertices` for the triple-gauge vertex — can
+  recover the out-of-vertex direction of an external edge.
 - `internal`: list of `InternalEdge` for each internal edge in qgraf
   iteration order (vertex-pair (v_lo, v_hi) lexicographic, then by parallel index).
 """
 struct EdgeMomenta
     n_ext::Int
     ext_moms::Vector{Momentum}
+    ext_signs::Vector{Int}
     internal::Vector{InternalEdge}
 end
 
@@ -107,7 +112,7 @@ function route_momenta(state::TopoState, labels,
         end
     end
     nli_int = length(int_edges)
-    nli_int == 0 && return EdgeMomenta(n_ext, ext_moms, InternalEdge[])
+    nli_int == 0 && return EdgeMomenta(n_ext, ext_moms, ext_signs, InternalEdge[])
 
     # Phase 16 spanning tree picks the first parallel copy of each
     # tree-marked vertex pair; remaining parallels and self-loops are chords.
@@ -231,5 +236,5 @@ function route_momenta(state::TopoState, labels,
                     any_ext  ? :rb : :sb
         push!(internal, InternalEdge(v_lo, v_hi, parallel_idx, mom, edge_type))
     end
-    EdgeMomenta(n_ext, ext_moms, internal)
+    EdgeMomenta(n_ext, ext_moms, ext_signs, internal)
 end

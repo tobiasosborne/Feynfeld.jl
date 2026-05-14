@@ -196,6 +196,28 @@ function _subst_factor(e::Eps, old::LorentzIndex, new::LorentzIndex)
 end
 _subst_factor(f::AlgFactor, ::LorentzIndex, ::LorentzIndex) = f  # colour factors: no Lorentz indices
 
+# ---- Conjugate index relabelling (boson sub-amplitude in |M|²) ----
+# Relabel every Lorentz index `x → x_` in an AlgSum — the AlgSum analogue
+# of spin_sum.jl's `_conjugate_gammas`. Used by the qgraf squared-amplitude
+# stage to conjugate a bundle's off-fermion-line boson factor (e.g. the
+# triple-gauge vertex) so its indices match the conjugated fermion line.
+# Precondition (as for `_conjugate_gammas`): the input carries no
+# `_`-suffixed indices, and is conjugated at most once — otherwise the
+# collect-all-then-substitute pass could alias `x` against another term's
+# already-relabelled `x_`.
+function _conjugate_algsum_indices(s::AlgSum)
+    seen = LorentzIndex[]
+    for (fk, _) in s.terms, f in fk.factors, idx in _indices(f)
+        idx in seen || push!(seen, idx)
+    end
+    result = s
+    for idx in seen
+        result = substitute_index(result, idx,
+                                  LorentzIndex(Symbol(idx.name, :_), idx.dim))
+    end
+    result
+end
+
 # Surviving index: which index of a MetricTensor is NOT the contracted one?
 function _surviving(p::MetricTensor, idx::LorentzIndex)
     p.a == idx && return p.b

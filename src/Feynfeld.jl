@@ -25,6 +25,9 @@ include("v2/colour_simplify.jl")
 # ---- Layer 4b: Polarization sums (used by QgrafPort spin-sum stage) ----
 include("v2/polarization_sum.jl")
 
+# ---- Layer 4c: Triple gauge vertex (used by QgrafPort build_vertices) ----
+include("v2/gauge_vertex.jl")
+
 # ---- Layer 1: Model ----
 include("v2/model.jl")
 

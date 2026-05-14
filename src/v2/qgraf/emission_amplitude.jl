@@ -28,6 +28,12 @@ Fields:
   external bosons, canonicalised to `:eps_<physical_leg>` and sorted by
   name. Empty when every boson is internal (tree QED ee→μμ, φ³). Used by
   `combine_m_squared_burnside` to apply the ε–ε* polarisation sum.
+- `boson_factor`: AlgSum — the boson sub-amplitude, i.e. the product of
+  vertex factors for internal vertices NOT on any fermion line (e.g. the
+  triple-gluon vertex in qq̄→gg s-channel). Scalar in Dirac space; carries
+  Lorentz indices that contract against the fermion lines (shared edge
+  index) and the polarisation sums. `alg(1)` when every internal vertex
+  sits on a fermion line (ee→μμ, Bhabha, Compton) or for φ³.
 """
 struct AmplitudeBundle
     line_chains::Vector{DiracExpr}
@@ -37,6 +43,7 @@ struct AmplitudeBundle
     sym_factor::Rational{Int}
     coupling::AlgSum
     boson_pols::Vector{LorentzIndex}
+    boson_factor::AlgSum
 end
 
 """
@@ -127,6 +134,22 @@ function emission_to_amplitude(state::TopoState, labels,
         push!(line_chains, line_de)
     end
 
+    # Phase 18b-4 (asp9): boson sub-amplitude — the product of vertex
+    # factors for internal vertices NOT on any fermion line (e.g. the
+    # triple-gluon vertex in qq̄→gg s-channel). These are scalars in Dirac
+    # space; their Lorentz indices contract against the fermion-line edge
+    # indices and the polarisation sums downstream. For ee→μμ / Bhabha /
+    # Compton every internal vertex sits on a fermion line → `alg(1)`.
+    on_line = Set{Int}()
+    for line in lines, v in line.vertices
+        push!(on_line, v)
+    end
+    boson_factor = alg(1)
+    for v in sort!(collect(keys(vertices)))
+        v in on_line && continue
+        boson_factor = boson_factor * _scalar_algsum(vertices[v])
+    end
+
     # Phase 18b-4: canonicalise external-boson polarisation indices.
     # `build_vertices` names a boson edge `:mu_l_<edge_id>`; for an
     # external boson edge the id is the qgen slot, which maps to physical
@@ -134,31 +157,32 @@ function emission_to_amplitude(state::TopoState, labels,
     # the same physical boson otherwise carries a different `:mu_l_*`
     # name in different bundles. Relabel to `:eps_<physical_leg>` so the
     # cross-bundle interference trace and the ε–ε* polarisation sum tie
-    # the same physical boson together.
+    # the same physical boson together. The index may live in a fermion
+    # line (external boson on a γ^μ vertex) OR in the boson sub-amplitude
+    # (external boson on the triple-gauge vertex) — relabel both.
     boson_pols = LorentzIndex[]
     for ef in externals
         ef.pol_index === nothing && continue
         canon = LorentzIndex(Symbol(:eps_, Int(ps1[ef.leg_idx])), DimD())
-        relabelled = DiracExpr[substitute_index(lc, ef.pol_index, canon)
+        new_chains = DiracExpr[substitute_index(lc, ef.pol_index, canon)
                                for lc in line_chains]
-        # The external boson's index must actually appear on a fermion-line
-        # chain (it attaches to a γ^μ vertex factor). If the substitution
-        # was a no-op the boson sits on no fermion line — its ε^μ would be
-        # a free AlgSum factor, which AmplitudeBundle cannot yet represent.
-        relabelled == line_chains &&
+        new_boson  = substitute_index(boson_factor, ef.pol_index, canon)
+        (new_chains != line_chains || new_boson != boson_factor) ||
             error("emission_to_amplitude: external boson leg $(ef.leg_idx) " *
-                  "polarisation index $(ef.pol_index) is not on any fermion " *
-                  "line; off-fermion-line external bosons are deferred to a " *
-                  "later Phase 18b sub-task")
-        line_chains = relabelled
+                  "polarisation index $(ef.pol_index) appears in neither a " *
+                  "fermion line nor the boson sub-amplitude")
+        line_chains  = new_chains
+        boson_factor = new_boson
         push!(boson_pols, canon)
     end
     sort!(boson_pols)
 
-    # Master amplitude: product of all line chains. For φ³ (no lines)
-    # the amplitude is just DiracExpr(alg(1)).
-    amplitude = isempty(line_chains) ? DiracExpr(alg(1)) :
-                foldl(*, line_chains)
+    # Master amplitude (convenience): fermion-line product × boson
+    # sub-amplitude. For φ³ (no lines) the line product is DiracExpr(alg(1));
+    # for ee→μμ / Compton the boson factor is alg(1) so this is unchanged.
+    line_product = isempty(line_chains) ? DiracExpr(alg(1)) :
+                   foldl(*, line_chains)
+    amplitude = line_product * DiracExpr(boson_factor)
 
     denoms = AlgSum[p.denom for p in propagators]
 
@@ -167,7 +191,22 @@ function emission_to_amplitude(state::TopoState, labels,
         state, labels, pmap, _conjugate_dict(model)))
 
     AmplitudeBundle(line_chains, amplitude, denoms,
-                    fermion_sign, 1 // sym_factor, alg(1), boson_pols)
+                    fermion_sign, 1 // sym_factor, alg(1),
+                    boson_pols, boson_factor)
+end
+
+# Extract the scalar AlgSum from a DiracExpr with no Dirac structure.
+# Off-fermion-line vertex factors have no fermion legs, hence no γ
+# matrices — every chain is empty.
+function _scalar_algsum(de::DiracExpr)
+    result = AlgSum()
+    for (coeff, chain) in de.terms
+        isempty(chain.elements) ||
+            error("emission_to_amplitude: off-fermion-line vertex factor " *
+                  "carries Dirac structure ($chain) — unexpected")
+        result = result + coeff
+    end
+    result
 end
 
 # Build conjugate dict on demand from the model (mirrors
