@@ -1,8 +1,109 @@
-# HANDOFF — 2026-05-15 (Session 41: 5d1k closed — coupling per amplitude)
+# HANDOFF — 2026-05-15 (Session 42: orchestration session — awtt + 5d1k landed, feen WIP stashed)
 
 ## DO NOT DELETE THIS FILE. Read it completely before working.
 
 ---
+
+## START HERE (Session 42 updates)
+
+1. **Two beads closed this session, one stashed.** This was a multi-bead
+   orchestration session: the main agent delegated each bead to a
+   fully-informed Opus subagent and coordinated serial work.
+   - **`feynfeld-awtt` (P1, Phase 18b-5) CLOSED** — commit `1104e30`,
+     suite 1528→1546. 4-gluon contact vertex Lorentz factor through
+     `_quadruple_boson_vertex_factor`; mirrors asp9 template; colour
+     deferred to `feynfeld-yewo`. See Session 40 block below for details.
+   - **`feynfeld-5d1k` (P1, Phase 18b-7) CLOSED** — commit `6ff0f01`,
+     suite 1546→1555. Symbolic coupling assignment per amplitude;
+     `CouplingAtom`, `VertexRule.coupling_power`, `pipeline_kinematic`
+     projection for bridge tests; follow-up bead `feynfeld-fiaz` (P4)
+     filed for solve_tree retirement. See Session 41 block below.
+   - **`feynfeld-feen` (P1, Phase 18b-6) ATTEMPTED, STASHED** — WIP saved
+     to `git stash@{0}` ("feen WIP (Phase 18b-6 symbolic masses) — 3
+     failures: massless Compton leaks :m_e atom"). +176/-47 LOC across
+     9 files + 1 new test file (`test/v2/test_phase18b6_mass_atom.jl`).
+     Implementation pattern: mirrored 5d1k's CouplingAtom approach —
+     introduced `MassAtom` extension of `AlgFactor` (+111 LOC in
+     `src/v2/expr.jl`), wired through `propagator_assemble.jl` (+46),
+     `cross_section.jl` (+21).
+
+2. **Why feen was stashed.** Suite ran 1591 pass + **3 fails** + 0 broken.
+   All 3 failures in `test/v2/test_pipeline.jl` "Compton via pipeline"
+   (lines 188/190/200):
+   - L188: `length(result.terms) == 1` → got `3 == 1`
+   - L190: `isempty(fk.factors)` → got `isempty(AlgFactor[m_e])`
+   - L200: `pipeline_value == ps587` → got `-68//9 == 32//9`
+
+   Root cause: the implementation introduced `:m_e` symbolically into the
+   electron propagator denominator, but Compton's massless-electron
+   regime needs `:m_e → 0` substitution that isn't happening. The
+   `MassAtom` for `:m_e` flows into the trace unchanged, leaks into
+   `FactorKey.factors`, and breaks the P&S Eq. (5.87) numerical
+   reduction. Three candidate fixes (next agent picks): (a) make
+   `MassAtom` context-sensitive zero-substitute when the model's
+   particle's mass field is `:zero`; (b) `propagator_assemble` checks
+   `f.mass` against the model's massless-particle list before emitting
+   the atom; (c) test injects a zero-mass override for the legacy
+   pipeline test. (a) is most idiomatic; (b) is most local.
+
+3. **Recovery for next session**:
+   ```bash
+   git stash pop            # restores feen WIP
+   julia --project=. test/v2/runtests.jl   # confirms the 3 fails
+   # then pick (a)/(b)/(c) above and iterate
+   ```
+   The feen bead is back in OPEN status with detailed notes pinned for
+   continuity. Suite delta of the stashed state: 1555 → 1591+3F+0B (so
+   the implementation IS adding +36 assertions when massless leakage is
+   fixed; only 3 of those are red today).
+
+4. **Reviewer-agent gap noted.** Across all three subagent dispatches
+   this session, the subagent reported the Agent tool unavailable
+   internally and fell back to inline review for Rule 6. Two
+   confirmations is enough to treat as real: this harness appears not to
+   expose nested Agent access to `general-purpose` subagents. Mitigation
+   for next session: orchestrator dispatches the Rule 6 reviewer
+   directly at the top level (one Agent call per bead's review pass).
+   The current session's `awtt` and `5d1k` lacks an independent reviewer
+   pass — both inline reviews were detailed and traceable, but for full
+   Rule 6 hygiene a top-level reviewer dispatch on each commit would be
+   prudent. Possible follow-up bead.
+
+5. **Phase 18b chain status.** With `awtt` (18b-5), `5d1k` (18b-7) done
+   and `feen` (18b-6) WIP, the chain remaining is: `feen` (finish off
+   the stash), `yewo` (colour — epic, single-session-unfit), then
+   `4xrh` (validation gate). After that, Phase 18b closes.
+
+6. **Default next work**: pop the `feen` stash and finish it. Off-chain
+   alternatives if the user wants a break from the 18b critical path:
+   `q5gw` (perf — Carmack hot-path caches), `1wdl` (solve_tree schism —
+   now partially superseded by `pipeline_kinematic` from 5d1k, so this
+   bead may be smaller than originally scoped), `898g` (tests for
+   genuinely-untested source), `2r8u`/`vgwx` (type-stability sweep).
+
+## SESSION 42 OPEN QUESTIONS / FOLLOW-UPS
+
+- **feen massless-leakage fix**: pick (a)/(b)/(c) above. (a) — context-
+  sensitive zero substitution on `MassAtom` — is the most idiomatic but
+  requires deciding where the "this particle is massless in this model"
+  signal comes from. The QED model declares electrons as massless
+  (`m_e == :zero`); the natural place is `propagator_assemble._propagator_denominator`
+  consulting the model's particle mass field instead of unconditionally
+  emitting the atom. So (b) is probably the cleanest pragmatic fix.
+- **Reviewer dispatch shape**: for the next bead, the orchestrator
+  should dispatch the Rule 6 reviewer subagent at the top level after
+  the implementer returns its work uncommitted. The implementer's
+  prompt should explicitly say "stop at green-suite-but-uncommitted; do
+  not close the bead or commit". This was tried for `feen` but the
+  implementer was caught mid-stream by suite failures.
+- **MassAtom hash/key collapse**: similar to `_combine_coupling_atoms`
+  in the 5d1k landing, `MassAtom(:m_e, p1) * MassAtom(:m_e, p2)` should
+  collapse to `MassAtom(:m_e, p1+p2)` in FactorKey construction. Verify
+  this in the WIP before resuming.
+
+---
+
+
 
 ## START HERE (Session 41 updates)
 
