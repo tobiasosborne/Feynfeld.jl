@@ -1,6 +1,137 @@
-# HANDOFF — 2026-05-14 (Session 39: m4o8 + asp9 closed — external-boson polarisation + triple-gluon vertex)
+# HANDOFF — 2026-05-15 (Session 40: awtt closed — 4-gluon contact vertex)
 
 ## DO NOT DELETE THIS FILE. Read it completely before working.
+
+---
+
+## START HERE (Session 40 updates)
+
+1. **`feynfeld-awtt` (P1, Phase 18b-5) closed — 4-vertex gggg Lorentz
+   factor wired into the qgraf amplitude pipeline.** Extends asp9's
+   all-boson vertex dispatch in `_vertex_factor_at` from vdeg=3 to
+   vdeg=4 by introducing a sibling `quadruple_gauge_vertex` (Layer 4)
+   and a `_quadruple_boson_vertex_factor` helper in `build_vertices`.
+   - **`quadruple_gauge_vertex(mu1,mu2,mu3,mu4)`** added to
+     `src/v2/gauge_vertex.jl` (+33 LOC, file now 74 LOC). Returns the
+     bare three-term Lorentz tensor V_{μ₁μ₂μ₃μ₄} =
+     T_{(12)(34)} + T_{(13)(24)} + T_{(14)(23)} with the global
+     `-i g_s²` AND each colour-pair factor `f^{xxe}f^{yye}` stripped.
+     Citation: P&S Eq. (16.5)-(16.6), verbatim cross-check against
+     `refs/FeynCalc/.../Feynman/GluonVertex.m:108-118` quoted in the
+     docstring.
+   - **`build_vertices`** (`src/v2/qgraf/vertex_assemble.jl`,
+     +17 LOC, now 324 LOC). `_vertex_factor_at` gained a vdeg=4 branch
+     before the vdeg=3 path: requires `length(boson_slots) == 4` (mixed
+     fermion-boson 4-vertices error fast — none in supported models),
+     dispatches to a new `_quadruple_boson_vertex_factor` that mirrors
+     the asp9 `_triple_boson_vertex_factor` template — allocates
+     `:mu_l_<edge_id>` per attached boson edge (same convention as
+     externals + propagators + 3-vertex) and returns the Lorentz
+     tensor as a scalar-in-Dirac-space `DiracExpr`. Momentum-independent,
+     so no out-of-vertex routing needed.
+   - **Imports**: `quadruple_gauge_vertex` exported from
+     `src/Feynfeld.jl` (+1 line) and imported into
+     `src/v2/qgraf/QgrafPort.jl` (+1 line) alongside `triple_gauge_vertex`.
+   - **Colour deferral**: Per the asp9 precedent, the Layer-4 helper
+     returns the sum of three Lorentz tensors with the colour pairings
+     stripped. Colour algebra (the `f^{xxe}f^{yye}` factors that pair
+     each of the three tensors with a distinct SU(3) structure) flows
+     in via bead `feynfeld-yewo` (no colour field on `AmplitudeBundle`
+     yet). The `solve_tree_pipeline(gg→gg)` assembly test in this bead
+     asserts only structural non-zero / shape — per-channel ≡ FeynCalc
+     comparison waits on yewo just as qq̄→gg does.
+   - **All-outgoing momentum convention** is moot for the contact
+     vertex (pure metric tensors); it only matters for the 3-vertex
+     case which already exercises it.
+   - **Validation** (`test/v2/qgraf/test_phase18b5_4gluon.jl`, 138 LOC,
+     +18 assertions):
+     (a) `quadruple_gauge_vertex` Layer-4 unit test — symbolic
+     equality to the verbatim P&S three-term sum + the (1↔2,3↔4)
+     simultaneous-swap symmetry. (b) gg→gg emits exactly 4 canonical
+     orbits (contact + s + t + u). (c) Exactly one bundle has zero
+     denoms — that's the contact diagram — and its `boson_factor` is
+     symbolically equal to `quadruple_gauge_vertex(eps_1..eps_4)` after
+     `emission_to_amplitude` canonicalises `:mu_l_*` → `:eps_*`.
+     (d) `solve_tree_pipeline(gg→gg)` assembles end-to-end with
+     `n_emissions == 4` and non-zero `amplitude_squared`.
+   - **Reviewer APPROVE-WITH-NITS** (review performed inline, no
+     parallel Agent tool available in this harness — line-by-line
+     against the FeynCalc verbatim + the asp9 template):
+     - All three Lorentz pair tensors algebraically match the verbatim
+       FeynCalc `GluonVertex.m:116-118` term-for-term given the colour
+       pairings claimed in the docstring comments.
+     - Index allocation mirrors the asp9 / m4o8 `:mu_l_<edge_id>`
+       convention exactly; canonicalisation through
+       `emission_to_amplitude` propagates unchanged (tested).
+     - Type stability: all returns concrete (`AlgSum` from
+       `quadruple_gauge_vertex`, `DiracExpr` from the helper).
+     - Citations (Rule 2) complete on the public function.
+     - **N1 (deferred, not blocking awtt)**: both the asp9
+       `_triple_boson_vertex_factor` and this new
+       `_quadruple_boson_vertex_factor` route on `length(boson_slots)
+       == 3/4` alone — they don't consult model rules. Correct today
+       for QCD (only all-boson 3/4-vertices are ggg/gggg) and for EW
+       (no 4-vertices defined yet); will silently produce wrong physics
+       if EW model later adds WWγγ/WWZZ/WWWW or as soon as WWγ/WWZ
+       become all-boson 3-vertices on the qgraf path. **Already
+       tracked by bead `feynfeld-tu34`** ("Layer-2 unification — move
+       triple_gauge_vertex + EW chiral constants"), whose description
+       explicitly mentions "(eventually) `fourgauge_vertex`" — no new
+       bead needed; tu34 now covers both asp9 and awtt as latent
+       follow-ups.
+     - **N2 (deferred, not blocking awtt)**: `vertex_assemble.jl` is
+       324 LOC, up from 296 post-asp9 (was 233 post-m4o8, 211
+       pre-Session-39). Bead `feynfeld-zum1` (P3) already tracks the
+       3-way split (per-vertex Lorentz / triple+quadruple gauge / per-
+       external assembly). Not split here per orchestrator instruction
+       (single-bead scope).
+   - **Suite 1528 → 1546 pass + 0 broken**, 6m21s. +18 assertions, no
+     regressions, no flaky tests.
+
+2. **Phase 18b chain status (post-awtt).** Remaining Phase 18b beads:
+   `feen` (18b-6 symbolic mass placeholders), `5d1k` (18b-7 coupling
+   assignment per amplitude), `yewo` (colour algebra — likely its own
+   epic). `feynfeld-4xrh` (18b-8 validation) is now unblocked by
+   `feen` + `5d1k` + `yewo`. With asp9 + awtt done, all Lorentz
+   ingredients for the QCD tree-gluon pipeline are in place; the
+   remaining gap to `solve_tree_pipeline(qq̄→gg) ≡ FeynCalc` and
+   `solve_tree_pipeline(gg→gg) ≡ FeynCalc` is colour + symbolic
+   masses + coupling assignment.
+
+3. **Default next work**: `bd ready`. Natural picks:
+   - **`feynfeld-yewo`** — colour algebra, the last big gap for full
+     QCD parton ≡ FeynCalc. Probably its own epic; AmplitudeBundle
+     needs a colour field.
+   - **`feynfeld-feen`** — symbolic mass placeholders; unlocks
+     ee→W+W- pipeline.
+   - **`feynfeld-tu34`** (P2) — Layer-2 unification: dispatch the
+     all-boson 3- and 4-vertices through `vertex_structure`
+     (`rules.jl`) instead of the field-count-based shortcut in
+     `_vertex_factor_at`. Now covers BOTH `triple_gauge_vertex`
+     (asp9) AND `quadruple_gauge_vertex` (awtt). The pre-emptive
+     hardening before EW 4-vertices land.
+   Off-chain P1s unchanged.
+
+## SESSION 40 OPEN QUESTIONS / FOLLOW-UPS
+
+- **Field-count-based all-boson dispatch is brittle.** As above (N1):
+  both `_triple_boson_vertex_factor` and `_quadruple_boson_vertex_factor`
+  call the gauge-only helper unconditionally for any all-boson 3/4-vertex.
+  Latent for QCD (only one all-boson n-vertex per arity), correct for
+  the current EW model (no all-boson 4-vertex defined), but will need
+  a `vertex_structure` dispatch before EW 4-vertices arrive. Tracked by
+  `feynfeld-tu34`.
+- **No `solve_tree_pipeline(gg→gg) ≡ FeynCalc` test yet.** Same reason
+  as asp9's qq̄→gg deferral — colour pairings + ε–ε* polarisation sum
+  conventions don't agree without yewo's colour-aware combine. The
+  awtt test asserts only structural correctness of the contact bundle
+  + end-to-end non-zero; per-channel and full-sum comparisons land
+  with yewo / 4xrh.
+- **`vertex_assemble.jl` LOC pressure.** 324 LOC now (Rule 11). Each
+  18b sub-bead has nudged it: m4o8 +ExternalFactor.pol_index (~22 LOC),
+  asp9 +triple-gauge plumbing (~63 LOC), awtt +quadruple-gauge plumbing
+  (~17 LOC). `feynfeld-zum1` (P3) is the split bead; should be
+  reprioritised P2 if any further 18b bead adds another 20+ LOC.
 
 ---
 

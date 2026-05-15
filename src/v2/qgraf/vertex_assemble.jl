@@ -9,8 +9,10 @@
 #  Edge ids come from compute_amap so two endpoints of one edge agree.
 #
 #  Tree-level scope: 3-vertices with one boson (QED/QCD/EW chiral
-#  vertices) or all-scalars (φ³).  4-vertex (gggg) errors deliberately;
-#  Phase 18b will add it.
+#  vertices) or all-scalars (φ³); all-boson 3-vertices (ggg / WWγ);
+#  all-boson 4-vertices (gggg contact, Phase 18b-5). Mixed
+#  fermion-boson 4-vertices are not used by any supported model and
+#  error fast.
 
 """
     build_vertices(state, labels, pmap, edge_mom, model) -> Dict{Int, DiracExpr}
@@ -22,7 +24,10 @@ For each internal vertex `v` (rhop1..n) build the Lorentz factor as
 
 For all-scalar vertices (φ³): returns `DiracExpr(alg(1))`.
 
-For 4-vertices: errors with a Phase-18b deferral message.
+For all-boson 4-vertices (gggg contact, Phase 18b-5): returns the
+`quadruple_gauge_vertex` Lorentz factor with `:mu_l_<edge_id>` indices
+per attached boson edge. Mixed fermion-boson 4-vertices are not used
+by any supported model and error fast.
 """
 function build_vertices(state::TopoState, labels,
                          pmap::AbstractMatrix{Symbol},
@@ -58,14 +63,22 @@ end
 function _vertex_factor_at(v::Int, fields::Vector{Symbol}, vdeg_v::Int,
                             labels, amap, edge_mom::EdgeMomenta, int_by_id,
                             model, rules)
-    if vdeg_v != 3
-        error("build_vertices: vertex $v has degree $vdeg_v; only 3-vertices supported (Phase 18a, 4-vertex deferred to 18b)")
-    end
-
     # pmap fields may carry _bar suffixes (e.g. :e_bar) that aren't in
     # the unexpanded model — canonicalise before querying species.
     species_at = [_field_species(model, fields[s]) for s in 1:vdeg_v]
     boson_slots = Int[s for s in 1:vdeg_v if species_at[s] isa Boson]
+
+    # All-boson 4-vertex (gggg contact). Phase 18b-5 (feynfeld-awtt).
+    # Mixed fermion-boson 4-vertices are not used by any supported model.
+    if vdeg_v == 4
+        length(boson_slots) == 4 ||
+            error("build_vertices: 4-vertex at v=$v has $(length(boson_slots)) bosons (only all-boson 4-vertices supported; mixed fermion-boson 4-vertices unused)")
+        return _quadruple_boson_vertex_factor(v, vdeg_v, labels, amap,
+                                               edge_mom, int_by_id)
+    end
+
+    vdeg_v == 3 ||
+        error("build_vertices: vertex $v has degree $vdeg_v; only 3-vertices and all-boson 4-vertices supported")
 
     # All-scalar 3-vertex (φ³): no Lorentz structure.
     if isempty(boson_slots) && all(sp -> sp isa Scalar, species_at)
@@ -115,6 +128,21 @@ function _triple_boson_vertex_factor(v::Int, vdeg_v::Int, labels, amap,
     end
     DiracExpr(triple_gauge_vertex(mus[1], mus[2], mus[3],
                                    moms[1], moms[2], moms[3]))
+end
+
+# Quadruple gauge-boson contact vertex factor V_{μ₁μ₂μ₃μ₄}: pure Lorentz
+# tensor, momentum-independent. Index μ_s = `:mu_l_<edge_id>` for the
+# boson edge at slot s — shared with the peer vertex / external ε, same
+# convention as the 3-vertex case. Returns a scalar-in-Dirac-space
+# DiracExpr. Colour pairings (f^{xxe}f^{yye}) deferred to bead
+# `feynfeld-yewo`; see docstring of `quadruple_gauge_vertex`.
+function _quadruple_boson_vertex_factor(v::Int, vdeg_v::Int, labels, amap,
+                                         edge_mom::EdgeMomenta, int_by_id)
+    mus = LorentzIndex[]
+    for s in 1:vdeg_v
+        push!(mus, LorentzIndex(Symbol(:mu_l_, Int(amap[v, s])), DimD()))
+    end
+    DiracExpr(quadruple_gauge_vertex(mus[1], mus[2], mus[3], mus[4]))
 end
 
 # Momentum flowing OUT of vertex v along the edge at slot s, as a

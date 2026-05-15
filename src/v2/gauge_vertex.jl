@@ -1,8 +1,10 @@
-# Triple gauge-boson vertex — pure Lorentz structure (model-agnostic).
+# Triple and quadruple gauge-boson vertices — pure Lorentz structure
+# (model-agnostic).
 #
-# Lives in Layer 4 (not the QCD model) because it is a plain algebraic
-# helper over AlgSum/Pair: it is used by the legacy gauge_exchange.jl
-# path AND by the qgraf port's build_vertices (Phase 18b-4, ggg vertex).
+# Lives in Layer 4 (not the QCD model) because these are plain algebraic
+# helpers over AlgSum/Pair: used by the legacy gauge_exchange.jl path
+# AND by the qgraf port's build_vertices (Phase 18b-4 ggg / Phase 18b-5
+# gggg).
 
 """
     triple_gauge_vertex(mu1, mu2, mu3, p1, p2, p3)
@@ -37,4 +39,36 @@ function _mom_pair(li::LorentzIndex, ms::MomentumSum)
         add!(result, alg(pair(li, m)), c)
     end
     result
+end
+
+"""
+    quadruple_gauge_vertex(mu1, mu2, mu3, mu4)
+
+Quadruple gauge boson contact vertex Lorentz tensor V_{μ₁μ₂μ₃μ₄}.
+
+Ref: refs/papers/PeskinSchroeder1995.djvu, Eq. (16.5)-(16.6); cross-
+checked against refs/FeynCalc/.../Feynman/GluonVertex.m:108-118 verbatim:
+"gl4v = -I coup^2 ( SUNF[a,b,e] SUNF[c,d,e] (Pair[mu,la] Pair[nu,si]
+                                            - Pair[mu,si] Pair[nu,la])
+                 + SUNF[a,c,e] SUNF[b,d,e] (Pair[mu,nu] Pair[la,si]
+                                            - Pair[mu,si] Pair[nu,la])
+                 + SUNF[a,d,e] SUNF[b,c,e] (Pair[mu,nu] Pair[la,si]
+                                            - Pair[mu,la] Pair[nu,si]))".
+
+Returns the SUM of the three Lorentz tensors with each colour pair
+factor `f^{xxe} f^{yye}` and the global `-i g_s²` prefactor stripped.
+Colour algebra is bead `feynfeld-yewo`: until then, `AmplitudeBundle`
+carries no colour field, and this helper produces the bare Lorentz
+tensor that yewo will multiply by the per-pairing colour structure.
+"""
+function quadruple_gauge_vertex(mu1::LorentzIndex, mu2::LorentzIndex,
+                                 mu3::LorentzIndex, mu4::LorentzIndex)
+    g(a, b) = alg(pair(a, b))
+    # T_{(12)(34)} : colour pairing (a,b|c,d) → (g_{μ₁μ₃}g_{μ₂μ₄} − g_{μ₁μ₄}g_{μ₂μ₃})
+    T12_34 = g(mu1, mu3) * g(mu2, mu4) - g(mu1, mu4) * g(mu2, mu3)
+    # T_{(13)(24)} : colour pairing (a,c|b,d) → (g_{μ₁μ₂}g_{μ₃μ₄} − g_{μ₁μ₄}g_{μ₂μ₃})
+    T13_24 = g(mu1, mu2) * g(mu3, mu4) - g(mu1, mu4) * g(mu2, mu3)
+    # T_{(14)(23)} : colour pairing (a,d|b,c) → (g_{μ₁μ₂}g_{μ₃μ₄} − g_{μ₁μ₃}g_{μ₂μ₄})
+    T14_23 = g(mu1, mu2) * g(mu3, mu4) - g(mu1, mu3) * g(mu2, mu4)
+    T12_34 + T13_24 + T14_23
 end
