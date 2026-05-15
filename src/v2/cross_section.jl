@@ -251,3 +251,27 @@ function solve_tree_pipeline(prob::CrossSectionProblem)
      n_emissions=length(bundles),
      orbit_denoms=[b.denoms for b in bundles])
 end
+
+# Phase 18b-7 (feynfeld-5d1k): kinematic-only projection.
+# `solve_tree_pipeline` carries the symbolic coupling (e.g. `e^4`) on every
+# term of `amplitude_squared`. The legacy `solve_tree` path strips coupling
+# from the handbuilt amplitudes — there's no place to put it before colour
+# / boson polarisation land. `pipeline_kinematic` drops every CouplingAtom
+# from `amplitude_squared` so the two paths can be compared term-for-term
+# in the bridge tests. Per-orbit denominators and the emission count are
+# preserved. Marked for retirement alongside `solve_tree` (bead at end of
+# Phase 18b).
+function pipeline_kinematic(result::NamedTuple)
+    (amplitude_squared = _drop_coupling(result.amplitude_squared),
+     n_emissions = result.n_emissions,
+     orbit_denoms = result.orbit_denoms)
+end
+
+function _drop_coupling(s::AlgSum)
+    result = AlgSum()
+    for (fk, c) in s.terms
+        kept = AlgFactor[f for f in fk.factors if !(f isa CouplingAtom)]
+        add!(result, alg_from_factors(kept, c))
+    end
+    result
+end

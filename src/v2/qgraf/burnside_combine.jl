@@ -95,6 +95,14 @@ end
 # M_j contributes `boson_factor_j`, M_i* the conjugate (every Lorentz
 # index relabelled x → x_, matching the fermion line's `_conjugate_gammas`).
 # For fermion-only bundles both factors are alg(1) and this is inert.
+#
+# The coupling factor (Phase 18b-7) is real, so the conjugate amplitude
+# contributes the same factor — `|M|²` carries `coupling_i × coupling_j`.
+# `CouplingAtom`s commute with every other factor and same-name atoms
+# collapse via `FactorKey`'s `_combine_coupling_atoms`, so `e^2 · e^2 = e^4`
+# falls out automatically. For pure 1-orbit processes (ee→μμ) the diagonal
+# and one orbit gives `coupling^2`; off-diagonal interference (Bhabha s×t)
+# pairs `coupling_s × coupling_t` per term — both factor to `e^4` here.
 function _pair_trace(bi::AmplitudeBundle, bj::AmplitudeBundle, is_diagonal::Bool)
     n_i, n_j = length(bi.line_chains), length(bj.line_chains)
     fermion = if n_i == 0 && n_j == 0
@@ -112,5 +120,6 @@ function _pair_trace(bi::AmplitudeBundle, bj::AmplitudeBundle, is_diagonal::Bool
         error("_pair_trace: unsupported fermion-line counts $n_i × $n_j " *
               "(supported: 0×0, 1×1, 2×2); mixed / 3+-line bundles not yet handled")
     end
-    fermion * bj.boson_factor * _conjugate_algsum_indices(bi.boson_factor)
+    fermion * bj.boson_factor * _conjugate_algsum_indices(bi.boson_factor) *
+        bi.coupling * bj.coupling
 end

@@ -98,6 +98,7 @@ export pair, SP, FV, MT, SPD, FVD, MTD
 export Eps
 export AdjointIndex, FundIndex, SUNT, SUNDelta, FundDelta, SUNF, SUND, ColourChain
 export AlgSum, AlgFactor, FactorKey, alg, alg_from_factors
+export CouplingAtom, coupling_alg
 export SPContext, set_sp, get_sp, with_sp, sp_context, evaluate_sp, CURRENT_SP
 export contract, eps_contract, expand_scalar_product, substitute_index
 export DiracGamma, DiracSlot, LISlot, MomSlot, MomSumSlot, Gamma5Slot
@@ -153,6 +154,7 @@ export sigma_ee_ww
 export evaluate_single_box_channel, evaluate_box_channels, born_virtual_box
 export Mandelstam, sp_context_from_mandelstam
 export CrossSectionProblem, solve_tree, solve_tree_pipeline, evaluate_m_squared
+export pipeline_kinematic
 export evaluate_numeric, sp_values_2to2
 export dsigma_domega, sigma_total_tree_ee_mumu
 

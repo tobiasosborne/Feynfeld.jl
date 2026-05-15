@@ -8,12 +8,21 @@
 # ---- Vertex rule ----
 # Variable arity: 3 for cubic vertices (qqg, eeγ, φ³), 4 for quartic (gggg).
 # arity(v) == length(v.fields).
+# `coupling_power` is the integer power of `coupling` carried by ONE vertex of
+# this type — `1` for every cubic gauge vertex (qqg, eeγ, ggg), `2` for the
+# QCD gggg quartic contact (P&S Eq. (16.5)-(16.6): the 4-gluon Feynman rule
+# carries `-i g_s²`). Phase 18b-7 (feynfeld-5d1k) uses this to assemble the
+# per-emission coupling factor — see qgraf/emission_amplitude.jl.
 # Source: refs/qgraf/v4.0.6/qgraf-4.0.6.dir/models/qcd "[gluon,gluon,gluon,gluon]"
 struct VertexRule
     fields::Tuple{Vararg{Symbol}}
     coupling::Symbol
+    coupling_power::Int
 end
-Base.show(io::IO, v::VertexRule) = print(io, join(v.fields, "-"), " [g=$(v.coupling)]")
+VertexRule(fields::Tuple{Vararg{Symbol}}, coupling::Symbol) =
+    VertexRule(fields, coupling, 1)
+Base.show(io::IO, v::VertexRule) =
+    print(io, join(v.fields, "-"), " [g=$(v.coupling)^$(v.coupling_power)]")
 arity(v::VertexRule) = length(v.fields)
 
 # Vertex Lorentz structure — dispatch on gauge group + species + coupling key.

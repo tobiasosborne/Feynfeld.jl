@@ -12,9 +12,34 @@ end
 Base.hash(e::Eps, h::UInt) = hash(e.a, hash(e.b, hash(e.c, hash(e.d, hash(:Eps, h)))))
 Base.:(==)(a::Eps, b::Eps) = a.a == b.a && a.b == b.b && a.c == b.c && a.d == b.d
 
+# Coupling atom: a symbolic coupling constant raised to an integer power.
+# Phase 18b-7 (feynfeld-5d1k): one atom per gauge-group coupling per monomial
+# (e.g. `e^4` for ee→μμ, `g_s^4` for qq̄→gg). Combines under multiplication via
+# `_combine_coupling_atoms` (called from `FactorKey`'s constructor): two
+# `CouplingAtom(:e, p1)`, `CouplingAtom(:e, p2)` in the same factor list collapse
+# to `CouplingAtom(:e, p1+p2)`. Inert under contract / expand_sp / colour_simplify
+# (those dispatch on `::AlgFactor` and have safe fallbacks).
+# Coupling atoms are REAL — `_conjugate_algsum_indices` leaves them unchanged,
+# so in |M|² the contribution is `coupling_i × coupling_j`.
+# Ref: P&S §4.8 (Feynman rules: one coupling factor per vertex per gauge group);
+# QCD gggg vertex carries `g_s²`, see P&S Eq. (16.5)-(16.6).
+struct CouplingAtom
+    name::Symbol
+    power::Int
+end
+Base.hash(c::CouplingAtom, h::UInt) = hash(c.name, hash(c.power, hash(:CouplingAtom, h)))
+Base.:(==)(a::CouplingAtom, b::CouplingAtom) = a.name == b.name && a.power == b.power
+Base.isless(a::CouplingAtom, b::CouplingAtom) =
+    a.name != b.name ? isless(a.name, b.name) : isless(a.power, b.power)
+function Base.show(io::IO, c::CouplingAtom)
+    print(io, c.name)
+    c.power == 1 || print(io, "^", c.power)
+end
+
 # The union of things that can appear as factors in an algebraic term.
-# 6-element union: Lorentz (Pair, Eps) + Colour (SUNDelta, FundDelta, SUNF, SUND)
-const AlgFactor = Union{Pair, Eps, SUNDelta, FundDelta, SUNF, SUND}
+# 7-element union: Lorentz (Pair, Eps) + Colour (SUNDelta, FundDelta, SUNF, SUND)
+# + Coupling (CouplingAtom, Phase 18b-7).
+const AlgFactor = Union{Pair, Eps, SUNDelta, FundDelta, SUNF, SUND, CouplingAtom}
 
 # ---- Structural ordering for factors (replaces repr-based sorting) ----
 _factor_type_tag(::Pair) = 1
@@ -23,6 +48,7 @@ _factor_type_tag(::SUNDelta) = 3
 _factor_type_tag(::FundDelta) = 4
 _factor_type_tag(::SUNF) = 5
 _factor_type_tag(::SUND) = 6
+_factor_type_tag(::CouplingAtom) = 7
 
 function Base.isless(a::Eps, b::Eps)
     a.a != b.a && return isless(a.a, b.a)
@@ -38,14 +64,43 @@ function _factor_isless(a::AlgFactor, b::AlgFactor)
 end
 
 # ---- FactorKey: canonical sorted factor list for Dict lookup ----
+# Invariant: at most one CouplingAtom per coupling name (e.g. one `:e` atom,
+# one `:g_s` atom). Same-name CouplingAtoms in the input are collapsed by
+# adding their powers; zero-power atoms are dropped.
 struct FactorKey
     factors::Vector{AlgFactor}
     function FactorKey(fs::Vector{<:AlgFactor})
-        sorted = sort(collect(AlgFactor, fs); lt=_factor_isless)
+        merged = _combine_coupling_atoms(collect(AlgFactor, fs))
+        sorted = sort(merged; lt=_factor_isless)
         new(sorted)
     end
 end
 FactorKey() = FactorKey(AlgFactor[])
+
+# Collapse same-name CouplingAtoms in a factor list: sum their powers and
+# emit one atom per coupling name. Zero-power atoms are dropped.
+# Returns a new Vector{AlgFactor}.
+function _combine_coupling_atoms(fs::Vector{AlgFactor})
+    has_coupling = false
+    for f in fs
+        if f isa CouplingAtom; has_coupling = true; break; end
+    end
+    has_coupling || return fs
+    powers = Dict{Symbol, Int}()
+    others = AlgFactor[]
+    for f in fs
+        if f isa CouplingAtom
+            powers[f.name] = get(powers, f.name, 0) + f.power
+        else
+            push!(others, f)
+        end
+    end
+    for (name, p) in powers
+        iszero(p) && continue
+        push!(others, CouplingAtom(name, p))
+    end
+    others
+end
 
 Base.:(==)(a::FactorKey, b::FactorKey) = a.factors == b.factors
 Base.hash(fk::FactorKey, h::UInt) = hash(fk.factors, hash(:FactorKey, h))
@@ -87,6 +142,12 @@ alg(f::AlgFactor) = AlgSum(_d()(FactorKey([f]) => 1//1))
 alg(c::Number) = iszero(c) ? AlgSum() : AlgSum(_d()(FactorKey() => Rational{Int}(c)))
 alg(c::DimPoly) = iszero(c) ? AlgSum() : AlgSum(_d()(FactorKey() => c))
 alg(s::AlgSum) = s
+
+# Phase 18b-7: convenience constructor for a single coupling factor.
+# `coupling_alg(:e, 4)` returns the AlgSum `e^4`, ready to multiply into a
+# trace via the standard AlgSum arithmetic. Zero-power → unit AlgSum.
+coupling_alg(name::Symbol, power::Int) =
+    iszero(power) ? alg(1) : alg(CouplingAtom(name, power))
 
 # ---- Helper: is a Coeff zero? ----
 _coeff_iszero(c::Rational{Int}) = iszero(c)

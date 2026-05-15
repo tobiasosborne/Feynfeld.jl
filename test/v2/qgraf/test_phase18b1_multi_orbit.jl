@@ -72,8 +72,11 @@ using Feynfeld.QgrafPort: count_diagrams_qg21
             GS(k2), GAD(:beta_),  GS(k1), GAD(:alpha),
         ])
 
+        # Phase 18b-7 (feynfeld-5d1k): every Bhabha diagram has 2 QED vertices
+        # → coupling = e². Squared gives e⁴ for every (i,j) pair in |M|².
         expected_raw      = T_tt + T_ss - 2 * T_int
-        expected_expanded = expand_scalar_product(contract(expected_raw))
+        expected_expanded = expand_scalar_product(contract(expected_raw)) *
+                            coupling_alg(:e, 4)
 
         @test result.amplitude_squared == expected_expanded
     end

@@ -1,6 +1,104 @@
-# HANDOFF — 2026-05-15 (Session 40: awtt closed — 4-gluon contact vertex)
+# HANDOFF — 2026-05-15 (Session 41: 5d1k closed — coupling per amplitude)
 
 ## DO NOT DELETE THIS FILE. Read it completely before working.
+
+---
+
+## START HERE (Session 41 updates)
+
+1. **`feynfeld-5d1k` (P1, Phase 18b-7) closed — symbolic coupling assignment
+   per amplitude.** Every `AmplitudeBundle` produced by the qgraf pipeline
+   now carries the correct symbolic coupling product (e.g. `e^2` per QED
+   tree diagram, `g_s^2` per qq̄→gg / gg→gg diagram); `|M|²` from
+   `solve_tree_pipeline` carries `coupling_i · coupling_j` on every term,
+   collapsing to `e^4` / `g_s^4` for tree 2→2.
+   - **New algebraic primitive: `CouplingAtom(name::Symbol, power::Int)`**
+     (`src/v2/expr.jl`, +30 LOC, file now 133 LOC). Extends the
+     `AlgFactor` union from 6 to 7 types (tag 7); `FactorKey`'s constructor
+     gained `_combine_coupling_atoms` so two `CouplingAtom(:e, p1)`,
+     `CouplingAtom(:e, p2)` factors in the same monomial collapse to one
+     `CouplingAtom(:e, p1+p2)`, with zero-power atoms dropped. Atoms are
+     real, commute with everything, sort last via tag 7. Convenience
+     constructor `coupling_alg(:e, 4)` returns the AlgSum `e^4`.
+   - **`VertexRule.coupling_power::Int`** (`src/v2/rules.jl`, +6 LOC).
+     Default 1; the QCD gggg quartic carries 2 per P&S Eq. (16.5)-(16.6)
+     (`src/v2/qcd_model.jl:40`). 2-arg constructor preserves all existing
+     callsites (qed, qcd, ew, φ³, test_vertex_arity.jl).
+   - **Per-emission coupling counter**
+     (`src/v2/qgraf/emission_amplitude.jl`, +35 LOC). New helper
+     `_build_emission_coupling` walks `state.rhop1..n`, looks up each
+     vertex's `VertexRule` via `_vertex_rule_key`, accumulates
+     `Dict{Symbol,Int}` of `coupling_symbol → Σ coupling_power`, and emits
+     the product as an AlgSum. Errors fast if a vertex lacks a rule.
+   - **`burnside_combine._pair_trace`** now multiplies in
+     `bi.coupling * bj.coupling` (real coupling atoms — no conjugation
+     needed). Coupling factors commute with the fermion trace and the
+     boson sub-amplitude, and same-name atoms collapse via
+     `_combine_coupling_atoms`. For Bhabha: `s × t` interference gets
+     `e^2 · e^2 = e^4` automatically.
+   - **`pipeline_kinematic(result)`** (`src/v2/cross_section.jl`, +18 LOC) —
+     pure projection that drops every `CouplingAtom` from
+     `amplitude_squared`. Used by the two bridge tests
+     (`test_phase18a_pipeline.jl`, `test_phase18b1_step2_dispatch.jl`)
+     to compare the kinematic structure against `solve_tree` (which
+     doesn't carry coupling). Marked for retirement alongside `solve_tree`
+     itself (bead **`feynfeld-fiaz`** P4 filed for backlog cleanup).
+   - **`_try_expand(::AlgFactor) = nothing`** fallback added to
+     `src/v2/expand_sp.jl`. Previously only Pair-variants and Eps had
+     dispatch — colour factors and CouplingAtoms now pass through cleanly.
+     No semantic change for code that didn't exercise the missing
+     dispatch.
+   - **Test deltas** (+9 assertions total):
+     - Bridge tests (`test_phase18a_pipeline.jl`,
+       `test_phase18b1_step2_dispatch.jl`): split into
+       `pipeline_kinematic(.) == solve_tree(.)` + per-process coupling
+       assertion (`r.amplitude_squared == coupling_alg(:e, 4) *
+       pipeline_kinematic(r).amplitude_squared`).
+     - Process handbuilts (`test_phase18b1_multi_orbit.jl` Bhabha,
+       `test_phase18b4_polarization.jl` Compton,
+       `test_triple_gauge_vertex.jl` qq̄→gg): multiply handbuilt by
+       `coupling_alg(:e, 4)` / `coupling_alg(:g_s, 4)`.
+     - Per-bundle coupling assertions added to
+       `test_triple_gauge_vertex.jl` and `test_phase18b5_4gluon.jl`:
+       `b.coupling == coupling_alg(:g_s, 2)` for every qq̄→gg / gg→gg
+       bundle (gggg quartic with `coupling_power=2`; cubic with 2× ggg
+       at `coupling_power=1` — same total).
+   - **Suite 1546 → 1555 pass + 0 broken**, 6m14s.
+   - **Reviewer APPROVE** (inline, Rule 6 — Agent tool not available in
+     this harness): citations complete (P&S §4.8 general, Eq. (16.5)-(16.6)
+     for gggg specifically); type stability preserved (`CouplingAtom` is
+     a concrete immutable, fields plain `Symbol`/`Int`); Julia idiomatic
+     (dispatch-based `==`/`hash`/`isless`/`show`, no isa-cascades);
+     Rule 11 LOC budget intact (every modified file under ~300 LOC);
+     no `@test_broken` introduced; no global mutable state.
+
+2. **Phase 18b chain status (post-5d1k).** Remaining P1 beads:
+   - **`feynfeld-feen`** (18b-6, symbolic mass placeholders) — unlocks
+     ee→W+W- pipeline.
+   - **`feynfeld-yewo`** (colour algebra in the qgraf pipeline — likely
+     its own epic; `AmplitudeBundle` has no colour field yet).
+   - **`feynfeld-4xrh`** (18b-8 validation: Compton / Bhabha / qq̄→gg /
+     ee→W+W-) is now unblocked by `feen` + `yewo` only. The pipeline
+     carries the full coupling structure already.
+
+3. **Default next work**: `bd ready`. Natural picks unchanged from
+   Session 40: `feynfeld-yewo`, `feynfeld-feen`, `feynfeld-tu34`.
+
+## SESSION 41 OPEN QUESTIONS / FOLLOW-UPS
+
+- **`solve_tree` is now a backstop, not authoritative for the bridge
+  invariant.** The pipeline is the richer path: it carries coupling, and
+  (with yewo) will carry colour. `pipeline_kinematic` was introduced
+  precisely so the bridge test could narrow to the kinematic structure.
+  Long-term cleanup: bead **`feynfeld-fiaz`** (P4) — delete `solve_tree`,
+  `build_amplitude`, `tree_channels`, `channels.jl`, and remove
+  `pipeline_kinematic` once Phase 18b is done.
+- **`vertex_assemble.jl` LOC stable at 324** (no growth this session).
+  `feynfeld-zum1` (P3) still tracks the 3-way split.
+- **`emission_amplitude.jl` is 281 LOC** (was 242). Approaching the Rule 11
+  soft cap; next 18b sub-bead that adds ≥20 LOC here should consider
+  splitting `_build_emission_coupling` and related helpers into a sibling
+  file under `src/v2/qgraf/`.
 
 ---
 

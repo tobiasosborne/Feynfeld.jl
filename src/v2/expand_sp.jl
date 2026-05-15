@@ -32,6 +32,8 @@ end
 _try_expand(::Pair{Momentum, Momentum}) = nothing
 _try_expand(::Pair{LorentzIndex, Momentum}) = nothing
 _try_expand(::Pair{LorentzIndex, LorentzIndex}) = nothing
+# Colour factors and CouplingAtoms have no momentum content — pass through.
+_try_expand(::AlgFactor) = nothing
 # Eps with MomentumSum slot: expand by linearity ε(αK₁+βK₂, b, c, d) = α ε(K₁,...) + β ε(K₂,...)
 function _try_expand(e::Eps)
     for (slot_idx, slot) in enumerate((e.a, e.b, e.c, e.d))

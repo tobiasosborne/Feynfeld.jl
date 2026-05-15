@@ -131,6 +131,9 @@ using Feynfeld.QgrafPort: _foreach_emission, emission_to_amplitude
     @testset "Phase 18a regression: ee→μμ pipeline ≡ handbuilt symbolically" begin
         # Identity-ps1 path unchanged by Step 2 — XOR rule and alternation
         # agree for ee→μμ since each species occurs once in + once out.
+        # Phase 18b-7: bridge invariant narrowed to the kinematic projection
+        # (`pipeline_kinematic`) since the pipeline now carries `e^4` and the
+        # handbuilt `solve_tree` does not. Coupling factor asserted separately.
         in_e   = ExternalLeg(:e,  p1, true,  false)
         in_eb  = ExternalLeg(:e,  p2, true,  true)
         out_mu = ExternalLeg(:mu, k1, false, false)
@@ -139,6 +142,9 @@ using Feynfeld.QgrafPort: _foreach_emission, emission_to_amplitude
                                     [in_e, in_eb], [out_mu, out_mub], 10.0)
         r_pipeline  = solve_tree_pipeline(prob)
         r_handbuilt = solve_tree(prob)
-        @test r_pipeline.amplitude_squared == r_handbuilt.amplitude_squared
+        @test pipeline_kinematic(r_pipeline).amplitude_squared ==
+              r_handbuilt.amplitude_squared
+        @test r_pipeline.amplitude_squared ==
+              coupling_alg(:e, 4) * pipeline_kinematic(r_pipeline).amplitude_squared
     end
 end

@@ -34,10 +34,10 @@ function feynman_rules(model::QCDModel)
     q, g = model.quark, model.gluon
     vertices[(q.name, q.name, g.name)] = VertexRule((q.name, q.name, g.name), :g_s)
     vertices[(g.name, g.name, g.name)] = VertexRule((g.name, g.name, g.name), :g_s)
-    # 4-gluon contact vertex.
+    # 4-gluon contact vertex — carries g_s² (P&S Eq. (16.5)-(16.6)).
     # Source: refs/qgraf/v4.0.6/qgraf-4.0.6.dir/models/qcd "[gluon,gluon,gluon,gluon]"
     vertices[(g.name, g.name, g.name, g.name)] =
-        VertexRule((g.name, g.name, g.name, g.name), :g_s)
+        VertexRule((g.name, g.name, g.name, g.name), :g_s, 2)
     # Ghost-gluon vertex.  Vertex tuple uses bare names; _expand_vertex maps
     # the fermion pair (ghost, ghost) → (ghost, ghost_bar) downstream.
     # Source: refs/qgraf/v4.0.6/qgraf-4.0.6.dir/models/qcd "[antighost,ghost,gluon]"

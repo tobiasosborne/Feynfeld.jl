@@ -102,6 +102,10 @@ using Feynfeld.QgrafPort: AmplitudeBundle, emission_to_amplitude,
                                     LorentzIndex(:eps_2, DimD()),
                                     LorentzIndex(:eps_3, DimD()),
                                     LorentzIndex(:eps_4, DimD())]
+            # Phase 18b-7: every gg→gg bundle carries g_s². Contact = 1 gggg
+            # vertex with coupling_power=2; cubic = 2 ggg vertices, each
+            # coupling_power=1 (P&S Eq. (16.5)-(16.6)).
+            @test b.coupling == coupling_alg(:g_s, 2)
         end
     end
 

@@ -22,8 +22,12 @@ Fields:
   propagator, to be inverted by the cross-section evaluator.
 - `fermion_sign`: ±1 from qdis_fermion_sign.
 - `sym_factor`: 1/S_local from compute_local_sym_factor (Rational).
-- `coupling`: AlgSum placeholder for the coupling product (e.g. e²);
-  Phase 18a fills with alg(1), full coupling assignment is 18b.
+- `coupling`: AlgSum carrying the per-emission coupling product (e.g.
+  `e^2` for one tree QED 2→2 diagram, `g_s^2` for the contact gggg
+  vertex). Assembled by walking every internal vertex, looking up its
+  `VertexRule`, and accumulating `coupling_symbol => Σ coupling_power`.
+  Coupling atoms are real, so `|M|²` carries `coupling_i × coupling_j`.
+  Phase 18b-7 (feynfeld-5d1k).
 - `boson_pols`: Vector{LorentzIndex} — the free polarisation indices of
   external bosons, canonicalised to `:eps_<physical_leg>` and sorted by
   name. Empty when every boson is internal (tree QED ee→μμ, φ³). Used by
@@ -189,10 +193,44 @@ function emission_to_amplitude(state::TopoState, labels,
     fermion_sign = _emission_fermion_sign(state, labels, pmap, ps1, n_inco, model)
     sym_factor   = Rational{Int}(compute_local_sym_factor(
         state, labels, pmap, _conjugate_dict(model)))
+    coupling     = _build_emission_coupling(state, pmap, model)
 
     AmplitudeBundle(line_chains, amplitude, denoms,
-                    fermion_sign, 1 // sym_factor, alg(1),
+                    fermion_sign, 1 // sym_factor, coupling,
                     boson_pols, boson_factor)
+end
+
+# Phase 18b-7 (feynfeld-5d1k): per-emission coupling product.
+# Walk every internal vertex (rhop1..n), look up the VertexRule by its
+# canonicalised field tuple, accumulate `coupling_symbol → Σ coupling_power`,
+# emit one CouplingAtom per coupling name. Returns `alg(1)` when the model
+# has no vertices touched (e.g. φ³ topology with no diagrams — should never
+# happen, but keeps the type stable).
+# Ref: P&S §4.8 — each vertex of the Lagrangian's L_int contributes one
+# coupling-constant factor per gauge group. The QCD gggg quartic carries
+# `g_s²` (P&S Eq. (16.5)-(16.6)), encoded via `VertexRule.coupling_power=2`.
+function _build_emission_coupling(state::TopoState,
+                                    pmap::AbstractMatrix{Symbol},
+                                    model::AbstractModel)
+    rules  = feynman_rules(model)
+    rhop1  = Int(state.rhop1)
+    n      = Int(state.n)
+    powers = Dict{Symbol, Int}()
+    for v in rhop1:n
+        vdeg_v = Int(state.vdeg[v])
+        fields = Symbol[pmap[v, s] for s in 1:vdeg_v]
+        key    = _vertex_rule_key(fields, model)
+        haskey(rules.vertices, key) ||
+            error("emission_to_amplitude: no VertexRule for $key (vertex $v) " *
+                  "while building coupling factor")
+        rule   = rules.vertices[key]
+        powers[rule.coupling] = get(powers, rule.coupling, 0) + rule.coupling_power
+    end
+    result = alg(1)
+    for (name, p) in powers
+        result = result * coupling_alg(name, p)
+    end
+    result
 end
 
 # Extract the scalar AlgSum from a DiracExpr with no Dirac structure.

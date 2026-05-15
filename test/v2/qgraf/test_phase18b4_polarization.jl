@@ -65,7 +65,9 @@ using Feynfeld.QgrafPort: combine_m_squared_burnside, AmplitudeBundle,
     end
     T_ss = Tblock(s_cnj, s_fwd); T_su = Tblock(s_cnj, u_fwd)
     T_us = Tblock(u_cnj, s_fwd); T_uu = Tblock(u_cnj, u_fwd)
-    handbuilt_trace = T_ss + T_su + T_us + T_uu
+    # Phase 18b-7: Compton has 2 QED vertices per diagram, so coupling = e²
+    # per bundle; |M|² carries e⁴ on every (i,j) pair. P&S §4.8.
+    handbuilt_trace = (T_ss + T_su + T_us + T_uu) * coupling_alg(:e, 4)
 
     prob = CrossSectionProblem(qed_model(m_e=:zero, m_mu=:zero),
         [ExternalLeg(:e, p1, true, false), ExternalLeg(:gamma, k1, true, false)],

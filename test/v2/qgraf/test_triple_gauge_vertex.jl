@@ -88,12 +88,24 @@ using Feynfeld.QgrafPort: AmplitudeBundle, emission_to_amplitude,
         @test length(t_b.line_chains) == 1 && length(u_b.line_chains) == 1
     end
 
+    @testset "per-bundle coupling = g_s² (Phase 18b-7)" begin
+        # Each diagram has 2 g_s vertices: s = qqg + ggg, t/u = 2× qqg.
+        # `VertexRule.coupling_power = 1` for each, so total = 2.
+        for b in (s_b, t_b, u_b)
+            @test b.coupling == coupling_alg(:g_s, 2)
+        end
+    end
+
     # Per-channel diagonal |M_X|² ≡ handbuilt reference. Handbuilt traces
     # are built from the cited triple_gauge_vertex (s) / explicit quark-
     # exchange γ-chains (t,u) plus dirac_trace, with Feynman-gauge ε–ε*
     # sums — exactly the structure combine_m_squared_burnside assembles.
+    # Phase 18b-7 (feynfeld-5d1k): every qq̄→gg diagram has 2 g_s vertices
+    # (s: qqg + ggg; t/u: 2× qqg), so each bundle carries `g_s²` and `_pair_trace`
+    # multiplies in `g_s²·g_s² = g_s⁴` for every (i,j) pair.
     polsum()  = polarization_sum(eps3, eps3c) * polarization_sum(eps4, eps4c)
     finish(x) = expand_scalar_product(contract(x * polsum()))
+    gs4 = coupling_alg(:g_s, 4)
 
     @testset "s-channel diagonal |M_s|² ≡ handbuilt D_ss" begin
         negq = MomentumSum([(-1//1, p1), (-1//1, p2)])
@@ -101,7 +113,7 @@ using Feynfeld.QgrafPort: AmplitudeBundle, emission_to_amplitude,
         tr = dirac_trace(DiracGamma[GS(p1), γ(mu5c), GS(p2), γ(mu5)])
         Va = triple_gauge_vertex(eps3,  eps4,  mu5,  k1, k2, negq)
         Vc = triple_gauge_vertex(eps3c, eps4c, mu5c, k1, k2, negq)
-        @test finish(_pair_trace(s_b, s_b, true)) == finish(tr * Va * Vc)
+        @test finish(_pair_trace(s_b, s_b, true)) == finish(tr * Va * Vc) * gs4
     end
 
     @testset "t-channel diagonal |M_t|² ≡ handbuilt D_tt" begin
@@ -110,7 +122,7 @@ using Feynfeld.QgrafPort: AmplitudeBundle, emission_to_amplitude,
         gt  = DiracGamma[γ(eps4),  DiracGamma(MomSumSlot(p1mk1)), γ(eps3)]
         gtc = DiracGamma[γ(eps3c), DiracGamma(MomSumSlot(p1mk1)), γ(eps4c)]
         D_tt = dirac_trace(DiracGamma[GS(p1); gtc; GS(p2); gt])
-        @test finish(_pair_trace(t_b, t_b, true)) == finish(D_tt)
+        @test finish(_pair_trace(t_b, t_b, true)) == finish(D_tt) * gs4
     end
 
     @testset "u-channel diagonal |M_u|² ≡ handbuilt D_uu" begin
@@ -119,7 +131,7 @@ using Feynfeld.QgrafPort: AmplitudeBundle, emission_to_amplitude,
         gu  = DiracGamma[γ(eps3),  DiracGamma(MomSumSlot(p1mk2)), γ(eps4)]
         guc = DiracGamma[γ(eps4c), DiracGamma(MomSumSlot(p1mk2)), γ(eps3c)]
         D_uu = dirac_trace(DiracGamma[GS(p1); guc; GS(p2); gu])
-        @test finish(_pair_trace(u_b, u_b, true)) == finish(D_uu)
+        @test finish(_pair_trace(u_b, u_b, true)) == finish(D_uu) * gs4
     end
 
     @testset "cross-channel interference traces are non-trivial" begin
